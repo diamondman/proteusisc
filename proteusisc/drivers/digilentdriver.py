@@ -143,6 +143,26 @@ class DigilentAdeptController(CableDriver):
             raise JTAGControlError()
 
     def write_tms_bits(self, data, return_tdo=False, TDI=False):
+        """FIXME: tdo_bytes never used
+
+        Args:
+            data (bitarray)
+            return_tdo (bool) - return the devices bitarray response
+            TDI (bool) - whether TDI should send a bitarray of all 0's
+                         of same length as `data` (i.e False) or all 1's
+                         (i.e. True)
+
+        Returns:
+            An empty (bitarray) by default or the (bitarray) response
+            of the device after receiving data, if return_tdo is True.
+
+        Usage:
+            >>> from proteusisc import getAttachedControllers
+            >>> c = getAttachedControllers()[0]
+            >>> from bitarray import bitarray
+            >>> c.jtag_enable()
+            >>> c.write_tms_bits(bitarray("111110100"), return_tdo=True)
+        """
         if not self._jtagon:
             raise JTAGControlError('JTAG Must be enabled first')
         if self._scanchain:
@@ -164,7 +184,7 @@ class DigilentAdeptController(CableDriver):
 
         tdo_bits = None
         if return_tdo:
-            res = self._handle.bulkRead(self._datin_interface,
+            tdo_bytes = self._handle.bulkRead(self._datin_interface,
                                         buff2Blen(data))[::-1]
             tdo_bits = bitarray()
             for byte_ in tdo_bytes:
@@ -173,6 +193,9 @@ class DigilentAdeptController(CableDriver):
         self._handle.bulkWrite(
             self._cmdout_interface, bytes([0x03, 0x02,
                                            (0x80|0x0b), 0x00]))
+
+        # XXX This causes a libusb_error_overflow [-8] because
+        # response message misaligned with tdo_bits_response when return_tdo=True
         self._handle.bulkRead(self._cmdin_interface, 6) #Not checking for now
 
         return tdo_bits
