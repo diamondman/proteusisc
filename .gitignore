@@ -3,5 +3,6 @@
 \#*
 .\#*
 build
-adapt.egg-info
+dist/
+proteusisc.egg-info/
 MANIFEST

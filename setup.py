@@ -44,7 +44,7 @@ setup(
         'proteusisc/drivers'
         ],
     platforms='any',
-    license='MIT',
+    license='LGPL 2.1',
     install_requires=[
         'libusb1 >= 1.5.0',
         'bitarray >= 0.8.1',
