@@ -1,7 +1,7 @@
 #-*- coding: utf-8 -*-
 
 """
-    adapt
+    ProteusISC
     ~~~~~
 
     Setup
@@ -15,23 +15,23 @@ import os
 from distutils.core import setup
 
 setup(
-    name='adapt',
+    name='proteusisc',
     version='0.0.12',
-    url='https://github.com/diamondman/Adapt',
+    url='https://github.com/diamondman/proteusisc',
     author='Jessy Diamond Exum',
     author_email='jessy.diamondman@gmail.com',
     packages=[
-        'adapt',
-        'adapt/drivers',
-        'adapt/test',
+        'proteusisc',
+        'proteusisc/drivers',
+        'proteusisc/test',
         ],
     platforms='any',
-    license='LICENSE',
+    license='MIT',
     install_requires=[
         'libusb1 >= 1.5.0',
         'bitarray >= 0.8.1',
         'bs4 >= 0.0.1',
-        'requests',
+        'requests >= 2.10.0',
     ],
     description="Driver framework for In System Configureation (ISC) Controllers (for example, JTAG)",
     long_description=open(os.path.join(os.path.dirname(__file__),

@@ -12,7 +12,7 @@
 import unittest
 from bitarray import bitarray
 
-from adapt.jtagStateMachine import JTAGStateMachine
+from proteusisc.jtagStateMachine import JTAGStateMachine
 
 
 class TestJtagStateMachine(unittest.TestCase):

@@ -12,7 +12,7 @@ from .jtagDeviceDescriptionNetResolver import get_sid, get_details, decode_bsdl
 
 _descr_file_re = re.compile('[01X]'*32+".json")
 base_descr_dir = os.path.join(os.path.expanduser("~"),
-                              '.config', 'adapt', 'jtag_descr')
+                              '.config', 'proteusisc', 'jtag_descr')
 
 def _check_cache_for_idcode(id_str):
     best_file = None
