@@ -14,8 +14,8 @@ from bitarray import bitarray
 import numbers
 
 from proteusisc.cabledriver import CableDriver
-from proteusisc.primative import Level1Primative, Level2Primative, Level3Primative,\
-    Executable, DefaultRunInstructionPrimative,\
+from proteusisc.primative import Level1Primative, Level2Primative,\
+    Level3Primative, Executable, DefaultRunInstructionPrimative,\
     DOESNOTMATTER, ZERO, ONE, CONSTANT, SEQUENCE
 from proteusisc.jtagUtils import JTAGControlError
 
@@ -44,17 +44,15 @@ class XilinxPC1Driver(CableDriver):
         self.mock = mock
         if not mock:
             h = self._dev.open()
-    
+
             self.serialNumber = '000000000000'
             self.name = 'PC1_'+self.serialNumber[-4:]
             self.productId = 0
-    
+
             self.productName = 'Platform Cable 1'
             self.firmwareVersion = 0
             h.close()
 
-        self._jtagon = False
-        self._scanchain = None
 
     def __repr__(self):
         if self.mock:

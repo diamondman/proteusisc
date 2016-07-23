@@ -4,7 +4,7 @@ from .primative import Level1Primative, Level2Primative, Level3Primative, Execut
     DefaultRunInstructionPrimative
 
 styles = {0:'\033[92m', #GREEN
-          1:'\033[93m', #YELLO
+          1:'\033[93m', #YELLOW
           2:'\033[91m'} #RED
 
 class CommandQueue(object):
