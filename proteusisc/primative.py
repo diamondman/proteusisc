@@ -77,9 +77,9 @@ class DefaultRunInstructionPrimative(Level3Primative):
                 instruction = self.insname
             else:
                 instruction = 'BYPASS'
-            dev._current_DR = dev.desc._ins_reg_map[instruction]
+            #dev._current_DR = dev._desc._ins_reg_map[instruction]
             #print("Dev %s DR: %s"%(i, dev._current_DR))
-            inscode = dev.desc._instructions[instruction]
+            inscode = dev._desc._instructions[instruction]
             out_ir.extend(inscode)
 
         #print("OUTIR:", out_ir)
