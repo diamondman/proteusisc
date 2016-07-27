@@ -17,7 +17,8 @@ from proteusisc.cabledriver import CableDriver
 from proteusisc.primative import Level1Primative, Level2Primative,\
     Level3Primative, Executable, DefaultRunInstructionPrimative,\
     DOESNOTMATTER, ZERO, ONE, CONSTANT, SEQUENCE
-from proteusisc.jtagUtils import JTAGControlError
+from proteusisc.errors import JTAGEnableFailedError,\
+    JTAGAlreadyEnabledError, JTAGNotEnabledError
 
 #PROG = 8
 #TCK = 4
@@ -78,7 +79,7 @@ class XilinxPC1Driver(CableDriver):
 
     def transfer_bits(self, count, TMS, TDI, TDO=False):
         if not self._jtagon:
-            raise JTAGControlError('JTAG Must be enabled first')
+            raise JTAGNotEnabledError('JTAG Must be enabled first')
         if isinstance(TMS, (numbers.Number, bool)):
             TMS = bitarray(count*('1' if TMS else '0'))
         if isinstance(TDI, (numbers.Number, bool)):
@@ -107,7 +108,7 @@ class XilinxPC1Driver(CableDriver):
 
     def transfer_bits_single(self, count, TMS, TDI, TDO=False):
         if not self._jtagon:
-            raise JTAGControlError('JTAG Must be enabled first')
+            raise JTAGNotEnabledError()
         if isinstance(TMS, (numbers.Number, bool)):
             TMS = bitarray(count*('1' if TMS else '0'))
         if isinstance(TDI, (numbers.Number, bool)):
@@ -134,7 +135,7 @@ class XilinxPC1Driver(CableDriver):
 
     def transfer_bits_single_cpld_upgrade(self, count, TMS, TDI, TDO=False):
         if not self._jtagon:
-            raise JTAGControlError('JTAG Must be enabled first')
+            raise JTAGNotEnabledError()
         if isinstance(TMS, (numbers.Number, bool)):
             TMS = bitarray(count*('1' if TMS else '0'))
         if isinstance(TDI, (numbers.Number, bool)):

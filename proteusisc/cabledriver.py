@@ -1,6 +1,15 @@
 import time
 
-from .jtagUtils import JTAGControlError
+class InaccessibleController(object):
+    def __init__(self, driver_class, dev):
+        self._driver = driver_class
+        self._dev = dev
+        self.name = "INACCESSIBLE"
+
+    def __repr__(self):
+        return "<INACCESSIBLE %s; vendorID: %04x; productID: %04x>"%\
+            (self._driver.__name__, self._dev.getVendorID(),
+             self._dev.getProductID())
 
 class CableDriver(object):
     """Abstract class for controller driver."""
@@ -39,7 +48,7 @@ class CableDriver(object):
     def sleep(self, delay):
         #TODO Make this work for more advanced controllers!
         if not self._jtagon:
-            raise JTAGControlError('JTAG Must be enabled first')
+            raise JTAGNotEnabledError()
         time.sleep(delay)
 
     @property

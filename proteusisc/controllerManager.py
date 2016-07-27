@@ -4,6 +4,8 @@ import os
 from os import environ
 from os.path import join
 
+from .cabledriver import InaccessibleController
+
 usbcontext = usb1.USBContext()
 
 _controllerfilter = {}
@@ -39,7 +41,11 @@ def getAttachedControllers(cname=None):
             driver_class = vid_dict.get(device.getProductID(),
                                         vid_dict.get(None))
             if driver_class:
-                controller = driver_class(device)
+                try:
+                    controller = driver_class(device)
+                except usb1.USBErrorAccess as e:
+                    controller = InaccessibleController(driver_class,
+                                                        device)
                 controllers.append(controller)
             else:
                 print("No Driver Found for %04x:%04x"%\
@@ -50,6 +56,7 @@ def getAttachedControllers(cname=None):
 
     filteredcontrollers = []
     for controller in controllers:
-        if controller.name == cname:
+        if not isinstance(controller, InaccessibleController) and \
+           controller.name == cname:
             filteredcontrollers.append(controller)
     return filteredcontrollers

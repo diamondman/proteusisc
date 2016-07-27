@@ -11,11 +11,13 @@
 
 from bitarray import bitarray
 
-from proteusisc.jtagUtils import blen2Blen, buff2Blen, JTAGControlError,\
+from proteusisc.jtagUtils import blen2Blen, buff2Blen,\
     build_byte_align_buff
 from proteusisc.cabledriver import CableDriver
-from proteusisc.primative import Level1Primative, Executable,\
-    DOESNOTMATTER, ZERO, ONE, CONSTANT, SEQUENCE
+from proteusisc.primative import Level1Primative,\
+    Executable, DOESNOTMATTER, ZERO, ONE, CONSTANT, SEQUENCE
+from proteusisc.errors import JTAGEnableFailedError,\
+    JTAGAlreadyEnabledError, JTAGControlError, JTAGNotEnabledError
 
 #Controller documentation available at
 #http://diamondman.github.io/Adapt/cable_digilent_adept.html
@@ -127,42 +129,38 @@ class DigilentAdeptController(CableDriver):
     _primatives = [DigilentWriteTDIPrimative, DigilentWriteTMSPrimative,
                    DigilentWriteTMSTDIPrimative, DigilentReadTDOPrimative,
                    LIESTDIHighPrimative]
-    def __init__(self, dev, mock=False):
+    def __init__(self, dev):
         super(DigilentAdeptController, self).__init__(dev)
-        self.mock = mock
-        if not mock:
-            h = self._dev.open()
+        h = self._dev.open()
 
-            self.serialNumber = h.controlRead(
-                0xC0, _CMSG_SERIAL_NO, 0, 0, 12).decode()
-            self.name = index_or_default(
-                h.controlRead(0xC0, _CMSG_USER_NAME, 0, 0, 16)).decode()
-            #This is probably subtly wrong...
-            pidraw = h.controlRead(0xC0, _CMSG_PROD_ID, 0, 0, 4)
-            self.productId = (pidraw[3]<<24)|(pidraw[2]<<16)|\
-                (pidraw[1]<<8)|pidraw[0] #%08x
+        self.serialNumber = h.controlRead(
+            0xC0, _CMSG_SERIAL_NO, 0, 0, 12).decode()
+        self.name = index_or_default(
+            h.controlRead(0xC0, _CMSG_USER_NAME, 0, 0, 16)).decode()
+        #This is probably subtly wrong...
+        pidraw = h.controlRead(0xC0, _CMSG_PROD_ID, 0, 0, 4)
+        self.productId = (pidraw[3]<<24)|(pidraw[2]<<16)|\
+            (pidraw[1]<<8)|pidraw[0] #%08x
 
-            self.productName = index_or_default(
-                h.controlRead(0xC0, _CMSG_PROD_NAME, 0, 0, 28)).decode()
-            firmwareraw = h.controlRead(0xC0, _CMSG_FW_VER, 0, 0, 2)
-            self.firmwareVersion = (firmwareraw[1]<<8)|firmwareraw[0]
-            h.close()
+        self.productName = index_or_default(
+            h.controlRead(0xC0, _CMSG_PROD_NAME, 0, 0, 28)).decode()
+        firmwareraw = h.controlRead(0xC0, _CMSG_FW_VER, 0, 0, 2)
+        self.firmwareVersion = (firmwareraw[1]<<8)|firmwareraw[0]
+        h.close()
 
-            if (self.productId & 0xFF) <= 0x0F:
-                self._cmdout_interface = 1
-                self._cmdin_interface = 1
-                self._datout_interface = 2
-                self._datin_interface = 6
-            else:
-                self._cmdout_interface = 1
-                self._cmdin_interface = 2
-                self._datout_interface = 3
-                self._datin_interface = 4
+        if (self.productId & 0xFF) <= 0x0F:
+            self._cmdout_interface = 1
+            self._cmdin_interface = 1
+            self._datout_interface = 2
+            self._datin_interface = 6
+        else:
+            self._cmdout_interface = 1
+            self._cmdin_interface = 2
+            self._datout_interface = 3
+            self._datin_interface = 4
 
 
     def __repr__(self):
-        if self.mock:
-            return "%s(MOCK)"%self.__class__.__name__
         return "%s(%s; Name: %s; SN: %s; FWver: %04x)"%\
             (self.__class__.__name__,
              self.productName,
@@ -201,9 +199,13 @@ class DigilentAdeptController(CableDriver):
         h_ = self._handle
         h_.bulkWrite(self._cmdout_interface, _BMSG_ENABLE_JTAG)
         res = h_.bulkRead(self._cmdin_interface, 2)
-        if res[1] != 0:
-            raise JTAGControlError("Error enabling JTAG. Error code: %s." %res[1])
-        self._jtagon = True
+        status_code = res[1]
+        if status_code == 0:
+            self._jtagon = True
+        elif status_code == 3:
+            raise JTAGAlreadyEnabledError()
+        else:
+            raise JTAGEnableFailedError("Error enabling JTAG. Error code: %s." %res[1])
 
 
     def jtag_disable(self):
@@ -226,7 +228,8 @@ class DigilentAdeptController(CableDriver):
         h.bulkWrite(self._cmdout_interface, _BMSG_DISABLE_JTAG)
         res = h.bulkRead(self._cmdin_interface, 2)
         if res[1] != 0:
-            raise JTAGControlError()
+            print(res)
+            raise JTAGControlError("Error Code %s"%res[1])
 
 
     def write_tms_bits(self, data, return_tdo=False, TDI=False):
@@ -255,7 +258,7 @@ class DigilentAdeptController(CableDriver):
             >>> c.jtag_disable()
         """
         if not self._jtagon:
-            raise JTAGControlError('JTAG Must be enabled first')
+            raise JTAGNotEnabledError()
         if self._scanchain:
             self._scanchain._tap_transition_driver_trigger(data)
 
@@ -314,7 +317,7 @@ class DigilentAdeptController(CableDriver):
             >>> c.jtag_disable()
         """
         if not self._jtagon:
-            raise JTAGControlError('JTAG Must be enabled first')
+            raise JTAGNotEnabledError()
         tms_bits = bitarray(('1' if TMS else '0')*len(buff))
         if self._scanchain:
             self._scanchain._tap_transition_driver_trigger(tms_bits)
@@ -369,7 +372,7 @@ class DigilentAdeptController(CableDriver):
             >>> c.jtag_disable()
         """
         if not self._jtagon:
-            raise JTAGControlError('JTAG Must be enabled first')
+            raise JTAGNotEnabledError()
         if len(tmsdata) != len(tdidata):
             raise Exception("TMSdata and TDIData must be the same length")
         if self._scanchain:
@@ -427,7 +430,7 @@ class DigilentAdeptController(CableDriver):
             >>> c.jtag_disable()
         """
         if not self._jtagon:
-            raise JTAGControlError('JTAG Must be enabled first')
+            raise JTAGNotEnabledError()
         if self._scanchain:
             bits = bitarray(('1' if TMS else '0')*count)
             self._scanchain._tap_transition_driver_trigger(bits)

@@ -11,6 +11,8 @@ from .primative import Level1Primative, Level2Primative,\
     DefaultLoadReadRegisterPrimative, DefaultSleepPrimative
 from .jtagDevice import JTAGDevice
 from .command_queue import CommandQueue
+from .cabledriver import InaccessibleController
+from .errors import DevicePermissionDeniedError
 from .jtagUtils import NULL_ID_CODES, pstatus
 
 class JTAGScanChain(object):
@@ -38,6 +40,8 @@ class JTAGScanChain(object):
         self.initialize_device_from_id = device_initializer
         self.get_descriptor_for_idcode = jtagDeviceDescription.get_descriptor_for_idcode
 
+        if isinstance(controller, InaccessibleController):
+            raise DevicePermissionDeniedError()
         self._controller = controller
         self._controller._scanchain = self #This might necessitate a factory
 

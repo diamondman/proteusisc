@@ -85,9 +85,6 @@ def build_byte_align_buff(buff):
         rdiff.setall(False)
     return rdiff+buff
 
-class JTAGControlError(Exception):
-    pass
-
 def pstatus(resflags):
     #print(resflags.__repr__()))
     #if len(resflags)>1:
