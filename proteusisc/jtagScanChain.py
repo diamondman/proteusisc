@@ -78,9 +78,9 @@ class JTAGScanChain(object):
             self.jtag_enable()
             while True:
                 idcode_str = self.read_dr(32)
+                if idcode_str in NULL_ID_CODES: break
                 dev = self.initialize_device_from_id(self, idcode_str)
                 self._devices.append(dev)
-                if idcode_str not in NULL_ID_CODES: break
 
             self.flush()
             self.jtag_disable()
