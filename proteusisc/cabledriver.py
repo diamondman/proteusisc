@@ -67,6 +67,6 @@ class CableDriver(object):
     def jtag_disable(self):
         pass
 
-    def __del__(self):
-        if self._jtagon:
-            self.jtag_disable()
+    #def __del__(self):
+    #    if self._jtagon:
+    #        self.jtag_disable()

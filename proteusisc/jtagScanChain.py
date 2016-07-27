@@ -12,7 +12,7 @@ from .primative import Level1Primative, Level2Primative,\
 from .jtagDevice import JTAGDevice
 from .command_queue import CommandQueue
 from .cabledriver import InaccessibleController
-from .errors import DevicePermissionDeniedError
+from .errors import DevicePermissionDeniedError, JTAGAlreadyEnabledError
 from .jtagUtils import NULL_ID_CODES, pstatus
 
 class JTAGScanChain(object):
@@ -32,10 +32,12 @@ class JTAGScanChain(object):
 
     def __init__(self, controller,
                  device_initializer=\
-                 lambda sc, idcode: JTAGDevice(sc,idcode)):
+                 lambda sc, idcode: JTAGDevice(sc,idcode),
+                 ignore_jtag_enabled=False):
         self._devices = []
         self._hasinit = False
         self._sm = JTAGStateMachine()
+        self._ignore_jtag_enabled = ignore_jtag_enabled
 
         self.initialize_device_from_id = device_initializer
         self.get_descriptor_for_idcode = jtagDeviceDescription.get_descriptor_for_idcode
@@ -98,7 +100,11 @@ class JTAGScanChain(object):
     def jtag_enable(self):
         self._sm.state = "_PRE5"
         self._command_queue.fsm.state = "_PRE5"
-        self._controller.jtag_enable()
+        try:
+            self._controller.jtag_enable()
+        except JTAGAlreadyEnabledError as e:
+            if not self._ignore_jtag_enabled:
+                raise e
 
     def _tap_transition_driver_trigger(self, bits):
         statetrans = [self._sm.state]

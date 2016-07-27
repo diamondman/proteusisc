@@ -203,6 +203,7 @@ class DigilentAdeptController(CableDriver):
         if status_code == 0:
             self._jtagon = True
         elif status_code == 3:
+            self._jtagon = True
             raise JTAGAlreadyEnabledError()
         else:
             raise JTAGEnableFailedError("Error enabling JTAG. Error code: %s." %res[1])
@@ -223,13 +224,14 @@ class DigilentAdeptController(CableDriver):
         """
 
         if not self._jtagon: return
-        self._jtagon = False
         h = self._handle
         h.bulkWrite(self._cmdout_interface, _BMSG_DISABLE_JTAG)
         res = h.bulkRead(self._cmdin_interface, 2)
-        if res[1] != 0:
-            print(res)
-            raise JTAGControlError("Error Code %s"%res[1])
+        status_code = res[1]
+        if status_code == 0:
+            self._jtagon = False
+        elif status_code == 3:
+            raise JTAGControlError("Error Code %s"%status_code)
 
 
     def write_tms_bits(self, data, return_tdo=False, TDI=False):

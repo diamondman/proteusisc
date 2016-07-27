@@ -72,9 +72,8 @@ class XilinxPC1Driver(CableDriver):
         #self.xpcu_enable_cpld_upgrade_mode(True)
 
     def jtag_disable(self):
-        if not self._jtagon: return
-        self._jtagon = False
         self.xpcu_enable_output(False)
+        self._jtagon = False
         #self.xpcu_enable_cpld_upgrade_mode(False)
 
     def transfer_bits(self, count, TMS, TDI, TDO=False):
