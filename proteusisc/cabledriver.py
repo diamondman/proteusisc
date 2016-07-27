@@ -60,3 +60,13 @@ class CableDriver(object):
     def close_handle(self):
         if self._dev_handle:
             self._dev_handle.close()
+
+    def jtag_enable(self):
+        pass
+
+    def jtag_disable(self):
+        pass
+
+    def __del__(self):
+        if self._jtagon:
+            self.jtag_disable()
