@@ -44,7 +44,7 @@ class JTAGDeviceBase(object):
 
     def run_tap_instruction(self, *args, **kwargs):
         expret = kwargs.pop('expret', None)
-        self._chain._command_queue.append(
+        self._chain.queue_command(
             DefaultRunInstructionPrimative(self, *args, **kwargs))
         res = self._chain._command_queue.get_return()
         if expret and res != expret:

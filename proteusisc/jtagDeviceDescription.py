@@ -97,7 +97,7 @@ class JTAGDeviceDescription(object):
                  registers, instruction_register_map):
         if isinstance(idcode, numbers.Number):
             self._idcode = idcode
-            self._idcode_mask = 0x0FFFFFFF
+            self._idcode_mask = 0x0FFFFFFF #top 4 bits is version
             self._idcode_str = "XXXX"+bin(idcode)[2:].zfill(28)
         else:
             self._idcode = int(idcode.upper().replace('X','0'), 2)

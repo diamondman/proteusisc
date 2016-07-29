@@ -70,6 +70,9 @@ class JTAGScanChain(object):
                               DefaultSleepPrimative]:
             self.gen_prim_adder(primative_cls)
 
+    def queue_command(self, prim):
+        self._command_queue.append(prim)
+
     def init_chain(self):
         if not self._hasinit:
             self._hasinit = True
@@ -93,13 +96,13 @@ class JTAGScanChain(object):
 
     def jtag_disable(self):
         self.flush()
-        self._sm.state = "_PRE5"
-        self._command_queue.fsm.state = "_PRE5"
+        self._sm.reset()
+        self._command_queue.reset()
         self._controller.jtag_disable()
 
     def jtag_enable(self):
-        self._sm.state = "_PRE5"
-        self._command_queue.fsm.state = "_PRE5"
+        self._sm.reset()
+        self._command_queue.reset()
         try:
             self._controller.jtag_enable()
         except JTAGAlreadyEnabledError as e:
@@ -111,5 +114,3 @@ class JTAGScanChain(object):
         for bit in bits[::-1]:
             self._sm.transition_bit(bit)
             statetrans.append(self._sm.state)
-
-    

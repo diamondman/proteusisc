@@ -26,7 +26,7 @@ class JTAGStateMachine(object):
         }
 
     def __init__(self):
-        self._statestr = "_PRE5"
+        self.reset()
 
     def transition_bit(self, bit):
         choice = self.states.get(self._statestr, None)
@@ -79,6 +79,9 @@ class JTAGStateMachine(object):
         res = self.get_steps_from_nodes_path(path)
         res.reverse()
         return res
+
+    def reset(self):
+        self._statestr = "_PRE5"
 
     def __repr__(self):
         return "<%s (State: %s)>"%(self.__class__.__name__, self.state)

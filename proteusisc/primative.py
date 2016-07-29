@@ -123,8 +123,8 @@ class DefaultChangeTAPStatePrimative(Level2Primative):
 
     def _commit(self, command_queue):
         super(DefaultChangeTAPStatePrimative, self)._commit(command_queue)
-        self._bits = command_queue.fsm.calc_transition_to_state(self._targetstate)
-        command_queue.fsm.state = self._targetstate
+        self._bits = command_queue._fsm.calc_transition_to_state(self._targetstate)
+        command_queue._fsm.state = self._targetstate
         return False
 
     @property
@@ -163,7 +163,7 @@ class DefaultLoadReadRegisterPrimative(Level2Primative):
     def _commit(self, command_queue):
         super(DefaultLoadReadRegisterPrimative, self)._commit(command_queue)
         if self.TMSLast:
-            command_queue.fsm.transition_bit(1)
+            command_queue._fsm.transition_bit(1)
         return self.read
 
     @property

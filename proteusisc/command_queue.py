@@ -10,7 +10,7 @@ styles = {0:'\033[92m', #GREEN
 class CommandQueue(object):
     def __init__(self, sc):
         self.queue = []
-        self.fsm = JTAGStateMachine()
+        self._fsm = JTAGStateMachine()
         self.sc = sc
         self._return_queue = []
 
@@ -25,7 +25,7 @@ class CommandQueue(object):
 
     def append(self, prim):
         for item in self.flatten_macro(prim):
-            if item._stage(self.fsm.state):
+            if item._stage(self._fsm.state):
                 if not item._staged:
                     raise Exception("Primative not marked as staged after calling _stage.")
 
@@ -36,7 +36,7 @@ class CommandQueue(object):
                     #print("Need to render down", item)
                     possible_prims = []
                     reqef = item.required_effect
-        
+
                     #print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)).replace('0', '-'), item,'\033[0m')
                     for p1 in self.sc._lv1_primatives:
                         ef = p1._effect
@@ -45,19 +45,19 @@ class CommandQueue(object):
                         for i in range(3):
                             if reqef[i] is None:
                                 reqef[i] = 0
-    
+
                             curstyle = 0
                             if (ef[i]&reqef[i]) is not reqef[i]:
                                 curstyle = 1 if ef[i]==CONSTANT else 2
-    
+
                             #efstyledstr += "%s%s "%(styles.get(curstyle), ef[i])
                             if curstyle > worststyle:
                                 worststyle = curstyle
-    
+
                         if worststyle == 0:
                             possible_prims.append(p1)
                         #print(" ",efstyledstr, styles.get(worststyle)+p1.__name__+"\033[0m")
-        
+
                     if not len(possible_prims):
                         raise Exception('Unable to match Primative to lower level Primative.')
                     best_prim = possible_prims[0]
@@ -73,6 +73,10 @@ class CommandQueue(object):
                     raise Exception("Primative not marked as committed after calling _commit.")
                 if commit_res:
                     self.flush()
+
+    def reset(self):
+        self._fsm.reset()
+        self.queue = []
 
     def flush(self):
         #print("FLUSHING", self.queue)
