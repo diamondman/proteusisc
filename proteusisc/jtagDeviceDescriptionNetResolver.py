@@ -45,20 +45,20 @@ def strip_inner_whitespace(l):
     #print(l)
     ranges = [(m.start(0), m.end(0)) for m in re.finditer('[^\w] +[^\w]|[\w] +[^\w]|[^\w] +[\w]',l)][::-1]
     #print(ranges, "=>")
-    
+
     #import ipdb
     #ipdb.set_trace()
-    
+
     for s, e in ranges:
         l = l[:s+1] + (" " if (l[s].isalnum() and l[e-1].isalnum()) else "") + l[e-1:]
     #print(l)
-    #print(ranges, "=>")    
+    #print(ranges, "=>")
     ranges = [(m.start(0), m.end(0)) for m in re.finditer('[^\w] ',l)][::-1]
     #print(ranges)
     for s, e in ranges:
         l = l[:s+1] + l[e:]
     #l = l.replace(": ",":")
-        
+
     return l
 
 def _filter_attributes(lines):
@@ -70,6 +70,7 @@ def _filter_attributes(lines):
 
 def extract_attributes(lines):
     attribs = dict()
+    #PREPARSE
     for l in lines:
         #print(l)
         first_space = l.index(" ", 10)
@@ -77,27 +78,93 @@ def extract_attributes(lines):
         type_index = l.index(":")
         value_index = l.index(" is", type_index)
         v = l[value_index+3:].strip(" ")[:-1]
-        if attrib_name == "INSTRUCTION_OPCODE":
-            v = v[1:-1]
-            v = v.split(',')
-            regs = dict()
-            for reg in v:
-                kv = reg.split('(')
-                regs[kv[0].upper()] = kv[1][:-1]
-            v = regs
-        elif attrib_name == "BOUNDARY_REGISTER":
-            v = v[2:-2].split('),')
-            v = [elem.split('(') for elem in v]
-            v = {elem[0]:elem[1].split(',') for elem in v}
-        elif v.startswith('('):
+        if v.startswith('('):
             pass
         elif v.startswith('"'):
             v = v[1:-1]
         elif v.isnumeric():
             v = int(v)
+        elif v.lower() == 'true':
+            v = True
+        elif v.lower() == 'false':
+            v = False
         attribs[attrib_name] = v
+
+    #2ND STAGE PARSE
+    mandatory_attribs = ["INSTRUCTION_OPCODE", "IDCODE_REGISTER",
+                         "INSTRUCTION_LENGTH", "REGISTER_ACCESS",
+                         "BOUNDARY_LENGTH"]
+    for attr in mandatory_attribs:
+        if attr not in attribs:
+            raise Exception("Could not parse mandatory attribute %s "
+                            "out of downloaded BSDL file."%attr)
+
+    # "BOUNDARY_REGISTER",
+    unused_attribs = {"PIN_MAP", "DESIGN_WARNING",
+                      "COMPONENT_CONFORMANCE", "USERCODE_REGISTER",
+                      "TAP_SCAN_CLOCK", "TAP_SCAN_IN", "TAP_SCAN_MODE",
+                      "TAP_SCAN_OUT"}
+    for attr in unused_attribs:
+        if attr in attribs:
+            del attribs[attr]
+
+    #INSTRUCTION_OPCODE PARSING
+    v = attribs["INSTRUCTION_OPCODE"]
+    v = v.split(',')
+    regs = dict()
+    for reg in v:
+        kv = reg.split('(')
+        regs[kv[0].upper()] = kv[1][:-1]
+    attribs['INSTRUCTION_OPCODE'] = regs
+
+    #BOUNDARY_REGISTER PARSING
+    if "BOUNDARY_REGISTER" in attribs:
+        v = attribs["BOUNDARY_REGISTER"][:-1].split('),')
+        v = [elem.split('(') for elem in v]
+        v = {int(elem[0]):elem[1].split(',') for elem in v}
+        attribs["BOUNDARY_REGISTER"] = v
+
+    #REGISTER_ACCESS PARSING
+    v = attribs.pop("REGISTER_ACCESS")
+    v = v[:-1].split('),')
+    regs2ins = dict()
+    for reg_ins_map in v:
+        reg, ins = reg_ins_map.split('(')
+        reg = reg.upper()
+        #print(kv)
+        ins_set = regs2ins.setdefault(reg, set())
+        for ins_tmp in ins.split(','):
+            ins_set.add(ins_tmp)
+
+    tmp_reg2ins = {}
+    #NAME TO SIZE MAPPING
+    regs = {"BYPASS":1, "DEVICE_ID":32,
+            "BOUNDARY":attribs["BOUNDARY_LENGTH"]}
+    for reg in regs2ins.keys():
+        if '[' in reg:
+            name, l = reg.split('[')
+            l = int(l[:-1])
+        else:
+            name = reg
+            l = 1
+
+        if name not in ["BYPASS", "BOUNDARY", "DEVICE_ID"]:
+            regs[name] = l
+
+        tmp_reg2ins[name] = regs2ins[reg]
+
+    attribs['REGISTERS'] = regs
+
+    ins2reg = {}
+    for reg, ins_set in tmp_reg2ins.items():
+        for ins in ins_set:
+            ins2reg[ins] = reg
+
+    attribs["INSTRUCTION_TO_REGISTER"] = ins2reg
+    #attribs["REGISTER_ACCESS"] = regs2ins
+
     return attribs
-        
+
 def _get_bsdl_and_strip_white_and_comments(sid):
     r = requests.get(bsdl_url + sid)
     lines = []

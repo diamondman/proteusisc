@@ -41,19 +41,20 @@ def get_descriptor_for_idcode(idcode):
     if descr_file_path:
         with open(descr_file_path, 'r') as f:
             dat = json.load(f)
-        return JTAGDeviceDescription(dat.get('idcode'), dat.get('name'),
-                                     dat.get('ir_length'),
-                                     dat.get('instruction_opcodes'))
+        if dat.get("_file_version",-1) == JTAGDeviceDescription.version:
+            return JTAGDeviceDescription(dat.get('idcode'),
+                                         dat.get('name'),
+                                         dat.get('ir_length'),
+                                         dat.get('instruction_opcodes'),
+                                         dat.get('registers'),
+                                         dat.get('instruction_register_map'))
 
     print("    Device detected ("+id_str+"). Fetching missing descriptor...")
     sid = get_sid(id_str)
     details = get_details(sid)
     attribs = decode_bsdl(sid)
 
-    #for k,v in attribs.items():
-    #    if k != "BOUNDARY_REGISTER" and k != "DESIGN_WARNING":
-    #        print("\033[1m"+k+"\033[0m",":",type(v).__name__+"("+str(v)+")")
-
+    #VERIFYING PARSED DATA FROM 2 SOURCES. MESSY BUT USEFUL.
     instruction_length = 0
     if attribs.get('INSTRUCTION_LENGTH') ==\
        details.get('INSTRUCTION_LENGTH'):
@@ -74,7 +75,9 @@ def get_descriptor_for_idcode(idcode):
     #print(attribs['IDCODE_REGISTER'])
     descr = JTAGDeviceDescription(attribs['IDCODE_REGISTER'].upper(),
                                   details['name'], instruction_length,
-                                  attribs['INSTRUCTION_OPCODE'])
+                                  attribs['INSTRUCTION_OPCODE'],
+                                  attribs['REGISTERS'],
+                                  attribs['INSTRUCTION_TO_REGISTER'])
 
     #CACHE DESCR AS FILE!
     if not os.path.isdir(base_descr_dir):
@@ -89,7 +92,9 @@ def get_descriptor_for_idcode(idcode):
 
 
 class JTAGDeviceDescription(object):
-    def __init__(self, idcode, name, ir_length, instruction_opcodes):
+    version = 1
+    def __init__(self, idcode, name, ir_length, instruction_opcodes,
+                 registers, instruction_register_map):
         if isinstance(idcode, numbers.Number):
             self._idcode = idcode
             self._idcode_mask = 0x0FFFFFFF
@@ -115,14 +120,20 @@ class JTAGDeviceDescription(object):
         #TODO Add checks to make sure the instruction lengths are sane
         self._instructions = {k:bitarray(v) for k,v in instruction_opcodes.items()}
 
+        self._registers = registers
+        self._instruction_register_map = instruction_register_map
+
     def _dump(self):
         return {
+            '_file_version': JTAGDeviceDescription.version,
             'idcode': self._idcode_str,
             'name': self._device_name,
             'ir_length': self._ir_length,
             'instruction_opcodes':
             {k:"".join(["1" if tf else "0" for tf in v.tolist()])
-             for k,v in self._instructions.items()}
+             for k,v in self._instructions.items()},
+            "registers": self._registers,
+            "instruction_register_map": self._instruction_register_map,
             }
 
     @property
