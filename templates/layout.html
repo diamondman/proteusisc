@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+  <head>
+    <style>
+      td {
+      vertical-align:top;
+      }
+
+      td.devchain {
+      background-color: #FFFFF;
+      color: #000000;
+      }
+      td.dev0 {
+      background-color: #F49AC2;
+      color: #0B653D;
+      }
+      td.dev1 {
+      background-color: #CB99C9;
+      color: #346636;
+      }
+      td.dev2 {
+      background-color: #C23B22;
+      color: #3DC4DD;
+      }
+      td.dev3 {
+      background-color: #FFD1DC;
+      color: #002E23;
+      }
+      td.dev4 {
+      background-color: #DEA5A4;
+      color: #215A5B;
+      }
+      td.dev5 {
+      background-color: #AEC6CF;
+      color: #513930;
+      }
+      td.dev6 {
+      background-color: #77DD77;
+      color: #882288;
+      }
+      td.dev7 {
+      background-color: #CFCFC4;
+      color: #30303B;
+      }
+
+      span.v_INS {
+      text-decoration: underline;
+      }
+
+      span.L_1 {
+      background-color: #00FFFF;
+      color: #FF0000;
+      }
+      span.L_2 {
+      background-color: #CCCCCC;
+      color: #FFA544;
+      }
+      span.L_3 {
+      background-color: #CCCCCC;
+      color: #0000FF;
+      }
+
+      span.primtype {
+      white-space: nowrap;
+      font-weight: bold;
+      }
+      td.rowbreak {
+      border: 1px solid #ff0000;
+      }
+
+    </style>
+  </head>
+  <body>
+    <div class=page>
+      <div class=metanav>
+	{% for stage in stages %}
+	<p>
+	  STAGE {{ loop.index }}
+	  <table border="1">
+	    {% for r in stage %}
+	    <tr>
+	      {% for prim in r %}
+	      <td class="dev{{ prim['dev'] }}">
+		<span class="primtype"><span class="L_{{ prim['layer'] }}">L{{ prim['layer'] }} {{ prim['name'] }}</span> (D{{ prim['dev'] }})</span>
+		<ul>
+		  {% for key,value in prim['data'].items() %}
+		  <li>
+		    <span class="k_{{ key }}"><b>{{ key }}</b>:</span><span class="v_{{ key }}">{{ value }}</span>
+		  </li>
+		  {% endfor %}
+		</ul>
+	      </td>
+	      {% else %}
+	      <td class="rowbreak" colspan="100%"></td>
+	      {% endfor %}
+	    </tr>
+	    {% endfor %}
+	  </table>
+	</p>
+	{% endfor %}
+      </div>
+    </div>
+  </body>
+</html>

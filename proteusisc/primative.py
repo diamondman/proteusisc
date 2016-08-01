@@ -27,6 +27,14 @@ class Primative(object):
         self._committed = True
         return False
 
+    def __repr__(self):
+        n = getattr(self, '_function_name', None) or \
+            getattr(type(self), 'name', None) or \
+            type(self).__name__
+        return "<%s>"%n
+    #    attrs = [attr+":"+str(getattr(self, attr)) for attr in dir(self) if attr[0] != '_']
+    #    return "<P%d: %s (%s)>"%(self._layer, n, ", ".join(attrs))
+
 class Executable(object):
     def execute(self):
         print("Executing", self.__class__.__name__)
@@ -58,6 +66,8 @@ class Level3Primative(Primative):
 #LV3 Primatives
 
 class DefaultRunInstructionPrimative(Level3Primative):
+    name = "INS_PRIM"
+                     
     def __init__(self, device, insname, read=True, execute=True,
                  loop=0, arg=None, delay=0):
         super(DefaultRunInstructionPrimative, self).__init__()
@@ -67,6 +77,9 @@ class DefaultRunInstructionPrimative(Level3Primative):
         self.arg = arg
         self.delay = delay
         self.target_device = device
+        
+    def mergable(self, target):
+        return self.execute == target.execute
 
     def _expand_macro(self, command_queue):
         devices = command_queue.sc._devices
@@ -113,18 +126,18 @@ class DefaultChangeTAPStatePrimative(Level2Primative):
     _function_name = 'transition_tap'
     def __init__(self, state):
         super(DefaultChangeTAPStatePrimative, self).__init__()
-        self._targetstate = state
+        self.targetstate = state
         self._startstate = None
 
     def _stage(self, fsm_state):
         super(DefaultChangeTAPStatePrimative, self)._stage(fsm_state)
         self._startstate = fsm_state
-        return self._targetstate != fsm_state
+        return self.targetstate != fsm_state
 
     def _commit(self, command_queue):
         super(DefaultChangeTAPStatePrimative, self)._commit(command_queue)
-        self._bits = command_queue._fsm.calc_transition_to_state(self._targetstate)
-        command_queue._fsm.state = self._targetstate
+        self._bits = command_queue._fsm.calc_transition_to_state(self.targetstate)
+        command_queue._fsm.state = self.targetstate
         return False
 
     @property
@@ -140,7 +153,7 @@ class DefaultChangeTAPStatePrimative(Level2Primative):
 
     def __repr__(self):
         return "<TAPTransition(%s=>%s)>"%(self._startstate if self._startstate
-                                          else '?', self._targetstate)
+                                          else '?', self.targetstate)
 
 class DefaultLoadReadRegisterPrimative(Level2Primative):
     _function_name = '_load_register'

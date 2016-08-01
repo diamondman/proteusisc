@@ -1,0 +1,10 @@
+* Send Bits to Controller
+* Can I set the INS from 1 Device in a chain? (NO)
+  * Likely, but re-executing an INS to keep a dev's DR selected while charging another DR may have side effects.
+  * INS may reset a DR, appears to be chip specific: DANGER
+  * Looks like a bad idea!
+* INS None should resolve to bypass
+* Write IIR should resp;ve dpwn to state change and data write. If state is the same, state change is removed.
+* TDI is D/C during non shift states
+* Layer 3 is unavailable until scan chain initialization
+* Each layer needs to be optimized one at a time. Allows layer specific rules, and checking.

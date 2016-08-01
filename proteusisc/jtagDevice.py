@@ -46,14 +46,22 @@ class JTAGDeviceBase(object):
         expret = kwargs.pop('expret', None)
         self._chain.queue_command(
             DefaultRunInstructionPrimative(self, *args, **kwargs))
-        res = self._chain._command_queue.get_return()
-        if expret and res != expret:
-            print("MISMATCH status on ins %s. Expected %s"%\
-                  (args[0], expret.__repr__()))
-            print("GOT:", res, "\n")
-            pstatus(res)
-        return res
+        #res = self._chain._command_queue.get_return()
+        #if expret and res != expret:
+        #    print("MISMATCH status on ins %s. Expected %s"%\
+        #          (args[0], expret.__repr__()))
+        #    print("GOT:", res, "\n")
+        #    pstatus(res)
+        #return res
 
+    @property
+    def chain_index(self):
+        return self._chain._devices.index(self) if self._chain else -1
+
+    def __repr__(self):
+        devnum = self.chain_index
+        devname = "?"#self._desc._device_name if self._desc else "?"
+        return "<D%s: %s>"%(devnum, devname)
 
 class JTAGDevice(JTAGDeviceBase):
     def __init__(self, chain, idcode):
