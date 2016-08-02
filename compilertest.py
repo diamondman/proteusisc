@@ -4,6 +4,7 @@ import sys
 import types
 from bitarray import bitarray
 import ipdb
+import time
 
 sys.path.append("/home/diamondman/src/proteusisc")
 
@@ -159,6 +160,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def report():
+    t = time.time()
     stages = []
     stages.append([snap_queue_state(chain._command_queue.queue)])
 
@@ -232,34 +234,24 @@ def report():
 
     for f_i, fence in enumerate(split_fences):
         if len(fence) == 2:
-            print("RUNNING")
-            print(fence[0])
-            print(fence[1])
-            s1 = [x.execute for x in fence[0]]
-            s2 = [x.execute for x in fence[1]]
-            seq = lcs(s1, s2)
-            o1 = []
-            o2 = []
-            i1,i2 = 0,0
-            seq_i = 0
-            iterc = 0
+            s1, s2 = fence
+            seq = lcs([x.execute for x in s1], [x.execute for x in s2])
+            o1, o2 = [], []
+            i1, i2 = 0, 0
             for c in seq:
-                #print(s1[i1],s2[i2], c)
                 loop = True
                 while loop:
-                    iterc += 1
-
-                    if s1[i1] == s2[i2]:
+                    if s1[i1].execute == s2[i2].execute:
                         o1.append(s1[i1])
                         o2.append(s2[i2])
                         i1 += 1
                         i2 += 1
                         loop=False
-                    elif s1[i1] == c: #s2 does not match
+                    elif s1[i1].execute == c: #s2 does not match
                         o1.append(None)
                         o2.append(s2[i2])
                         i2 += 1
-                    elif s2[i2] == c: #s1 does not match
+                    elif s2[i2].execute == c: #s1 does not match
                         o1.append(s1[i1])
                         o2.append(None)
                         i1 += 1
@@ -310,6 +302,8 @@ def report():
 
     #import ipdb
     #ipdb.set_trace()
+
+    print(time.time()-t)
 
     return render_template("layout.html",
                             stages=stages)

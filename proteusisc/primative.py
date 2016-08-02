@@ -119,6 +119,11 @@ class DefaultRunInstructionPrimative(Level3Primative):
         #TODO ADD READ
         return macro
 
+    def __repr__(self):
+        n = getattr(self, '_function_name', None) or \
+            getattr(type(self), 'name', None) or \
+            type(self).__name__
+        return "<%s(exe:%s)>"%(n, self.execute)
 
 ##########################################################################################
 #LV2 Primatives
