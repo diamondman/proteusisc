@@ -13,6 +13,7 @@ from proteusisc.controllerManager import _controllerfilter
 from proteusisc.jtagScanChain import JTAGScanChain
 from proteusisc.jtagDevice import JTAGDevice
 from proteusisc import errors as proteusiscerrors
+from proteusisc.primative import DefaultRunInstructionPrimative
 
 class FakeDevHandle(object):
     def __init__(self):
@@ -74,18 +75,18 @@ d1 = chain.initialize_device_from_id(chain,
 chain._hasinit = True
 chain._devices = [d0, d1]
 
-d0.run_tap_instruction("BYPASS", read=False, delay=0.01)
+d0.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 d0.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01, execute=False)
 for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
     d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
 
 
-d1.run_tap_instruction("BYPASS", read=False, delay=0.01)
-d1.run_tap_instruction("BYPASS", read=False, delay=0.01)
+d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
+d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 
 #chain.transition_tap("TLR")
 #chain.transition_tap("TLR")
-d0.run_tap_instruction("BYPASS", read=False, delay=0.01)
+d0.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 
 d1.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
 for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
@@ -219,8 +220,8 @@ def report():
 
     formatted_split_fences = []
     for fence in split_fences:
-        print("FENCE",fence)
-        print()
+        #print("FENCE",fence)
+        #print()
         for group in fence:
             #print("GROUP",group)
             #print()
@@ -232,78 +233,80 @@ def report():
 
     #################################################
 
+    grouped_fences = []
     for f_i, fence in enumerate(split_fences):
         if len(fence) == 2:
             s1, s2 = fence
             seq = lcs([x.execute for x in s1], [x.execute for x in s2])
-            o1, o2 = [], []
+            out = []
             i1, i2 = 0, 0
             for c in seq:
                 loop = True
                 while loop:
                     if s1[i1].execute == s2[i2].execute:
-                        o1.append(s1[i1])
-                        o2.append(s2[i2])
+                        out.append([s1[i1], s2[i2]])
                         i1 += 1
                         i2 += 1
                         loop=False
                     elif s1[i1].execute == c: #s2 does not match
-                        o1.append(None)
-                        o2.append(s2[i2])
+                        out.append([
+                            DefaultRunInstructionPrimative(
+                                chain._devices[0], read=False,
+                                insname="BYPASS",
+                                execute=s2[i2].execute), s2[i2]])
                         i2 += 1
                     elif s2[i2].execute == c: #s1 does not match
-                        o1.append(s1[i1])
-                        o2.append(None)
+                        out.append([s1[i1], 
+                            DefaultRunInstructionPrimative(
+                                chain._devices[1], read=False,
+                                insname="BYPASS",
+                                execute=s1[i1].execute)])
                         i1 += 1
                     else:
-                        o1.append(s1[i1])
-                        o2.append(s2[i2])
+                        out.append([s1[i1], s2[i2]])
                         i1 += 1
                         i2 += 1
-            o1 += s1[i1:]
-            o2 += s2[i2:]
+            out += [[p, DefaultRunInstructionPrimative(
+                                chain._devices[1], read=False,
+                                insname="BYPASS",
+                                execute=p.execute)] for p in s1[i1:]]
+            
+            out += [[DefaultRunInstructionPrimative(
+                    chain._devices[0], read=False,
+                    insname="BYPASS",
+                    execute=p.execute),p] for p in s2[i2:]]
 
-            print(o1)
-            print(o2)
+            print(out)
 
+            #TODO HANDLE OTHER CASES (multichain, lower level prims, etc)
 
+            grouped_fences.append(out)
 
+    formatted_grouped_fences = []
+    for fence in grouped_fences:
+        print("FENCE",fence)
+        print()
+        tracks = [[], []]
+        for combined_prim in fence:
+            print("GROUP",combined_prim)
+            print()
 
-    #merged_fences = []
-    #for f_i, fence in enumerate(split_fences):
-    #    g_indexes = [0 for i in range(len(fence))]
-    #    loop=True
-    #    while loop:
-    #        current_comb = []
-    #        for g_i, group in enumerate(fence):
-    #            #Do not do multiple iters. Just check next one.
-    #            for other_g_i, other_group in enumerate(fence):
-    #                if other_g_i==g_i: continue
-    #                if group[g_indexes[g_i]]\
-    #                         .mergable(other_group[g_indexes[other_g_i]]):
-    #                    print(f_i, g_i, g_indexes[g_i],"AND",
-    #                          f_i, other_g_i, g_indexes[other_g_i])
-    #
-    #
-    #        loop = False
+            for p in combined_prim:
+                print(p.target_device.chain_index)
+                tracks[p.target_device.chain_index]\
+                    .append(snap_queue_item(p))
+            #formatted_split_fences.append(formatted_fence)
+        print(len(tracks[0]), len(tracks[1]))
+        formatted_grouped_fences += tracks
 
-    #    tmp_chains = {}
-    #    for p in fence:
-    #        k = p.target_device.chain_index \
-    #            if hasattr(p, 'target_device') else "chain"
-    #        subchain = tmp_chains.setdefault(k, [])
-    #        subchain.append(snap_queue_item(p))
-    #
-    #    formatted_split_fences+=list(tmp_chains.values())+[[]]#'layer':-1}]
-    #formatted_split_fences = formatted_split_fences[:-1] #Remove end split
-    #
-    stages.append([[snap_queue_item(split_fences[0][0][0])]])
-
-
-    #import ipdb
     #ipdb.set_trace()
+    
+    stages.append(formatted_grouped_fences)
+
 
     print(time.time()-t)
+
+
 
     return render_template("layout.html",
                             stages=stages)

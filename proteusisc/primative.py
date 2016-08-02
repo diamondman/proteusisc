@@ -123,7 +123,7 @@ class DefaultRunInstructionPrimative(Level3Primative):
         n = getattr(self, '_function_name', None) or \
             getattr(type(self), 'name', None) or \
             type(self).__name__
-        return "<%s(exe:%s)>"%(n, self.execute)
+        return "<%s(D:%s;exe:%s)>"%(n, self.target_device.chain_index, self.execute)
 
 ##########################################################################################
 #LV2 Primatives
