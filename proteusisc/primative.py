@@ -78,8 +78,9 @@ class DefaultRunInstructionPrimative(Level3Primative):
         self.delay = delay
         self.target_device = device
         
-    def mergable(self, target):
-        return self.execute == target.execute
+    def mergable(self, *target):
+        return all((self.execute == t.execute and
+                    isinstance(t, type(self)) for t in target))
 
     def _expand_macro(self, command_queue):
         devices = command_queue.sc._devices
