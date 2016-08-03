@@ -81,16 +81,16 @@ for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
     d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
 
 
-d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
-d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
+##d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
+##d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 
 #chain.transition_tap("TLR")
-#chain.transition_tap("TLR")
+chain.transition_tap("TLR")
 d0.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 
-d1.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
-for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
-    d1.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
+##d1.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
+##for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
+##    d1.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
 
 #d0.run_tap_instruction("ISC_INIT", loop=8, delay=0.01) #DISCHARGE
 
@@ -235,7 +235,9 @@ def report():
 
     grouped_fences = []
     for f_i, fence in enumerate(split_fences):
-        if len(fence) == 2:
+        if len(fence) == 1:
+            grouped_fences.append([fence[0]])
+        elif len(fence) == 2:
             s1, s2 = fence
             seq = lcs([x.execute for x in s1], [x.execute for x in s2])
             out = []
@@ -272,7 +274,7 @@ def report():
                                 execute=p.execute)] for p in s1[i1:]]
             
             out += [[DefaultRunInstructionPrimative(
-                    chain._devices[0], read=False,
+                chain._devices[0], read=False,
                     insname="BYPASS",
                     execute=p.execute),p] for p in s2[i2:]]
 
@@ -285,25 +287,28 @@ def report():
     formatted_grouped_fences = []
     for fence in grouped_fences:
         print("FENCE",fence)
-        print()
-        tracks = [[], []]
+        tracks = [[] for i in range(len(chain._devices))]
         for combined_prim in fence:
-            print("GROUP",combined_prim)
-            print()
+            print("    GROUP",combined_prim)
 
             for p in combined_prim:
-                print(p.target_device.chain_index)
-                tracks[p.target_device.chain_index]\
+                #print(p._device_index)
+                tracks[p._device_index or 0]\
                     .append(snap_queue_item(p))
             #formatted_split_fences.append(formatted_fence)
-        print(len(tracks[0]), len(tracks[1]))
+        #print(*[len(t) for t in tracks])
+        print("    APPENDING", tracks)
+        print()
         formatted_grouped_fences += tracks
+        formatted_grouped_fences.append([])
 
     #ipdb.set_trace()
     
-    stages.append(formatted_grouped_fences)
+    stages.append(formatted_grouped_fences[:-1])
+    from pprint import pprint
+    #pprint(stages)
 
-
+    pprint(stages[-1])
     print(time.time()-t)
 
 

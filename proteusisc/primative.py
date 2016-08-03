@@ -34,6 +34,11 @@ class Primative(object):
         return "<%s>"%n
     #    attrs = [attr+":"+str(getattr(self, attr)) for attr in dir(self) if attr[0] != '_']
     #    return "<P%d: %s (%s)>"%(self._layer, n, ", ".join(attrs))
+    @property
+    def _device_index(self):
+        if hasattr(self, 'target_device'):
+            return self.target_device.chain_index
+        return None
 
 class Executable(object):
     def execute(self):
