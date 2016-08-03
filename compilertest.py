@@ -53,18 +53,6 @@ class FakeDev(object):
         return FakeDevHandle()
 
 drvr = _controllerfilter[0x1443][None]
-
-
-#c._handle.addData(None, [1,0], #JTAG ON
-#                  None, [1,0], None, None, None, #STATE SHIFTDR
-#                  None, [1,0], bitarray(bitarray('11110110110101001100000010010011')).tobytes()[::-1], None, None, #DEV 1
-#                  None, [1,0], bitarray(bitarray('11110110110101001100000010010011')).tobytes()[::-1], None, None, #DEV 2
-#                  None, [1,0], bitarray(bitarray('0'*32)).tobytes()[::-1], None, None, #EOF
-#                  None, [1,0], #JTAG OFF
-#                  None, [1,0], #JTAG ON
-#)
-
-
 c = drvr(FakeDev())
 chain = JTAGScanChain(c)
 
@@ -72,8 +60,12 @@ d0 = chain.initialize_device_from_id(chain,
             bitarray('11110110110101001100000010010011'))
 d1 = chain.initialize_device_from_id(chain,
             bitarray('11110110110101001100000010010011'))
+d2 = chain.initialize_device_from_id(chain,
+            bitarray('11110110110101001100000010010011'))
+#d3 = chain.initialize_device_from_id(chain,
+#            bitarray('11110110110101001100000010010011'))
 chain._hasinit = True
-chain._devices = [d0, d1]
+chain._devices = [d0, d1, d2]#, d3]
 
 d0.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 d0.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01, execute=False)
@@ -81,16 +73,16 @@ for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
     d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
 
 
-##d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
-##d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
+d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
+d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 
 #chain.transition_tap("TLR")
 chain.transition_tap("TLR")
 d0.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 
-##d1.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
-##for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
-##    d1.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
+d1.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
+for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
+    d1.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
 
 #d0.run_tap_instruction("ISC_INIT", loop=8, delay=0.01) #DISCHARGE
 
@@ -154,6 +146,15 @@ def lcs(a, b):
             x -= 1
             y -= 1
     return result
+
+def make_single_prim_frame(p):
+    p_index = p._device_index
+    return\
+        [DefaultRunInstructionPrimative(
+            chain._devices[i], read=False,
+            insname="BYPASS", execute=p.execute)
+         if p_index != i else p
+         for i in range(len(chain._devices))]
 
 
 from flask import Flask, escape, render_template
@@ -231,7 +232,7 @@ def report():
 
     stages.append(formatted_split_fences[:-1])
 
-    #################################################
+    ####################### STAGE 4 ############################
 
     grouped_fences = []
     for f_i, fence in enumerate(split_fences):
@@ -245,38 +246,42 @@ def report():
             for c in seq:
                 loop = True
                 while loop:
+                    frame = [None for i in range(len(chain._devices))]
+                    elem1, elem2 = s1[i1], s2[i2]
+                    valid_prim = elem1
                     if s1[i1].execute == s2[i2].execute:
-                        out.append([s1[i1], s2[i2]])
+                        frame[elem1._device_index] = elem1
+                        frame[elem2._device_index] = elem2
                         i1 += 1
                         i2 += 1
                         loop=False
-                    elif s1[i1].execute == c: #s2 does not match
-                        out.append([
-                            DefaultRunInstructionPrimative(
-                                chain._devices[0], read=False,
-                                insname="BYPASS",
-                                execute=s2[i2].execute), s2[i2]])
+                    elif elem1.execute == c and elem2.execute != c:
+                        #s2 does not match. Can be combined with next one
+                        frame[elem2._device_index] = elem2
                         i2 += 1
-                    elif s2[i2].execute == c: #s1 does not match
-                        out.append([s1[i1], 
-                            DefaultRunInstructionPrimative(
-                                chain._devices[1], read=False,
-                                insname="BYPASS",
-                                execute=s1[i1].execute)])
+                    elif elem2.execute == c and elem1.execute != c:
+                        #s1 does not match. Can be combined with prev one
+                        frame[elem1._device_index] = elem1
                         i1 += 1
-                    else:
-                        out.append([s1[i1], s2[i2]])
+                    else: #NEITHER IN SEQUENCE
+                        #Not tested. Infrequently used
+                        valid_prim = elem1
+                        out.append(make_single_prim_frame(elem1))
+                        out.append(make_single_prim_frame(elem2))
                         i1 += 1
                         i2 += 1
-            out += [[p, DefaultRunInstructionPrimative(
-                                chain._devices[1], read=False,
+                        continue
+
+                    for i, p in enumerate(frame):
+                        if p is None:
+                            frame[i] = DefaultRunInstructionPrimative(
+                                chain._devices[i], read=False,
                                 insname="BYPASS",
-                                execute=p.execute)] for p in s1[i1:]]
-            
-            out += [[DefaultRunInstructionPrimative(
-                chain._devices[0], read=False,
-                    insname="BYPASS",
-                    execute=p.execute),p] for p in s2[i2:]]
+                                execute=valid_prim.execute)
+                    out.append(frame)
+
+            for p in s1[i1:] + s2[i2:]:
+                out.append(make_single_prim_frame(p))
 
             print(out)
 
@@ -303,7 +308,7 @@ def report():
         formatted_grouped_fences.append([])
 
     #ipdb.set_trace()
-    
+
     stages.append(formatted_grouped_fences[:-1])
     from pprint import pprint
     #pprint(stages)
