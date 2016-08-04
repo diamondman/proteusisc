@@ -182,9 +182,6 @@ def lcs(a, b):
                 lengths[i+1][j+1] = lengths[i][j] + 1
             else:
                 lengths[i+1][j+1] = max(lengths[i+1][j], lengths[i][j+1])
-    #from pprint import pprint
-    #pprint(lengths)
-    # read the substring out from the matrix
     result = []
     x, y = len(a), len(b)
     while x != 0 and y != 0:
@@ -193,7 +190,6 @@ def lcs(a, b):
         elif lengths[x][y] == lengths[x][y-1]:
             y -= 1
         else:
-            #assert a[x-1] == b[y-1]
             result = [a[x-1]] + result
             x -= 1
             y -= 1
@@ -207,16 +203,16 @@ app = Flask(__name__)
 def report():
     t = time.time()
     stages = []
+
+    ####################### STAGE 1 ############################
+
     stages.append([snap_queue_state(chain._command_queue.queue)])
 
-    #########################################
+    ####################### STAGE 2 ############################
 
     fences = []
-    fence = []
-    for p in chain._command_queue.queue:
-        if len(fence) == 0:
-            fence.append(p)
-            continue
+    fence = [chain._command_queue.queue[0]]
+    for p in chain._command_queue.queue[1:]:
         if type(fence[0])._layer == type(p)._layer:
             fence.append(p)
         else:
@@ -224,55 +220,30 @@ def report():
             fence = [p]
     fences.append(fence)
 
-
     formatted_fences = []
     for fence in fences:
         formatted_fence = [snap_queue_item(p) for p in fence]
         formatted_fences.append(formatted_fence)
         formatted_fences.append([])
-
     stages.append(formatted_fences[:-1]) #Ignore trailing []
 
-    ###############################################
+    ####################### STAGE 3 ############################
 
     split_fences = []
-    #Fences is a list of prims split by immobile boundaries
-    #Fence is a single one of these regions
-    #Split fences is a list of all the fence values, each split into a
-    #list of groups. Each group is a list of prims. Three arrays deep.
-
-    #fences[0] = [<prim>, <prim>, <prim>]
-    #split_fences = [[[<prim D1>, <prim D1>], [<prim D2>, <prim D2>]],
-    #                Another Fence]
     for fence in fences:
-        #tmp_chain = {<D1>: [<prim>, <prim>, <prim>], <D2>: [...]}
-        #list(_) = [[<prim D1>, <prim D1>], [<prim D2>, <prim D2>]]
-        #print()
-        #print("FENCE", fence)
-
         tmp_chains = {}
         for p in fence:
             k = p.target_device.chain_index \
                 if hasattr(p, 'target_device') else "chain"
             subchain = tmp_chains.setdefault(k, []).append(p)
-
-        #print("  =>",list(tmp_chains.values()))
-        split_fences.append(list(tmp_chains.values()))#+[[]]#'layer':-1}]
-
-    #print("\nRESULT")
-    #print(split_fences)
+        split_fences.append(list(tmp_chains.values()))
 
     formatted_split_fences = []
     for fence in split_fences:
-        #print("FENCE",fence)
-        #print()
         for group in fence:
-            #print("GROUP",group)
-            #print()
             formatted_fence = [snap_queue_item(p) for p in group]
             formatted_split_fences.append(formatted_fence)
         formatted_split_fences.append([])
-
     stages.append(formatted_split_fences[:-1])
 
     ####################### STAGE 4 ############################
