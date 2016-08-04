@@ -72,9 +72,9 @@ class Level3Primative(Primative):
 
 class DefaultRunInstructionPrimative(Level3Primative):
     name = "INS_PRIM"
-                     
+
     def __init__(self, device, insname, read=True, execute=True,
-                 loop=0, arg=None, delay=0):
+                 loop=0, arg=None, delay=0, synthetic=False):
         super(DefaultRunInstructionPrimative, self).__init__()
         self.insname = insname
         self.read = read
@@ -82,7 +82,8 @@ class DefaultRunInstructionPrimative(Level3Primative):
         self.arg = arg
         self.delay = delay
         self.target_device = device
-        
+        self._synthetic = synthetic
+
     def mergable(self, *target):
         return all((self.execute == t.execute and
                     isinstance(t, type(self)) for t in target))
@@ -129,6 +130,24 @@ class DefaultRunInstructionPrimative(Level3Primative):
             getattr(type(self), 'name', None) or \
             type(self).__name__
         return "<%s(D:%s;exe:%s)>"%(n, self.target_device.chain_index, self.execute)
+
+    @property
+    def _group_type(self):
+        return (1 if self.execute else 0) +\
+            (2 if self.arg is not None else 0)
+
+    def get_placeholder_for_dev(self, dev):
+        tmp = DefaultRunInstructionPrimative(
+            dev, read=False,
+            insname="BYPASS",
+            execute=self.execute,
+            arg=None if self.arg == None else bitarray(),
+            synthetic=True)
+        print("******************",self._group_type,tmp._group_type)
+        if self._group_type!=tmp._group_type:
+            import ipdb
+            ipdb.set_trace()
+        return tmp
 
 ##########################################################################################
 #LV2 Primatives

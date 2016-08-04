@@ -77,18 +77,18 @@ d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 
 #chain.transition_tap("TLR")
-chain.transition_tap("TLR")
-d0.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
+##chain.transition_tap("TLR")
+#d2.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 
 d1.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
-for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
-    d1.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
+#for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
+#    d2.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=.01)
 
 #d0.run_tap_instruction("ISC_INIT", loop=8, delay=0.01) #DISCHARGE
 
-#d0.run_tap_instruction("ISC_INIT", loop=8, arg=bitarray(), delay=0.01)
+d0.run_tap_instruction("ISC_INIT", loop=8, arg=bitarray(), delay=0.01)
 
-#d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarray('00010101'))
+d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarray('00010101'))
 
 #d0.run_tap_instruction("BYPASS")#, expret=bitarray('00100101'))
 
@@ -105,7 +105,9 @@ def snap_queue_item(p):
              'name':getattr(p, '_function_name', None) or \
              getattr(type(p), 'name', None) or \
              type(p).__name__,
+            'synthetic': p._synthetic if hasattr(p, '_synthetic') else False,
             'layer': type(p)._layer,
+            'grouping': p._group_type,
             'data':{
                 attr.replace("insname","INS"):
                 getattr(p, attr)
@@ -150,9 +152,7 @@ def lcs(a, b):
 def make_single_prim_frame(p):
     p_index = p._device_index
     return\
-        [DefaultRunInstructionPrimative(
-            chain._devices[i], read=False,
-            insname="BYPASS", execute=p.execute)
+        [p.get_placeholder_for_dev(chain._devices[i])
          if p_index != i else p
          for i in range(len(chain._devices))]
 
@@ -237,10 +237,11 @@ def report():
     grouped_fences = []
     for f_i, fence in enumerate(split_fences):
         if len(fence) == 1:
-            grouped_fences.append([fence[0]])
-        elif len(fence) == 2:
+            grouped_fences.append([make_single_prim_frame(p)
+                                   for p in fence[0]])
+        else:#if len(fence) == 2:
             s1, s2 = fence
-            seq = lcs([x.execute for x in s1], [x.execute for x in s2])
+            seq = lcs([x._group_type for x in s1], [x._group_type for x in s2])
             out = []
             i1, i2 = 0, 0
             for c in seq:
@@ -249,17 +250,17 @@ def report():
                     frame = [None for i in range(len(chain._devices))]
                     elem1, elem2 = s1[i1], s2[i2]
                     valid_prim = elem1
-                    if s1[i1].execute == s2[i2].execute:
+                    if s1[i1]._group_type == s2[i2]._group_type:
                         frame[elem1._device_index] = elem1
                         frame[elem2._device_index] = elem2
                         i1 += 1
                         i2 += 1
                         loop=False
-                    elif elem1.execute == c and elem2.execute != c:
+                    elif elem1._group_type == c and elem2._group_type != c:
                         #s2 does not match. Can be combined with next one
                         frame[elem2._device_index] = elem2
                         i2 += 1
-                    elif elem2.execute == c and elem1.execute != c:
+                    elif elem2._group_type == c and elem1._group_type != c:
                         #s1 does not match. Can be combined with prev one
                         frame[elem1._device_index] = elem1
                         i1 += 1
@@ -274,10 +275,8 @@ def report():
 
                     for i, p in enumerate(frame):
                         if p is None:
-                            frame[i] = DefaultRunInstructionPrimative(
-                                chain._devices[i], read=False,
-                                insname="BYPASS",
-                                execute=valid_prim.execute)
+                            frame[i] = valid_prim.get_placeholder_for_dev(
+                                chain._devices[i])
                     out.append(frame)
 
             for p in s1[i1:] + s2[i2:]:

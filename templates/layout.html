@@ -2,6 +2,11 @@
 <html>
   <head>
     <style>
+      td.synthetic {
+      //border-width:thick;
+      border: thick solid #0088cc;
+      }
+
       td {
       vertical-align:top;
       }
@@ -81,8 +86,8 @@
 	    {% for r in stage %}
 	    <tr>
 	      {% for prim in r %}
-	      <td class="dev{{ prim['dev'] }}">
-		<span class="primtype"><span class="L_{{ prim['layer'] }}">L{{ prim['layer'] }} {{ prim['name'] }}</span> (D{{ prim['dev'] }})</span>
+	      <td class="dev{{ prim['dev'] }} {{ "synthetic" if prim['synthetic'] else "" }}">
+		<span class="primtype"><span class="L_{{ prim['layer'] }}">L{{ prim['layer'] }} {{ prim['name'] }}</span> (D{{ prim['dev'] }}; T{{ prim['grouping'] }})</span>
 		<ul>
 		  {% for key,value in prim['data'].items() %}
 		  <li>
