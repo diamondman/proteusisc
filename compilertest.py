@@ -2,9 +2,12 @@
 import os
 import sys
 import types
-from bitarray import bitarray
-import ipdb
 import time
+import collections
+from bitarray import bitarray
+
+import ipdb
+from pprint import pprint
 
 sys.path.append("/home/diamondman/src/proteusisc")
 
@@ -14,6 +17,53 @@ from proteusisc.jtagScanChain import JTAGScanChain
 from proteusisc.jtagDevice import JTAGDevice
 from proteusisc import errors as proteusiscerrors
 from proteusisc.primative import DefaultRunInstructionPrimative
+
+class Frame(collections.MutableSequence):
+    def __init__(self, chain, *prims, autofill=False):
+        self._chain = chain
+        self._inner_list = [None for i in range(len(chain._devices))]
+        self._valid_prim = None
+        if prims:
+            self.add(*prims)
+        if autofill:
+            self.fill()
+
+    def add(self, *args):
+        for prim in args:
+            self[prim._device_index] = prim
+            if not self._valid_prim:
+                self._valid_prim = prim
+
+    def fill(self):
+        if not self._valid_prim:
+            raise ValueError("No valid primitives inserted before fill called")
+        for i, p in enumerate(self):
+            if p is None:
+                self[i] = self._valid_prim.get_placeholder_for_dev(
+                    self._chain._devices[i])
+
+    def __len__(self):
+        return len(self._inner_list)
+
+    def __delitem__(self, index):
+        self._inner_list.__delitem__(index)
+
+    def insert(self, index, value):
+        self._inner_list.insert(index, value)
+
+    def __setitem__(self, index, value):
+        self._inner_list.__setitem__(index, value)
+
+    def __getitem__(self, index):
+        return self._inner_list.__getitem__(index)
+
+    def __repr__(self):
+        return "<Frame%s>"%self._inner_list
+
+    @classmethod
+    def from_prim(cls, chain, *prim):
+        return cls(chain, *prim, autofill=True)
+
 
 class FakeDevHandle(object):
     def __init__(self):
@@ -149,13 +199,6 @@ def lcs(a, b):
             y -= 1
     return result
 
-def make_single_prim_frame(p):
-    p_index = p._device_index
-    return\
-        [p.get_placeholder_for_dev(chain._devices[i])
-         if p_index != i else p
-         for i in range(len(chain._devices))]
-
 
 from flask import Flask, escape, render_template
 app = Flask(__name__)
@@ -234,58 +277,42 @@ def report():
 
     ####################### STAGE 4 ############################
 
+    #TODO HANDLE OTHER CASES (lower level prims, lanes>3)
     grouped_fences = []
     for f_i, fence in enumerate(split_fences):
         if len(fence) == 1:
-            grouped_fences.append([make_single_prim_frame(p)
-                                   for p in fence[0]])
-        else:#if len(fence) == 2:
+            grouped_fences.append(
+                [Frame.from_prim(chain, p) for p in fence[0]])
+        else: # 2 or more
             s1, s2 = fence
-            seq = lcs([x._group_type for x in s1], [x._group_type for x in s2])
+            seq = lcs([x._group_type for x in s1],
+                      [x._group_type for x in s2])
             out = []
             i1, i2 = 0, 0
             for c in seq:
-                loop = True
-                while loop:
-                    frame = [None for i in range(len(chain._devices))]
+                while True:
                     elem1, elem2 = s1[i1], s2[i2]
-                    valid_prim = elem1
-                    if s1[i1]._group_type == s2[i2]._group_type:
-                        frame[elem1._device_index] = elem1
-                        frame[elem2._device_index] = elem2
+                    if elem1._group_type == elem2._group_type == c:
+                        out.append(Frame.from_prim(chain, elem1, elem2))
                         i1 += 1
                         i2 += 1
-                        loop=False
-                    elif elem1._group_type == c and elem2._group_type != c:
-                        #s2 does not match. Can be combined with next one
-                        frame[elem2._device_index] = elem2
+                        break
+                    elif elem1._group_type == c: #s2 does not match.
+                        out.append(Frame.from_prim(chain, elem2))
                         i2 += 1
-                    elif elem2._group_type == c and elem1._group_type != c:
-                        #s1 does not match. Can be combined with prev one
-                        frame[elem1._device_index] = elem1
+                    elif elem2._group_type == c: #s1 does not match.
+                        out.append(Frame.from_prim(chain, elem1))
                         i1 += 1
-                    else: #NEITHER IN SEQUENCE
-                        #Not tested. Infrequently used
-                        valid_prim = elem1
-                        out.append(make_single_prim_frame(elem1))
-                        out.append(make_single_prim_frame(elem2))
+                    else: #NEITHER IN SEQUENCE Not tested.
+                        out.append(Frame.from_prim(chain,elem1))
+                        out.append(Frame.from_prim(chain,elem2))
                         i1 += 1
                         i2 += 1
-                        continue
-
-                    for i, p in enumerate(frame):
-                        if p is None:
-                            frame[i] = valid_prim.get_placeholder_for_dev(
-                                chain._devices[i])
-                    out.append(frame)
 
             for p in s1[i1:] + s2[i2:]:
-                out.append(make_single_prim_frame(p))
+                out.append(Frame.from_prim(chain, p))
 
             print(out)
-
-            #TODO HANDLE OTHER CASES (multichain, lower level prims, etc)
-
             grouped_fences.append(out)
 
     formatted_grouped_fences = []
@@ -294,34 +321,22 @@ def report():
         tracks = [[] for i in range(len(chain._devices))]
         for combined_prim in fence:
             print("    GROUP",combined_prim)
-
             for p in combined_prim:
-                #print(p._device_index)
                 tracks[p._device_index or 0]\
                     .append(snap_queue_item(p))
-            #formatted_split_fences.append(formatted_fence)
-        #print(*[len(t) for t in tracks])
         print("    APPENDING", tracks)
         print()
         formatted_grouped_fences += tracks
         formatted_grouped_fences.append([])
 
-    #ipdb.set_trace()
-
     stages.append(formatted_grouped_fences[:-1])
-    from pprint import pprint
     #pprint(stages)
 
     pprint(stages[-1])
     print(time.time()-t)
 
-
-
     return render_template("layout.html",
                             stages=stages)
-
-
-
 
 if __name__ == "__main__":
     app.run(debug=True)
