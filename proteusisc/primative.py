@@ -143,8 +143,8 @@ class DefaultRunInstructionPrimative(Level3Primative):
             execute=self.execute,
             arg=None if self.arg == None else bitarray(),
             synthetic=True)
-        print("******************",self._group_type,tmp._group_type)
         if self._group_type!=tmp._group_type:
+            #TODO REMOVE AFTER DEBUGGING DONE
             import ipdb
             ipdb.set_trace()
         return tmp

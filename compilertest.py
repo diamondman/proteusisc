@@ -18,6 +18,91 @@ from proteusisc.jtagDevice import JTAGDevice
 from proteusisc import errors as proteusiscerrors
 from proteusisc.primative import DefaultRunInstructionPrimative
 
+class FrameSequence(collections.MutableSequence):
+    def __init__(self, chain, init_prims):
+        self._chain = chain
+        self._frames = []
+        self._frame_types = []
+        for p in init_prims:
+            self._frame_types.append(p._group_type)
+            self._frames.append(Frame(self._chain, p))
+
+    def __len__(self):
+        return len(self._frames)
+
+    def __delitem__(self, index):
+        self._frames.__delitem__(index)
+
+    def insert(self, index, value):
+        self._frames.insert(index, value)
+
+    def __setitem__(self, index, value):
+        self._frames.__setitem__(index, value)
+
+    def __getitem__(self, index):
+        return self._frames.__getitem__(index)
+
+    #def __repr__(self):
+    #    return "<Frame%s>"%self._frames
+
+    #Needleman–Wunsch algorithm
+    def _lcs(self, prims):
+        lengths = [[0 for j in range(len(prims)+1)]
+                   for i in range(len(self._frame_types)+1)]
+        # row 0 and column 0 are initialized to 0 already
+        for i, x in enumerate(self._frame_types):
+            for j, y in enumerate([x._group_type for x in prims]):
+                if x == y:
+                    lengths[i+1][j+1] = lengths[i][j] + 1
+                else:
+                    lengths[i+1][j+1] = max(lengths[i+1][j], lengths[i][j+1])
+        result = []
+        x, y = len(self._frame_types), len(prims)
+        while x != 0 and y != 0:
+            if lengths[x][y] == lengths[x-1][y]:
+                x -= 1
+            elif lengths[x][y] == lengths[x][y-1]:
+                y -= 1
+            else:
+                result = [self._frame_types[x-1]] + result
+                x -= 1
+                y -= 1
+        return result
+
+    def finalize(self):
+        for f in self._frames:
+            f.fill()
+        return self
+
+    def addstream(self, prims):
+        i1, i2, selfoffset = 0, 0, 0
+        for c in self._lcs(prims):
+            while True:
+                if self._frame_types[i1] == prims[i2]._group_type == c:
+                    self._frames[i1].add(prims[i2])
+                    i1 += 1
+                    i2 += 1
+                    break
+                elif self._frame_types[i1] == c: #s2 does not match.
+                    self._frames.insert(i1+selfoffset,
+                                       Frame.from_prim(chain,prims[i2]))
+                    i2 += 1
+                    selfoffset += 1
+                elif prims[i2]._group_type == c: #s1 does not match.
+                    i1 += 1
+                else: #NEITHER IN SEQUENCE Not tested.
+                    i1 += 1
+                    self._frames.insert(i1+selfoffset,
+                                       Frame.from_prim(chain,prims[i2]))
+                    i2 += 1
+                    selfoffset += 1
+
+        for p in prims[i2:]:
+            self.append(Frame.from_prim(chain, p))
+
+        return self
+
+
 class Frame(collections.MutableSequence):
     def __init__(self, chain, *prims, autofill=False):
         self._chain = chain
@@ -30,9 +115,13 @@ class Frame(collections.MutableSequence):
 
     def add(self, *args):
         for prim in args:
-            self[prim._device_index] = prim
             if not self._valid_prim:
                 self._valid_prim = prim
+                self[prim._device_index] = prim
+            elif self._valid_prim._group_type == prim._group_type:
+                self[prim._device_index] = prim
+            else:
+                raise ValueError("Incompatible primitives")
 
     def fill(self):
         if not self._valid_prim:
@@ -41,6 +130,10 @@ class Frame(collections.MutableSequence):
             if p is None:
                 self[i] = self._valid_prim.get_placeholder_for_dev(
                     self._chain._devices[i])
+
+    @property
+    def _group_type(self):
+        return self._valid_prim._group_type
 
     def __len__(self):
         return len(self._inner_list)
@@ -131,8 +224,8 @@ d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 #d2.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 
 d1.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
-#for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
-#    d2.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=.01)
+for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
+    d2.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=.01)
 
 #d0.run_tap_instruction("ISC_INIT", loop=8, delay=0.01) #DISCHARGE
 
@@ -171,29 +264,6 @@ def snap_queue_item(p):
 
 def snap_queue_state(queue):
     return [snap_queue_item(p) for p in queue]
-
-#Needleman–Wunsch algorithm
-def lcs(a, b):
-    lengths = [[0 for j in range(len(b)+1)] for i in range(len(a)+1)]
-    # row 0 and column 0 are initialized to 0 already
-    for i, x in enumerate(a):
-        for j, y in enumerate(b):
-            if x == y:
-                lengths[i+1][j+1] = lengths[i][j] + 1
-            else:
-                lengths[i+1][j+1] = max(lengths[i+1][j], lengths[i][j+1])
-    result = []
-    x, y = len(a), len(b)
-    while x != 0 and y != 0:
-        if lengths[x][y] == lengths[x-1][y]:
-            x -= 1
-        elif lengths[x][y] == lengths[x][y-1]:
-            y -= 1
-        else:
-            result = [a[x-1]] + result
-            x -= 1
-            y -= 1
-    return result
 
 
 from flask import Flask, escape, render_template
@@ -255,55 +325,29 @@ def report():
             grouped_fences.append(
                 [Frame.from_prim(chain, p) for p in fence[0]])
         else: # 2 or more
-            s1, s2 = fence
-            seq = lcs([x._group_type for x in s1],
-                      [x._group_type for x in s2])
-            out = []
-            i1, i2 = 0, 0
-            for c in seq:
-                while True:
-                    elem1, elem2 = s1[i1], s2[i2]
-                    if elem1._group_type == elem2._group_type == c:
-                        out.append(Frame.from_prim(chain, elem1, elem2))
-                        i1 += 1
-                        i2 += 1
-                        break
-                    elif elem1._group_type == c: #s2 does not match.
-                        out.append(Frame.from_prim(chain, elem2))
-                        i2 += 1
-                    elif elem2._group_type == c: #s1 does not match.
-                        out.append(Frame.from_prim(chain, elem1))
-                        i1 += 1
-                    else: #NEITHER IN SEQUENCE Not tested.
-                        out.append(Frame.from_prim(chain,elem1))
-                        out.append(Frame.from_prim(chain,elem2))
-                        i1 += 1
-                        i2 += 1
-
-            for p in s1[i1:] + s2[i2:]:
-                out.append(Frame.from_prim(chain, p))
-
-            print(out)
+            out = FrameSequence(chain, fence[0])
+            out.addstream(fence[1])
+            out.finalize()
             grouped_fences.append(out)
 
     formatted_grouped_fences = []
     for fence in grouped_fences:
-        print("FENCE",fence)
+        #print("FENCE",fence)
         tracks = [[] for i in range(len(chain._devices))]
         for combined_prim in fence:
-            print("    GROUP",combined_prim)
+            #print("    GROUP",combined_prim)
             for p in combined_prim:
                 tracks[p._device_index or 0]\
                     .append(snap_queue_item(p))
-        print("    APPENDING", tracks)
-        print()
+        #print("    APPENDING", tracks)
+        #print()
         formatted_grouped_fences += tracks
         formatted_grouped_fences.append([])
 
     stages.append(formatted_grouped_fences[:-1])
     #pprint(stages)
 
-    pprint(stages[-1])
+    #pprint(stages[-1])
     print(time.time()-t)
 
     return render_template("layout.html",
