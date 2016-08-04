@@ -19,13 +19,15 @@ from proteusisc import errors as proteusiscerrors
 from proteusisc.primative import DefaultRunInstructionPrimative
 
 class FrameSequence(collections.MutableSequence):
-    def __init__(self, chain, init_prims):
+    def __init__(self, chain, *init_prims_lists):
         self._chain = chain
         self._frames = []
         self._frame_types = []
-        for p in init_prims:
+        for p in init_prims_lists[0]:
             self._frame_types.append(p._group_type)
             self._frames.append(Frame(self._chain, p))
+        for ps in init_prims_lists[1:]:
+            self.addstream(ps)
 
     def __len__(self):
         return len(self._frames)
@@ -321,33 +323,21 @@ def report():
     #TODO HANDLE OTHER CASES (lower level prims, lanes>3)
     grouped_fences = []
     for f_i, fence in enumerate(split_fences):
-        if len(fence) == 1:
-            grouped_fences.append(
-                [Frame.from_prim(chain, p) for p in fence[0]])
-        else: # 2 or more
-            out = FrameSequence(chain, fence[0])
-            out.addstream(fence[1])
-            out.finalize()
-            grouped_fences.append(out)
+        out = FrameSequence(chain, *fence).finalize()
+        grouped_fences.append(out)
 
     formatted_grouped_fences = []
     for fence in grouped_fences:
-        #print("FENCE",fence)
         tracks = [[] for i in range(len(chain._devices))]
         for combined_prim in fence:
-            #print("    GROUP",combined_prim)
             for p in combined_prim:
                 tracks[p._device_index or 0]\
                     .append(snap_queue_item(p))
-        #print("    APPENDING", tracks)
-        #print()
         formatted_grouped_fences += tracks
         formatted_grouped_fences.append([])
 
     stages.append(formatted_grouped_fences[:-1])
-    #pprint(stages)
 
-    #pprint(stages[-1])
     print(time.time()-t)
 
     return render_template("layout.html",
