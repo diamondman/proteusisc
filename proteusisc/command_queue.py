@@ -1,3 +1,5 @@
+import collections
+
 from .jtagStateMachine import JTAGStateMachine
 from .primative import Level1Primative, Level2Primative, Level3Primative, Executable,\
     DOESNOTMATTER, ZERO, ONE, CONSTANT, SEQUENCE,\
@@ -95,3 +97,160 @@ class CommandQueue(object):
         elif len(res)>1:
             return res
         return None
+
+    def snapshot(self):
+        return [p.snapshot() for p in self.queue]
+
+
+class FrameSequence(collections.MutableSequence):
+    def __init__(self, chain, *init_prims_lists):
+        self._chain = chain
+        self._frames = []
+        self._frame_types = []
+        for p in init_prims_lists[0]:
+            self._frame_types.append(p._group_type)
+            self._frames.append(Frame(self._chain, p))
+        for ps in init_prims_lists[1:]:
+            self.addstream(ps)
+
+    def __len__(self):
+        return len(self._frames)
+
+    def __delitem__(self, index):
+        self._frames.__delitem__(index)
+
+    def insert(self, index, value):
+        self._frames.insert(index, value)
+
+    def __setitem__(self, index, value):
+        self._frames.__setitem__(index, value)
+
+    def __getitem__(self, index):
+        return self._frames.__getitem__(index)
+
+    #def __repr__(self):
+    #    return "<Frame%s>"%self._frames
+
+    #Needleman–Wunsch algorithm
+    def _lcs(self, prims):
+        lengths = [[0 for j in range(len(prims)+1)]
+                   for i in range(len(self._frame_types)+1)]
+        # row 0 and column 0 are initialized to 0 already
+        for i, x in enumerate(self._frame_types):
+            for j, y in enumerate([x._group_type for x in prims]):
+                if x == y:
+                    lengths[i+1][j+1] = lengths[i][j] + 1
+                else:
+                    lengths[i+1][j+1] = max(lengths[i+1][j], lengths[i][j+1])
+        result = []
+        x, y = len(self._frame_types), len(prims)
+        while x != 0 and y != 0:
+            if lengths[x][y] == lengths[x-1][y]:
+                x -= 1
+            elif lengths[x][y] == lengths[x][y-1]:
+                y -= 1
+            else:
+                result = [self._frame_types[x-1]] + result
+                x -= 1
+                y -= 1
+        return result
+
+    def finalize(self):
+        for f in self._frames:
+            f.fill()
+        return self
+
+    def addstream(self, prims):
+        #APPEARS THAT THE _FRAME_TYPES IS NOT UPDATED
+        i1, i2, selfoffset = 0, 0, 0
+        for c in self._lcs(prims):
+            while True:
+                if self._frame_types[i1] == prims[i2]._group_type == c:
+                    self._frames[i1].add(prims[i2])
+                    i1 += 1
+                    i2 += 1
+                    break
+                elif self._frame_types[i1] == c: #s2 does not match.
+                    self.insert(i1+selfoffset,
+                                       Frame.from_prim(chain,prims[i2]))
+                    i2 += 1
+                    selfoffset += 1
+                elif prims[i2]._group_type == c: #s1 does not match.
+                    i1 += 1
+                else: #NEITHER IN SEQUENCE
+                    i1 += 1
+                    self.insert(i1+selfoffset,
+                                Frame.from_prim(self._chain,prims[i2]))
+                    i2 += 1
+                    selfoffset += 1
+
+        for p in prims[i2:]:
+            self.append(Frame.from_prim(chain, p))
+
+        return self
+
+    def insert(self, index, val):
+        self._frames.insert(index, val)
+        self._frame_types.insert(index, val._group_type)
+
+    def snapshot(self):
+        tracks = [[] for i in range(len(self._chain._devices))]
+        for combined_prim in self:
+            for p in combined_prim:
+                tracks[p._device_index or 0].append(p.snapshot())
+        return tracks
+
+
+class Frame(collections.MutableSequence):
+    def __init__(self, chain, *prims, autofill=False):
+        self._chain = chain
+        self._inner_list = [None for i in range(len(chain._devices))]
+        self._valid_prim = None
+        if prims:
+            self.add(*prims)
+        if autofill:
+            self.fill()
+
+    def add(self, *args):
+        for prim in args:
+            if not self._valid_prim:
+                self._valid_prim = prim
+                self[prim._device_index] = prim
+            elif self._valid_prim._group_type == prim._group_type:
+                self[prim._device_index] = prim
+            else:
+                raise ValueError("Incompatible primitives")
+
+    def fill(self):
+        if not self._valid_prim:
+            raise ValueError("No valid primitives inserted before fill called")
+        for i, p in enumerate(self):
+            if p is None:
+                self[i] = self._valid_prim.get_placeholder_for_dev(
+                    self._chain._devices[i])
+
+    @property
+    def _group_type(self):
+        return self._valid_prim._group_type
+
+    def __len__(self):
+        return len(self._inner_list)
+
+    def __delitem__(self, index):
+        self._inner_list.__delitem__(index)
+
+    def insert(self, index, value):
+        self._inner_list.insert(index, value)
+
+    def __setitem__(self, index, value):
+        self._inner_list.__setitem__(index, value)
+
+    def __getitem__(self, index):
+        return self._inner_list.__getitem__(index)
+
+    def __repr__(self):
+        return "<Frame%s>"%self._inner_list
+
+    @classmethod
+    def from_prim(cls, chain, *prim):
+        return cls(chain, *prim, autofill=True)

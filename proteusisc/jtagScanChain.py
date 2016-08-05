@@ -70,6 +70,9 @@ class JTAGScanChain(object):
                               DefaultSleepPrimative]:
             self.gen_prim_adder(primative_cls)
 
+    def snapshot_queue(self):
+        return self._command_queue.snapshot()
+
     def queue_command(self, prim):
         self._command_queue.append(prim)
 

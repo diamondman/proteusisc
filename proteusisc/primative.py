@@ -1,4 +1,5 @@
 from bitarray import bitarray
+import types
 
 DOESNOTMATTER = 0
 ZERO = 1
@@ -39,6 +40,30 @@ class Primative(object):
         if hasattr(self, 'target_device'):
             return self.target_device.chain_index
         return None
+
+    def snapshot(self):
+        return {
+            'dev':self.target_device.chain_index \
+            if hasattr(self, 'target_device') else "CHAIN",
+            'name':getattr(self, '_function_name', None) or \
+            getattr(type(self), 'name', None) or \
+            type(self).__name__,
+            'synthetic': self._synthetic if hasattr(self, '_synthetic')
+            else False,
+            'layer': type(self)._layer,
+            'grouping': self._group_type,
+            'data':{
+                attr.replace("insname","INS"):
+                getattr(self, attr)
+                for attr in vars(self)
+                if attr[0] != '_' and
+                attr not in ["name", "target_device",
+                             "required_effect"] and
+                getattr(self, attr) is not None and
+                not isinstance(getattr(self, attr), types.FunctionType)
+            },
+        }
+
 
 class Executable(object):
     def execute(self):
@@ -108,14 +133,7 @@ class DefaultRunInstructionPrimative(Level3Primative):
         macro = [command_queue.sc._lv2_primatives.get('load_ir')(out_ir, read=self.read)]
 
         if self.arg is not None:
-            out_dr = bitarray()
-            if self.arg != bitarray():
-                for dev in devices:
-                    if dev is self.target_device:
-                        out_dr.extend(self.arg)
-                    else:
-                        out_dr.extend('0')
-            macro.append(command_queue.sc._lv2_primatives.get('load_dr')(out_dr, False))
+            macro.append(command_queue.sc._lv2_primatives.get('load_dr')(self.arg, False))
 
         if self.execute:
             macro.append(command_queue.sc._lv2_primatives.get('transition_tap')("RTI"))
@@ -143,16 +161,53 @@ class DefaultRunInstructionPrimative(Level3Primative):
             execute=self.execute,
             arg=None if self.arg == None else bitarray(),
             synthetic=True)
-        if self._group_type!=tmp._group_type:
-            #TODO REMOVE AFTER DEBUGGING DONE
-            import ipdb
-            ipdb.set_trace()
+        assert self._group_type == tmp._group_type
         return tmp
 
 ##########################################################################################
 #LV2 Primatives
 
 class DefaultChangeTAPStatePrimative(Level2Primative):
+    _function_name = 'transition_tap'
+    def __init__(self, state):
+        super(DefaultChangeTAPStatePrimative, self).__init__()
+        self.targetstate = state
+        self._startstate = None
+
+    def __repr__(self):
+        return "<TAPTransition(%s=>%s)>"%(self._startstate if self._startstate
+                                          else '?', self.targetstate)
+
+class DefaultLoadReadRegisterPrimative(Level2Primative):
+    _function_name = '_load_register'
+    def __init__(self, data, read=False, TMSLast=True, bitcount=None):
+        super(DefaultLoadReadRegisterPrimative, self).__init__()
+        self.data = data
+        self.read = read
+        self.TMSLast = TMSLast
+        self.bitcount=bitcount
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class DefaultChangeTAPStatePrimative2(Level2Primative):
     _function_name = 'transition_tap'
     def __init__(self, state):
         super(DefaultChangeTAPStatePrimative, self).__init__()
@@ -185,7 +240,8 @@ class DefaultChangeTAPStatePrimative(Level2Primative):
         return "<TAPTransition(%s=>%s)>"%(self._startstate if self._startstate
                                           else '?', self.targetstate)
 
-class DefaultLoadReadRegisterPrimative(Level2Primative):
+
+class DefaultLoadReadRegisterPrimative2(Level2Primative):
     _function_name = '_load_register'
     def __init__(self, data, read=False, TMSLast=True, bitcount=None):
         super(DefaultLoadReadRegisterPrimative, self).__init__()

@@ -1,219 +1,32 @@
 #!/usr/bin/env python
-import os
-import sys
-import types
 import time
-import collections
 from bitarray import bitarray
+from flask import Flask, escape, render_template
 
 import ipdb
 from pprint import pprint
 
+import sys
 sys.path.append("/home/diamondman/src/proteusisc")
 
 import proteusisc
 from proteusisc.controllerManager import _controllerfilter
 from proteusisc.jtagScanChain import JTAGScanChain
+from proteusisc.command_queue import FrameSequence
 from proteusisc.jtagDevice import JTAGDevice
 from proteusisc import errors as proteusiscerrors
 from proteusisc.primative import DefaultRunInstructionPrimative
-
-class FrameSequence(collections.MutableSequence):
-    def __init__(self, chain, *init_prims_lists):
-        self._chain = chain
-        self._frames = []
-        self._frame_types = []
-        for p in init_prims_lists[0]:
-            self._frame_types.append(p._group_type)
-            self._frames.append(Frame(self._chain, p))
-        for ps in init_prims_lists[1:]:
-            self.addstream(ps)
-
-    def __len__(self):
-        return len(self._frames)
-
-    def __delitem__(self, index):
-        self._frames.__delitem__(index)
-
-    def insert(self, index, value):
-        self._frames.insert(index, value)
-
-    def __setitem__(self, index, value):
-        self._frames.__setitem__(index, value)
-
-    def __getitem__(self, index):
-        return self._frames.__getitem__(index)
-
-    #def __repr__(self):
-    #    return "<Frame%s>"%self._frames
-
-    #Needleman–Wunsch algorithm
-    def _lcs(self, prims):
-        lengths = [[0 for j in range(len(prims)+1)]
-                   for i in range(len(self._frame_types)+1)]
-        # row 0 and column 0 are initialized to 0 already
-        for i, x in enumerate(self._frame_types):
-            for j, y in enumerate([x._group_type for x in prims]):
-                if x == y:
-                    lengths[i+1][j+1] = lengths[i][j] + 1
-                else:
-                    lengths[i+1][j+1] = max(lengths[i+1][j], lengths[i][j+1])
-        result = []
-        x, y = len(self._frame_types), len(prims)
-        while x != 0 and y != 0:
-            if lengths[x][y] == lengths[x-1][y]:
-                x -= 1
-            elif lengths[x][y] == lengths[x][y-1]:
-                y -= 1
-            else:
-                result = [self._frame_types[x-1]] + result
-                x -= 1
-                y -= 1
-        return result
-
-    def finalize(self):
-        for f in self._frames:
-            f.fill()
-        return self
-
-    def addstream(self, prims):
-        #APPEARS THAT THE _FRAME_TYPES IS NOT UPDATED
-        i1, i2, selfoffset = 0, 0, 0
-        for c in self._lcs(prims):
-            while True:
-                if self._frame_types[i1] == prims[i2]._group_type == c:
-                    self._frames[i1].add(prims[i2])
-                    i1 += 1
-                    i2 += 1
-                    break
-                elif self._frame_types[i1] == c: #s2 does not match.
-                    self.insert(i1+selfoffset,
-                                       Frame.from_prim(chain,prims[i2]))
-                    i2 += 1
-                    selfoffset += 1
-                elif prims[i2]._group_type == c: #s1 does not match.
-                    i1 += 1
-                else: #NEITHER IN SEQUENCE
-                    i1 += 1
-                    self.insert(i1+selfoffset,
-                                       Frame.from_prim(chain,prims[i2]))
-                    i2 += 1
-                    selfoffset += 1
-
-        for p in prims[i2:]:
-            self.append(Frame.from_prim(chain, p))
-
-        return self
-
-    def insert(self, index, val):
-        self._frames.insert(index, val)
-        self._frame_types.insert(index, val._group_type)
-
-
-class Frame(collections.MutableSequence):
-    def __init__(self, chain, *prims, autofill=False):
-        self._chain = chain
-        self._inner_list = [None for i in range(len(chain._devices))]
-        self._valid_prim = None
-        if prims:
-            self.add(*prims)
-        if autofill:
-            self.fill()
-
-    def add(self, *args):
-        for prim in args:
-            if not self._valid_prim:
-                self._valid_prim = prim
-                self[prim._device_index] = prim
-            elif self._valid_prim._group_type == prim._group_type:
-                self[prim._device_index] = prim
-            else:
-                raise ValueError("Incompatible primitives")
-
-    def fill(self):
-        if not self._valid_prim:
-            raise ValueError("No valid primitives inserted before fill called")
-        for i, p in enumerate(self):
-            if p is None:
-                self[i] = self._valid_prim.get_placeholder_for_dev(
-                    self._chain._devices[i])
-
-    @property
-    def _group_type(self):
-        return self._valid_prim._group_type
-
-    def __len__(self):
-        return len(self._inner_list)
-
-    def __delitem__(self, index):
-        self._inner_list.__delitem__(index)
-
-    def insert(self, index, value):
-        self._inner_list.insert(index, value)
-
-    def __setitem__(self, index, value):
-        self._inner_list.__setitem__(index, value)
-
-    def __getitem__(self, index):
-        return self._inner_list.__getitem__(index)
-
-    def __repr__(self):
-        return "<Frame%s>"%self._inner_list
-
-    @classmethod
-    def from_prim(cls, chain, *prim):
-        return cls(chain, *prim, autofill=True)
-
-
-class FakeDevHandle(object):
-    def __init__(self):
-        self.data = []
-    def controlRead(self, a, b, c, d, l):
-        if not self.data:
-            d = b"MOCK"
-        else:
-            d = self.data[0]
-            self.data = self.data[1:]
-        return d
-    def bulkWrite(self, a, b):
-        if not self.data:
-            d = b"MOCK"
-            raise Exception()
-        else:
-            d = self.data[0]
-            self.data = self.data[1:]
-        return d
-    def bulkRead(self, infnum, l):
-        if not self.data:
-            d = b"MOCK"
-            raise Exception()
-        else:
-            d = self.data[0]
-            self.data = self.data[1:]
-        return d
-
-    def close(self):
-        pass
-    def addData(self, *datas):
-        self.data += datas
-
-
-class FakeDev(object):
-    def open(self):
-        return FakeDevHandle()
+from proteusisc.test_utils import FakeDev
 
 drvr = _controllerfilter[0x1443][None]
 c = drvr(FakeDev())
 chain = JTAGScanChain(c)
 
-d0 = chain.initialize_device_from_id(chain,
-            bitarray('11110110110101001100000010010011'))
-d1 = chain.initialize_device_from_id(chain,
-            bitarray('11110110110101001100000010010011'))
-d2 = chain.initialize_device_from_id(chain,
-            bitarray('11110110110101001100000010010011'))
-#d3 = chain.initialize_device_from_id(chain,
-#            bitarray('11110110110101001100000010010011'))
+devid = bitarray('11110110110101001100000010010011')
+d0 = chain.initialize_device_from_id(chain, devid)
+d1 = chain.initialize_device_from_id(chain, devid)
+d2 = chain.initialize_device_from_id(chain, devid)
+#d3 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
 chain._devices = [d0, d1, d2]#, d3]
 
@@ -221,60 +34,21 @@ d0.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 d0.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01, execute=False)
 for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
     d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
-
-
 d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 d1.run_tap_instruction("ISC_ENABLE", read=False, execute=False, arg=bitarray(), delay=0.01)
-
 #chain.transition_tap("TLR")
-##chain.transition_tap("TLR")
 #d2.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
-
 d1.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
 for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
     d2.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=.01)
-
 #d0.run_tap_instruction("ISC_INIT", loop=8, delay=0.01) #DISCHARGE
-
 d0.run_tap_instruction("ISC_INIT", loop=8, arg=bitarray(), delay=0.01)
-
 d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarray('00010101'))
-
 #d0.run_tap_instruction("BYPASS")#, expret=bitarray('00100101'))
-
 #d0._chain.transition_tap("TLR")
 d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
 d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
 
-class Plural(object):
-    def __init__(self, *prims):
-        pass
-
-
-def snap_queue_item(p):
-    return {'dev':p.target_device.chain_index if hasattr(p, 'target_device') else "CHAIN",
-             'name':getattr(p, '_function_name', None) or \
-             getattr(type(p), 'name', None) or \
-             type(p).__name__,
-            'synthetic': p._synthetic if hasattr(p, '_synthetic') else False,
-            'layer': type(p)._layer,
-            'grouping': p._group_type,
-            'data':{
-                attr.replace("insname","INS"):
-                getattr(p, attr)
-                for attr in vars(p)
-                if attr[0] != '_' and
-                attr not in ["name", "target_device", "required_effect"] and
-                getattr(p, attr) is not None and
-                not isinstance(getattr(p, attr), types.FunctionType)
-            },
-    }
-
-def snap_queue_state(queue):
-    return [snap_queue_item(p) for p in queue]
-
-
-from flask import Flask, escape, render_template
 app = Flask(__name__)
 
 @app.route('/')
@@ -284,7 +58,7 @@ def report():
 
     ####################### STAGE 1 ############################
 
-    stages.append([snap_queue_state(chain._command_queue.queue)])
+    stages.append([chain.snapshot_queue()])
 
     ####################### STAGE 2 ############################
 
@@ -300,7 +74,7 @@ def report():
 
     formatted_fences = []
     for fence in fences:
-        formatted_fence = [snap_queue_item(p) for p in fence]
+        formatted_fence = [p.snapshot() for p in fence]
         formatted_fences.append(formatted_fence)
         formatted_fences.append([])
     stages.append(formatted_fences[:-1]) #Ignore trailing []
@@ -319,14 +93,12 @@ def report():
     formatted_split_fences = []
     for fence in split_fences:
         for group in fence:
-            formatted_fence = [snap_queue_item(p) for p in group]
-            formatted_split_fences.append(formatted_fence)
+            formatted_split_fences.append([p.snapshot() for p in group])
         formatted_split_fences.append([])
     stages.append(formatted_split_fences[:-1])
 
     ####################### STAGE 4 ############################
 
-    #TODO HANDLE OTHER CASES (lower level prims, lanes>3)
     grouped_fences = [
         FrameSequence(chain, *fence).finalize()
         for f_i, fence in enumerate(split_fences)
@@ -334,14 +106,7 @@ def report():
 
     formatted_grouped_fences = []
     for fence in grouped_fences:
-        tracks = [[] for i in range(len(chain._devices))]
-        for combined_prim in fence:
-            for p in combined_prim:
-                tracks[p._device_index or 0]\
-                    .append(snap_queue_item(p))
-        formatted_grouped_fences += tracks
-        formatted_grouped_fences.append([])
-
+        formatted_grouped_fences += fence.snapshot() + [[]]
     stages.append(formatted_grouped_fences[:-1])
 
     ####################### STAGE 4 ############################
