@@ -3,7 +3,6 @@ import time
 from bitarray import bitarray
 from flask import Flask, escape, render_template
 
-import ipdb
 from pprint import pprint
 
 import sys
@@ -15,7 +14,8 @@ from proteusisc.jtagScanChain import JTAGScanChain
 from proteusisc.command_queue import FrameSequence
 from proteusisc.jtagDevice import JTAGDevice
 from proteusisc import errors as proteusiscerrors
-from proteusisc.primative import DefaultRunInstructionPrimative
+from proteusisc.primative import DefaultRunInstructionPrimative,\
+    DefaultLoadReadDevRegisterPrimative
 from proteusisc.test_utils import FakeDev
 
 drvr = _controllerfilter[0x1443][None]
@@ -36,7 +36,6 @@ for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
     d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
 d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 d1.run_tap_instruction("ISC_ENABLE", read=False, execute=False, arg=bitarray(), delay=0.01)
-#chain.transition_tap("TLR")
 #d2.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 d1.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
 for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
@@ -48,6 +47,16 @@ d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarray('000
 #d0._chain.transition_tap("TLR")
 d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
 d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
+
+#chain.transition_tap("TLR")
+#chain._load_register(bitarray("1001"))
+chain.queue_command(DefaultLoadReadDevRegisterPrimative\
+                    (d0, bitarray("1001")))
+
+
+d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
+d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
+
 
 app = Flask(__name__)
 
@@ -109,7 +118,16 @@ def report():
         formatted_grouped_fences += fence.snapshot() + [[]]
     stages.append(formatted_grouped_fences[:-1])
 
-    ####################### STAGE 4 ############################
+    ####################### STAGE 5 ############################
+
+    combined_fences = grouped_fences[0]
+    for fence in grouped_fences[1:]:
+        combined_fences._frames += fence._frames
+        combined_fences._frame_types += fence._frame_types
+
+    stages.append(combined_fences.snapshot())
+
+    ####################### STAGE 5 ############################
     ################ TRANSLATION TO LOWER LAYER ################
 
 
@@ -118,8 +136,8 @@ def report():
 
     print(time.time()-t)
 
-    return render_template("layout.html",
-                            stages=stages)
+    return render_template("layout.html", stages=stages,
+                           dev_count=len(chain._devices))
 
 if __name__ == "__main__":
     app.run(debug=True)

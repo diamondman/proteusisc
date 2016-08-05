@@ -186,7 +186,7 @@ class FrameSequence(collections.MutableSequence):
                     selfoffset += 1
 
         for p in prims[i2:]:
-            self.append(Frame.from_prim(chain, p))
+            self.append(Frame.from_prim(self._chain, p))
 
         return self
 
@@ -196,9 +196,15 @@ class FrameSequence(collections.MutableSequence):
 
     def snapshot(self):
         tracks = [[] for i in range(len(self._chain._devices))]
-        for combined_prim in self:
-            for p in combined_prim:
-                tracks[p._device_index or 0].append(p.snapshot())
+        for frame in self:
+            if frame._dev_specific:
+                for p in frame:
+                    tracks[p._device_index].append(p.snapshot())
+            else:
+                tracks[0].append(frame[0].snapshot())
+                for i, p in enumerate(frame[1:]):
+                    tracks[i+1].append({'valid':False})
+
         return tracks
 
 
@@ -207,6 +213,8 @@ class Frame(collections.MutableSequence):
         self._chain = chain
         self._inner_list = [None for i in range(len(chain._devices))]
         self._valid_prim = None
+        self._layer = None
+        self._dev_specific = True
         if prims:
             self.add(*prims)
         if autofill:
@@ -216,8 +224,18 @@ class Frame(collections.MutableSequence):
         for prim in args:
             if not self._valid_prim:
                 self._valid_prim = prim
-                self[prim._device_index] = prim
-            elif self._valid_prim._group_type == prim._group_type:
+                self._layer = type(prim)._layer
+                self._dev_specific = isinstance(prim, DeviceTarget)
+                if self._dev_specific:
+                    self[prim._device_index] = prim
+                else:
+                    self[0] = prim
+                    #self._inner_list = [prim]
+            elif not self._dev_specific:
+                raise ValueError("Only one non device specific prim "
+                                 "allowed in a Frame at once.")
+            elif self._valid_prim._group_type == prim._group_type\
+                 and type(self._valid_prim) == type(prim):
                 self[prim._device_index] = prim
             else:
                 raise ValueError("Incompatible primitives")
@@ -225,10 +243,11 @@ class Frame(collections.MutableSequence):
     def fill(self):
         if not self._valid_prim:
             raise ValueError("No valid primitives inserted before fill called")
-        for i, p in enumerate(self):
-            if p is None:
-                self[i] = self._valid_prim.get_placeholder_for_dev(
-                    self._chain._devices[i])
+        if self._dev_specific:
+            for i, p in enumerate(self):
+                if p is None:
+                    self[i] = self._valid_prim.get_placeholder_for_dev(
+                        self._chain._devices[i])
 
     @property
     def _group_type(self):

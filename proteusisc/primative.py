@@ -43,6 +43,8 @@ class Primative(object):
 
     def snapshot(self):
         return {
+            'valid':True,
+            #'rowspan': not isinstance(self, DeviceTarget),
             'dev':self.target_device.chain_index \
                 if hasattr(self, 'target_device') else "CHAIN",
             'name':getattr(self, '_function_name', None) or \
@@ -181,20 +183,41 @@ class DefaultChangeTAPStatePrimative(Level2Primative):
         return "<TAPTransition(%s=>%s)>"%(self._startstate if self._startstate
                                           else '?', self.targetstate)
 
-class DefaultLoadReadRegisterPrimative(Level2Primative):
-    _function_name = '_load_register'
-    def __init__(self, data, read=False, TMSLast=True, bitcount=None):
-        super(DefaultLoadReadRegisterPrimative, self).__init__()
+    @property
+    def _group_type(self):
+        return 0
+
+
+class DefaultLoadReadDevRegisterPrimative(Level2Primative, DeviceTarget):
+    _function_name = '_load_dev_register'
+    def __init__(self, device, data, read=False, TMSLast=True, bitcount=None, synthetic=False):
+        super(DefaultLoadReadDevRegisterPrimative, self).__init__()
+        self.target_device = device
         self.data = data
         self.read = read
         self.TMSLast = TMSLast
         self.bitcount=bitcount
+        self._synthetic = synthetic
 
+    @property
+    def _group_type(self):
+        return 0
 
+    def __repr__(self):
+        n = getattr(self, '_function_name', None) or \
+            getattr(type(self), 'name', None) or \
+            type(self).__name__
+        return "<%s(D:%s)>"%(n, self.target_device.chain_index)
 
-
-
-
+    def get_placeholder_for_dev(self, dev):
+        tmp = DefaultLoadReadDevRegisterPrimative(
+            dev, data=bitarray(),
+            read=False,
+            bitcount=self.bitcount,
+            TMSLast = self.TMSLast, #This needs to be reviewed
+            synthetic=True)
+        assert self._group_type == tmp._group_type
+        return tmp
 
 
 
@@ -244,7 +267,7 @@ class DefaultChangeTAPStatePrimative2(Level2Primative):
                                           else '?', self.targetstate)
 
 
-class DefaultLoadReadRegisterPrimative2(Level2Primative):
+class DefaultLoadReadRegisterPrimative(Level2Primative):
     _function_name = '_load_register'
     def __init__(self, data, read=False, TMSLast=True, bitcount=None):
         super(DefaultLoadReadRegisterPrimative, self).__init__()
@@ -252,6 +275,10 @@ class DefaultLoadReadRegisterPrimative2(Level2Primative):
         self.read = read
         self.TMSLast = TMSLast
         self.bitcount=bitcount
+
+    @property
+    def _group_type(self):
+        return 0
 
     def _stage(self, fsm_state):
         super(DefaultLoadReadRegisterPrimative, self)._stage(fsm_state)

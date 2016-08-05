@@ -25,7 +25,7 @@ class JTAGScanChain(object):
                 return res
             setattr(self, cls_._function_name, adder)
             self._lv2_primatives[cls_._function_name] = cls_
-            #print("Adding %s OK"%cls_)
+            #print("Adding %s->%s OK"%(cls_._function_name, cls_))
             return True
         #print("Adding %s FAIL"%cls_)
         return False

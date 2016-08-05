@@ -71,7 +71,8 @@
       font-weight: bold;
       }
       td.rowbreak {
-      border: 1px solid #ff0000;
+      border: 1px solid #FF0000;
+      background-color: #FF0000;
       }
 
     </style>
@@ -86,7 +87,8 @@
 	    {% for r in stage %}
 	    <tr>
 	      {% for prim in r %}
-	      <td class="dev{{ prim['dev'] }} {{ "synthetic" if prim['synthetic'] else "" }}">
+	      {% if prim['valid'] %}
+	      <td class="dev{{ prim['dev'] }} {{ "synthetic" if prim['synthetic'] else "" }}" >
 		<span class="primtype"><span class="L_{{ prim['layer'] }}">L{{ prim['layer'] }} {{ prim['name'] }}</span> (D{{ prim['dev'] }}; T{{ prim['grouping'] }})</span>
 		<ul>
 		  {% for key,value in prim['data'].items() %}
@@ -96,6 +98,9 @@
 		  {% endfor %}
 		</ul>
 	      </td>
+	      {% else %}
+	      <td>{EMPTY}</td>
+	      {% endif %}
 	      {% else %}
 	      <td class="rowbreak" colspan="100%"></td>
 	      {% endfor %}
@@ -108,3 +113,5 @@
     </div>
   </body>
 </html>
+
+<!--##{{ 'rowspan=%s'% dev_count if prim['rowspan'] }}## -->
