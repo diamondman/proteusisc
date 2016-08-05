@@ -77,6 +77,7 @@ class FrameSequence(collections.MutableSequence):
         return self
 
     def addstream(self, prims):
+        #APPEARS THAT THE _FRAME_TYPES IS NOT UPDATED
         i1, i2, selfoffset = 0, 0, 0
         for c in self._lcs(prims):
             while True:
@@ -86,15 +87,15 @@ class FrameSequence(collections.MutableSequence):
                     i2 += 1
                     break
                 elif self._frame_types[i1] == c: #s2 does not match.
-                    self._frames.insert(i1+selfoffset,
+                    self.insert(i1+selfoffset,
                                        Frame.from_prim(chain,prims[i2]))
                     i2 += 1
                     selfoffset += 1
                 elif prims[i2]._group_type == c: #s1 does not match.
                     i1 += 1
-                else: #NEITHER IN SEQUENCE Not tested.
+                else: #NEITHER IN SEQUENCE
                     i1 += 1
-                    self._frames.insert(i1+selfoffset,
+                    self.insert(i1+selfoffset,
                                        Frame.from_prim(chain,prims[i2]))
                     i2 += 1
                     selfoffset += 1
@@ -103,6 +104,10 @@ class FrameSequence(collections.MutableSequence):
             self.append(Frame.from_prim(chain, p))
 
         return self
+
+    def insert(self, index, val):
+        self._frames.insert(index, val)
+        self._frame_types.insert(index, val._group_type)
 
 
 class Frame(collections.MutableSequence):
@@ -219,7 +224,7 @@ for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
 
 
 d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
-d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
+d1.run_tap_instruction("ISC_ENABLE", read=False, execute=False, arg=bitarray(), delay=0.01)
 
 #chain.transition_tap("TLR")
 ##chain.transition_tap("TLR")
@@ -238,7 +243,8 @@ d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarray('000
 #d0.run_tap_instruction("BYPASS")#, expret=bitarray('00100101'))
 
 #d0._chain.transition_tap("TLR")
-
+d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
+d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
 
 class Plural(object):
     def __init__(self, *prims):
@@ -321,10 +327,10 @@ def report():
     ####################### STAGE 4 ############################
 
     #TODO HANDLE OTHER CASES (lower level prims, lanes>3)
-    grouped_fences = []
-    for f_i, fence in enumerate(split_fences):
-        out = FrameSequence(chain, *fence).finalize()
-        grouped_fences.append(out)
+    grouped_fences = [
+        FrameSequence(chain, *fence).finalize()
+        for f_i, fence in enumerate(split_fences)
+    ]
 
     formatted_grouped_fences = []
     for fence in grouped_fences:
@@ -337,6 +343,13 @@ def report():
         formatted_grouped_fences.append([])
 
     stages.append(formatted_grouped_fences[:-1])
+
+    ####################### STAGE 4 ############################
+    ################ TRANSLATION TO LOWER LAYER ################
+
+
+
+    ####################### !!END!! ############################
 
     print(time.time()-t)
 
