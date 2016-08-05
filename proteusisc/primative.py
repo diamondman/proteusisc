@@ -44,12 +44,12 @@ class Primative(object):
     def snapshot(self):
         return {
             'dev':self.target_device.chain_index \
-            if hasattr(self, 'target_device') else "CHAIN",
+                if hasattr(self, 'target_device') else "CHAIN",
             'name':getattr(self, '_function_name', None) or \
-            getattr(type(self), 'name', None) or \
-            type(self).__name__,
+                getattr(type(self), 'name', None) or \
+                type(self).__name__,
             'synthetic': self._synthetic if hasattr(self, '_synthetic')
-            else False,
+                else False,
             'layer': type(self)._layer,
             'grouping': self._group_type,
             'data':{
@@ -68,6 +68,9 @@ class Primative(object):
 class Executable(object):
     def execute(self):
         print("Executing", self.__class__.__name__)
+
+class DeviceTarget(object):
+    pass
 
 class Level1Primative(Primative):
     _layer = 1
@@ -95,7 +98,7 @@ class Level3Primative(Primative):
 ##########################################################################################
 #LV3 Primatives
 
-class DefaultRunInstructionPrimative(Level3Primative):
+class DefaultRunInstructionPrimative(Level3Primative, DeviceTarget):
     name = "INS_PRIM"
 
     def __init__(self, device, insname, read=True, execute=True,

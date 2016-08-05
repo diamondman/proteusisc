@@ -1,9 +1,11 @@
 import collections
 
 from .jtagStateMachine import JTAGStateMachine
-from .primative import Level1Primative, Level2Primative, Level3Primative, Executable,\
+from .primative import Level1Primative, Level2Primative,\
+    Level3Primative, Executable,\
     DOESNOTMATTER, ZERO, ONE, CONSTANT, SEQUENCE,\
-    DefaultRunInstructionPrimative
+    DefaultRunInstructionPrimative,\
+    DeviceTarget
 
 styles = {0:'\033[92m', #GREEN
           1:'\033[93m', #YELLOW
@@ -161,7 +163,6 @@ class FrameSequence(collections.MutableSequence):
         return self
 
     def addstream(self, prims):
-        #APPEARS THAT THE _FRAME_TYPES IS NOT UPDATED
         i1, i2, selfoffset = 0, 0, 0
         for c in self._lcs(prims):
             while True:
@@ -172,7 +173,7 @@ class FrameSequence(collections.MutableSequence):
                     break
                 elif self._frame_types[i1] == c: #s2 does not match.
                     self.insert(i1+selfoffset,
-                                       Frame.from_prim(chain,prims[i2]))
+                                Frame.from_prim(self._chain,prims[i2]))
                     i2 += 1
                     selfoffset += 1
                 elif prims[i2]._group_type == c: #s1 does not match.
