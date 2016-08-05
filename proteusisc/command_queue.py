@@ -110,9 +110,11 @@ class FrameSequence(collections.MutableSequence):
         self._frames = []
         self._frame_types = []
         for p in init_prims_lists[0]:
-            self._frame_types.append(p._group_type)
+            self._frame_types.append((type(p),p._group_type))
             self._frames.append(Frame(self._chain, p))
         for ps in init_prims_lists[1:]:
+            print("FRAMES", self._frames)
+            print("PS    ", ps)
             self.addstream(ps)
 
     def __len__(self):
@@ -139,7 +141,7 @@ class FrameSequence(collections.MutableSequence):
                    for i in range(len(self._frame_types)+1)]
         # row 0 and column 0 are initialized to 0 already
         for i, x in enumerate(self._frame_types):
-            for j, y in enumerate([x._group_type for x in prims]):
+            for j, y in enumerate(((type(x),x._group_type) for x in prims)):
                 if x == y:
                     lengths[i+1][j+1] = lengths[i][j] + 1
                 else:
@@ -166,7 +168,8 @@ class FrameSequence(collections.MutableSequence):
         i1, i2, selfoffset = 0, 0, 0
         for c in self._lcs(prims):
             while True:
-                if self._frame_types[i1] == prims[i2]._group_type == c:
+                if self._frame_types[i1] ==\
+                   (type(prims[i2]),prims[i2]._group_type) == c:
                     self._frames[i1].add(prims[i2])
                     i1 += 1
                     i2 += 1
@@ -176,7 +179,8 @@ class FrameSequence(collections.MutableSequence):
                                 Frame.from_prim(self._chain,prims[i2]))
                     i2 += 1
                     selfoffset += 1
-                elif prims[i2]._group_type == c: #s1 does not match.
+                elif (type(prims[i2]),prims[i2]._group_type) == c:
+                    #s1 does not match.
                     i1 += 1
                 else: #NEITHER IN SEQUENCE
                     i1 += 1
