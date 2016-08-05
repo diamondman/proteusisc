@@ -30,46 +30,52 @@ d2 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
 chain._devices = [d0, d1, d2]#, d3]
 
-d0.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
-d0.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01, execute=False)
-for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
-    d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
-d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
-d1.run_tap_instruction("ISC_ENABLE", read=False, execute=False, arg=bitarray(), delay=0.01)
-#d2.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
-d1.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
-for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
-    d2.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=.01)
-#d0.run_tap_instruction("ISC_INIT", loop=8, delay=0.01) #DISCHARGE
-d0.run_tap_instruction("ISC_INIT", loop=8, arg=bitarray(), delay=0.01)
-d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarray('00010101'))
-#d0.run_tap_instruction("BYPASS")#, expret=bitarray('00100101'))
-#d0._chain.transition_tap("TLR")
-d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
-d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
-
-#chain.transition_tap("TLR")
-#chain._load_register(bitarray("1001"))
+#d0.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
+#d0.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01, execute=False)
+#for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
+#    d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
+#d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
+#d1.run_tap_instruction("ISC_ENABLE", read=False, execute=False, arg=bitarray(), delay=0.01)
+##d2.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
+#d1.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
+#for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
+#    d2.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=.01)
+##d0.run_tap_instruction("ISC_INIT", loop=8, delay=0.01) #DISCHARGE
+#d0.run_tap_instruction("ISC_INIT", loop=8, arg=bitarray(), delay=0.01)
+#d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarray('00010101'))
+##d0.run_tap_instruction("BYPASS")#, expret=bitarray('00100101'))
+##d0._chain.transition_tap("TLR")
+#d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
+#d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
+#
+chain.transition_tap("TLR")
+##chain._load_register(bitarray("1001"))
 chain.queue_command(DefaultLoadReadDevRegisterPrimative\
                     (d0, bitarray("1001")))
+##chain.queue_command(DefaultLoadReadDevRegisterPrimative\
+##                    (d2, bitarray("1001")))
 
 
-d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
-d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
+#d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
+#d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
 
 
 app = Flask(__name__)
 
 @app.route('/')
 def report():
+    if len(chain._command_queue.queue) == 0:
+        return "No commands in Queue."
     t = time.time()
     stages = []
 
-    ####################### STAGE 1 ############################
+    ######################### STAGE 01 #########################
+    ###################### INITIAL PRIMS! ######################
 
     stages.append([chain.snapshot_queue()])
 
-    ####################### STAGE 2 ############################
+    ######################### STAGE 02 #########################
+    ############### GROUPING BY EXEC BOUNDARIES!################
 
     fences = []
     fence = [chain._command_queue.queue[0]]
@@ -88,7 +94,8 @@ def report():
         formatted_fences.append([])
     stages.append(formatted_fences[:-1]) #Ignore trailing []
 
-    ####################### STAGE 3 ############################
+    ######################### STAGE 03 #########################
+    ############## SPLIT GROUPS BY DEVICE TARGET! ##############
 
     split_fences = []
     for fence in fences:
@@ -106,7 +113,8 @@ def report():
         formatted_split_fences.append([])
     stages.append(formatted_split_fences[:-1])
 
-    ####################### STAGE 4 ############################
+    ######################### STAGE 04 #########################
+    ############## ALIGN SEQUENCES AND PAD FRAMES ##############
 
     grouped_fences = [
         FrameSequence(chain, *fence).finalize()
@@ -118,7 +126,8 @@ def report():
         formatted_grouped_fences += fence.snapshot() + [[]]
     stages.append(formatted_grouped_fences[:-1])
 
-    ####################### STAGE 5 ############################
+    ######################### STAGE 05 #########################
+    ################## RECOMBINE FRAME GROUPS ##################
 
     combined_fences = grouped_fences[0]
     for fence in grouped_fences[1:]:
@@ -127,12 +136,12 @@ def report():
 
     stages.append(combined_fences.snapshot())
 
-    ####################### STAGE 5 ############################
+    ######################### STAGE 06 #########################
     ################ TRANSLATION TO LOWER LAYER ################
 
 
 
-    ####################### !!END!! ############################
+    ######################### !!END!! ##########################
 
     print(time.time()-t)
 
