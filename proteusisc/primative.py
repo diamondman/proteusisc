@@ -118,33 +118,34 @@ class DefaultRunInstructionPrimative(Level3Primative, DeviceTarget):
         return all((self.execute == t.execute and
                     isinstance(t, type(self)) for t in target))
 
+    @classmethod
+    def expand_frame(self, frame):
+        chain = frame._chain
+        return [
+            [DefaultLoadReadDevRegisterPrimative(d, bitarray("1001"))
+             for d in chain._devices]
+            ]
+
     def _expand_macro(self, command_queue):
         devices = command_queue.sc._devices
 
-        out_ir = bitarray()
-        for i, dev in enumerate(devices):
-            if dev is self.target_device:
-                instruction = self.insname
-            else:
-                instruction = 'BYPASS'
-            #dev._current_DR = dev._desc._ins_reg_map[instruction]
-            #print("Dev %s DR: %s"%(i, dev._current_DR))
-            inscode = dev._desc._instructions[instruction]
-            out_ir.extend(inscode)
+        out_ir = bitarray(self.target_device._desc.
+                          _instructions[self.insname])
 
-        #print("OUTIR:", out_ir)
-        #print()
-
-        macro = [command_queue.sc._lv2_primatives.get('load_ir')(out_ir, read=self.read)]
+        macro = [command_queue.sc._lv2_primatives.get('load_ir')\
+                 (out_ir, read=self.read)]
 
         if self.arg is not None:
-            macro.append(command_queue.sc._lv2_primatives.get('load_dr')(self.arg, False))
+            macro.append(command_queue.sc._lv2_primatives.get('load_dr')\
+                         (self.arg, False))
 
         if self.execute:
-            macro.append(command_queue.sc._lv2_primatives.get('transition_tap')("RTI"))
+            macro.append(command_queue.sc._lv2_primatives.\
+                         get('transition_tap')("RTI"))
 
         if self.delay:
-            macro.append(command_queue.sc._lv2_primatives.get('sleep')(self.delay))
+            macro.append(command_queue.sc._lv2_primatives.get('sleep')\
+                         (self.delay))
         #TODO ADD READ
         return macro
 
@@ -317,6 +318,11 @@ class DefaultLoadReadRegisterPrimative(Level2Primative):
             self.bitcount if self.bitcount else len(self.data),
             '' if self.read else 'No')
 
+    @property
+    def _group_type(self):
+        return 0
+
+
 class DefaultReadDRPrimative(Level2Primative):
     _function_name = 'read_dr'
     _is_macro = True
@@ -328,6 +334,10 @@ class DefaultReadDRPrimative(Level2Primative):
         return [command_queue.sc._lv2_primatives.get('transition_tap')("SHIFTDR"),
                 command_queue.sc._lv2_primatives.get('_load_register')(
                     False, read=True, TMSLast=False, bitcount=self.bitcount)]
+
+    @property
+    def _group_type(self):
+        return 0
 
     def __repr__(self):
         return "<ReadDR(%s bits)>"%(len(self.data))
@@ -343,6 +353,10 @@ class DefaultLoadDRPrimative(Level2Primative):
     def _expand_macro(self, command_queue):
         return [command_queue.sc._lv2_primatives.get('transition_tap')("SHIFTDR"),
                 command_queue.sc._lv2_primatives.get('_load_register')(self.data, read=self.read)]
+
+    @property
+    def _group_type(self):
+        return 0
 
     def __repr__(self):
         return "<LoadDR(%s bits, %sRead)>"%(len(self.data),
@@ -360,11 +374,13 @@ class DefaultLoadIRPrimative(Level2Primative):
         return [command_queue.sc._lv2_primatives.get('transition_tap')("SHIFTIR"),
                 command_queue.sc._lv2_primatives.get('_load_register')(self.data, read=self.read)]
 
+    @property
+    def _group_type(self):
+        return 0
 
     def __repr__(self):
         return "<LoadIR(%s bits, %sRead)>"%(len(self.data),
                                             '' if self.read else 'No')
-
 
 class DefaultSleepPrimative(Level2Primative, Executable):
     _function_name = 'sleep'
@@ -382,3 +398,7 @@ class DefaultSleepPrimative(Level2Primative, Executable):
 
     def __repr__(self):
         return "<SLEEP(%s seconds)>"%(self.delay)
+
+    @property
+    def _group_type(self):
+        return 0

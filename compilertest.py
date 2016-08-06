@@ -30,7 +30,7 @@ d2 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
 chain._devices = [d0, d1, d2]#, d3]
 
-d0.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
+d0.run_tap_instruction("ISC_ENABLE", read=True)#, delay=0.01)
 d0.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01, execute=False)
 for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
     d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
@@ -40,24 +40,24 @@ d2.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 d1.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
 for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
     d2.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=.01)
-#d0.run_tap_instruction("ISC_INIT", loop=8, delay=0.01) #DISCHARGE
-d0.run_tap_instruction("ISC_INIT", loop=8, arg=bitarray(), delay=0.01)
-d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarray('00010101'))
+##d0.run_tap_instruction("ISC_INIT", loop=8, delay=0.01) #DISCHARGE
+#d0.run_tap_instruction("ISC_INIT", loop=8, arg=bitarray(), delay=0.01)
+#d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarray('00010101'))
 #d0.run_tap_instruction("BYPASS")#, expret=bitarray('00100101'))
 #d0._chain.transition_tap("TLR")
 d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
 d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
-
+#
 chain.transition_tap("TLR")
 #chain._load_register(bitarray("1001"))
 chain.queue_command(DefaultLoadReadDevRegisterPrimative\
                     (d0, bitarray("1001")))
 chain.queue_command(DefaultLoadReadDevRegisterPrimative\
                     (d2, bitarray("1001")))
-
-
-d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
-d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
+#
+#
+#d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
+#d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
 
 
 app = Flask(__name__)
@@ -141,8 +141,29 @@ def report():
     ######################### STAGE 06 #########################
     ################ TRANSLATION TO LOWER LAYER ################
 
+    #for frame in combined_fences:
+    #    tmpframes = frame.expand_macro()
+
+    f = combined_fences[0]
+    tmpframes = f.expand_macro()
+    new_frames = FrameSequence(chain, *tmpframes).finalize()
+    #stages.append(f.expand_macro())
 
 
+    #tracks = [[] for i in range(len(chain._devices))]
+    #for frame in new_frames:
+    #    if frame._dev_specific:
+    #        for p in frame:
+    #            tracks[p._device_index].append(p.snapshot())
+    #    else:
+    #        tracks[0].append(frame[0].snapshot())
+    #        for i, p in enumerate(frame[1:]):
+    #            tracks[i+1].append({'valid':False})
+    #
+    #
+    #
+    #stages.append(tracks)
+    stages.append(new_frames.snapshot())
     ######################### !!END!! ##########################
 
     print(time.time()-t)

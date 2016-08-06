@@ -29,55 +29,6 @@ class CommandQueue(object):
 
     def append(self, prim):
         self.queue.append(prim)
-        #for item in self.flatten_macro(prim):
-        #    if item._stage(self._fsm.state):
-        #        if not item._staged:
-        #            raise Exception("Primative not marked as staged after calling _stage.")
-        #
-        #        commit_res = item._commit(self)
-        #        if isinstance(item, Executable):
-        #            self.queue.append(item)
-        #        else:
-        #            #print("Need to render down", item)
-        #            possible_prims = []
-        #            reqef = item.required_effect
-        #
-        #            #print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)).replace('0', '-'), item,'\033[0m')
-        #            for p1 in self.sc._lv1_primatives:
-        #                ef = p1._effect
-        #                efstyledstr = ''
-        #                worststyle = 0
-        #                for i in range(3):
-        #                    if reqef[i] is None:
-        #                        reqef[i] = 0
-        #
-        #                    curstyle = 0
-        #                    if (ef[i]&reqef[i]) is not reqef[i]:
-        #                        curstyle = 1 if ef[i]==CONSTANT else 2
-        #
-        #                    #efstyledstr += "%s%s "%(styles.get(curstyle), ef[i])
-        #                    if curstyle > worststyle:
-        #                        worststyle = curstyle
-        #
-        #                if worststyle == 0:
-        #                    possible_prims.append(p1)
-        #                #print(" ",efstyledstr, styles.get(worststyle)+p1.__name__+"\033[0m")
-        #
-        #            if not len(possible_prims):
-        #                raise Exception('Unable to match Primative to lower level Primative.')
-        #            best_prim = possible_prims[0]
-        #            for prim in possible_prims[1:]:
-        #                if sum(prim._effect)<sum(best_prim._effect):
-        #                    best_prim = prim
-        #            #print("    POSSIBILITIES:", [p.__name__ for p in possible_prims])
-        #            #print("    WINNER:", best_prim.__name__)
-        #            bits = item.get_effect_bits()
-        #            self.queue.append(best_prim(*bits))
-        #
-        #        if not item._committed:
-        #            raise Exception("Primative not marked as committed after calling _commit.")
-        #        if commit_res:
-        #            self.flush()
 
     def reset(self):
         self._fsm.reset()
@@ -109,13 +60,19 @@ class FrameSequence(collections.MutableSequence):
         self._chain = chain
         self._frames = []
         self._frame_types = []
-        for p in init_prims_lists[0]:
-            self._frame_types.append((type(p),p._group_type))
-            self._frames.append(Frame(self._chain, p))
-        for ps in init_prims_lists[1:]:
-            print("FRAMES", self._frames)
-            print("PS    ", ps)
-            self.addstream(ps)
+        #TODO FIX HACK!
+        if isinstance(init_prims_lists[0], Frame):
+            for frame in init_prims_lists:
+                #self._frame_types.append((type(p),p._group_type))
+                self._frames.append(frame)
+        else:
+            for p in init_prims_lists[0]:
+                self._frame_types.append((type(p),p._group_type))
+                self._frames.append(Frame(self._chain, p))
+            for ps in init_prims_lists[1:]:
+                print("FRAMES", self._frames)
+                print("PS    ", ps)
+                self.addstream(ps)
 
     def __len__(self):
         return len(self._frames)
@@ -278,3 +235,14 @@ class Frame(collections.MutableSequence):
     @classmethod
     def from_prim(cls, chain, *prim):
         return cls(chain, *prim, autofill=True)
+
+    def expand_macro(self):
+        #import ipdb
+        #ipdb.set_trace()
+        res = []
+        dat = type(self._valid_prim).expand_frame(self)
+        for newfdat in dat:
+            newf = Frame(self._chain, *newfdat)
+            newf.fill()
+            res.append(newf)
+        return res
