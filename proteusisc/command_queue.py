@@ -1,10 +1,6 @@
 import collections
 
 from .jtagStateMachine import JTAGStateMachine
-from .primative import Level1Primative, Level2Primative,\
-    Level3Primative, Executable, DeviceTarget,\
-    DOESNOTMATTER, ZERO, ONE, CONSTANT, SEQUENCE
-from .primative_defaults import DefaultRunInstructionPrimative
 
 class CommandQueue(collections.MutableSequence):
     def __init__(self, sc):

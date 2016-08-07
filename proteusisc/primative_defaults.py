@@ -2,16 +2,16 @@ from bitarray import bitarray
 
 from .frame import Frame, FrameSequence
 from .primative import Level3Primative, Level2Primative, DeviceTarget,\
-    Executable
+    Executable, TDORead
 
 ################### LV3 Primatimes (Dev) ###################
 
-class DefaultRunInstructionPrimative(Level3Primative, DeviceTarget):
+class RunInstructionPrimative(Level3Primative, DeviceTarget, TDORead):
     name = "INS_PRIM"
 
     def __init__(self, device, insname, read=True, execute=True,
                  loop=0, arg=None, delay=0, synthetic=False):
-        super(DefaultRunInstructionPrimative, self).__init__()
+        super(RunInstructionPrimative, self).__init__()
         self.insname = insname
         self.read = read
         self.execute = execute
@@ -25,26 +25,28 @@ class DefaultRunInstructionPrimative(Level3Primative, DeviceTarget):
         chain = frame._chain
         devs = chain._devices
         seq = FrameSequence(frame._chain,
-            Frame(frame._chain, *(DefaultLoadDevIRPrimative(d,
+            Frame(frame._chain, *(LoadDevIRPrimative(d,
                     bitarray(d._desc._instructions[frame[i].insname]))
                                   for i, d in enumerate(devs)))
         )
+
         if frame._valid_prim.arg:
             seq.append(Frame(frame._chain,
-                         *(DefaultLoadDevDRPrimative(d, frame[i].arg)
+                         *(LoadDevDRPrimative(d, frame[i].arg)
                           for i, d in enumerate(devs))))
 
         if frame._valid_prim.execute:
             seq.append(Frame.from_prim(chain,
-                    DefaultChangeTAPStatePrimative('TLR')))
+                    ChangeTAPStatePrimative('TLR')))
 
         if any((p.delay for p in frame)):
             seq.append(Frame.from_prim(chain,
-                    DefaultSleepPrimative(max((p.delay for p in frame)))))
+                    SleepPrimative(max((p.delay for p in frame)))))
 
         if any((p.read for p in frame)):
             seq.append(Frame(frame._chain,
-                        *(DefaultReadDevIRPrimative(d)
+                        *(ReadDevIRPrimative(d,
+                            bitcount=0 if frame[i].read else None)
                           for i, d in enumerate(devs))))
 
         return seq
@@ -56,9 +58,8 @@ class DefaultRunInstructionPrimative(Level3Primative, DeviceTarget):
         return "<%s(D:%s;exe:%s)>"\
             %(n, self.target_device.chain_index, self.execute)
 
-    def mergable(self, *target):
-        return all((self._group_type == t._group_type and
-                    isinstance(t, type(self)) for t in target))
+    def compatible(self, *target):
+        return all((self.signature() == t.signature() for t in target))
 
     @property
     def _group_type(self):
@@ -66,7 +67,7 @@ class DefaultRunInstructionPrimative(Level3Primative, DeviceTarget):
             (2 if self.arg is not None else 0)
 
     def get_placeholder_for_dev(self, dev):
-        tmp = DefaultRunInstructionPrimative(
+        tmp = RunInstructionPrimative(
             dev, read=False,
             insname="BYPASS",
             execute=self.execute,
@@ -77,11 +78,11 @@ class DefaultRunInstructionPrimative(Level3Primative, DeviceTarget):
 
 ################### LV2 Primatimes (Dev) ###################
 
-class DefaultLoadDevDRPrimative(Level2Primative, DeviceTarget):
+class LoadDevDRPrimative(Level2Primative, DeviceTarget, TDORead):
     _function_name = 'load_dev_dr'
     _is_macro = True
     def __init__(self, dev, data, read=False):
-        super(DefaultLoadDevDRPrimative, self).__init__()
+        super(LoadDevDRPrimative, self).__init__()
         self.target_device = dev
         self.data = data
         self.read = read
@@ -107,11 +108,11 @@ class DefaultLoadDevDRPrimative(Level2Primative, DeviceTarget):
             '' if self.read else 'No ')
 
 
-class DefaultLoadDevIRPrimative(Level2Primative, DeviceTarget):
+class LoadDevIRPrimative(Level2Primative, DeviceTarget):
     _function_name = 'load_dev_ir'
     _is_macro = True
     def __init__(self, dev, data, read=False):
-        super(DefaultLoadDevIRPrimative, self).__init__()
+        super(LoadDevIRPrimative, self).__init__()
         self.target_device = dev
         self.data = data
         self.read = read
@@ -134,10 +135,10 @@ class DefaultLoadDevIRPrimative(Level2Primative, DeviceTarget):
             len(self.data),
             '' if self.read else 'No ')
 
-class DefaultReadDevDRPrimative(Level2Primative, DeviceTarget):
+class ReadDevDRPrimative(Level2Primative, DeviceTarget):
     _function_name = 'read_dev_dr'
     def __init__(self, dev, bitcount=None):
-        super(DefaultReadDevDRPrimative, self).__init__()
+        super(ReadDevDRPrimative, self).__init__()
         self.target_device = dev
         self.bitcount = bitcount
 
@@ -156,10 +157,10 @@ class DefaultReadDevDRPrimative(Level2Primative, DeviceTarget):
             '' if self.read else 'No ')
 
 
-class DefaultReadDevIRPrimative(Level2Primative, DeviceTarget):
+class ReadDevIRPrimative(Level2Primative, DeviceTarget):
     _function_name = 'read_dev_ir'
     def __init__(self, dev, bitcount=None):
-        super(DefaultReadDevIRPrimative, self).__init__()
+        super(ReadDevIRPrimative, self).__init__()
         self.target_device = dev
         self.bitcount = bitcount
 
@@ -180,10 +181,10 @@ class DefaultReadDevIRPrimative(Level2Primative, DeviceTarget):
 
 
 
-class DefaultLoadReadDevRegisterPrimative(Level2Primative, DeviceTarget):
+class LoadReadDevRegisterPrimative(Level2Primative, DeviceTarget):
     _function_name = '_load_dev_register'
     def __init__(self, device, data, read=False, TMSLast=True, bitcount=None, synthetic=False):
-        super(DefaultLoadReadDevRegisterPrimative, self).__init__()
+        super(LoadReadDevRegisterPrimative, self).__init__()
         self.target_device = device
         self.data = data
         self.read = read
@@ -202,7 +203,7 @@ class DefaultLoadReadDevRegisterPrimative(Level2Primative, DeviceTarget):
         return "<%s(D:%s)>"%(n, self.target_device.chain_index)
 
     def get_placeholder_for_dev(self, dev):
-        tmp = DefaultLoadReadDevRegisterPrimative(
+        tmp = LoadReadDevRegisterPrimative(
             dev, data=bitarray(),
             read=False,
             bitcount=self.bitcount,
@@ -224,10 +225,10 @@ class DefaultLoadReadDevRegisterPrimative(Level2Primative, DeviceTarget):
 
 ################# LV2 Primatimes (No Dev) ##################
 
-class DefaultChangeTAPStatePrimative(Level2Primative):
+class ChangeTAPStatePrimative(Level2Primative):
     _function_name = 'transition_tap'
     def __init__(self, state):
-        super(DefaultChangeTAPStatePrimative, self).__init__()
+        super(ChangeTAPStatePrimative, self).__init__()
         self.targetstate = state
         self._startstate = None
 
@@ -253,20 +254,20 @@ class DefaultChangeTAPStatePrimative(Level2Primative):
 
 
 
-class DefaultChangeTAPStatePrimative2(Level2Primative):
+class ChangeTAPStatePrimative2(Level2Primative):
     _function_name = 'transition_tap'
     def __init__(self, state):
-        super(DefaultChangeTAPStatePrimative, self).__init__()
+        super(ChangeTAPStatePrimative, self).__init__()
         self.targetstate = state
         self._startstate = None
 
     def _stage(self, fsm_state):
-        super(DefaultChangeTAPStatePrimative, self)._stage(fsm_state)
+        super(ChangeTAPStatePrimative, self)._stage(fsm_state)
         self._startstate = fsm_state
         return self.targetstate != fsm_state
 
     def _commit(self, command_queue):
-        super(DefaultChangeTAPStatePrimative, self)._commit(command_queue)
+        super(ChangeTAPStatePrimative, self)._commit(command_queue)
         self._bits = command_queue._fsm.calc_transition_to_state(self.targetstate)
         command_queue._fsm.state = self.targetstate
         return False
@@ -287,10 +288,10 @@ class DefaultChangeTAPStatePrimative2(Level2Primative):
                                           else '?', self.targetstate)
 
 
-class DefaultLoadReadRegisterPrimative(Level2Primative):
+class LoadReadRegisterPrimative(Level2Primative):
     _function_name = '_load_register'
     def __init__(self, data, read=False, TMSLast=True, bitcount=None):
-        super(DefaultLoadReadRegisterPrimative, self).__init__()
+        super(LoadReadRegisterPrimative, self).__init__()
         self.data = data
         self.read = read
         self.TMSLast = TMSLast
@@ -301,7 +302,7 @@ class DefaultLoadReadRegisterPrimative(Level2Primative):
         return 0
 
     def _stage(self, fsm_state):
-        super(DefaultLoadReadRegisterPrimative, self)._stage(fsm_state)
+        super(LoadReadRegisterPrimative, self)._stage(fsm_state)
         if fsm_state not in ["SHIFTIR", "SHIFTDR"]:
             return False
 
@@ -310,7 +311,7 @@ class DefaultLoadReadRegisterPrimative(Level2Primative):
         return True
 
     def _commit(self, command_queue):
-        super(DefaultLoadReadRegisterPrimative, self)._commit(command_queue)
+        super(LoadReadRegisterPrimative, self)._commit(command_queue)
         if self.TMSLast:
             command_queue._fsm.transition_bit(1)
         return self.read
@@ -342,11 +343,11 @@ class DefaultLoadReadRegisterPrimative(Level2Primative):
         return 0
 
 
-class DefaultReadDRPrimative(Level2Primative):
+class ReadDRPrimative(Level2Primative):
     _function_name = 'read_dr'
     _is_macro = True
     def __init__(self, bitcount):
-        super(DefaultReadDRPrimative, self).__init__()
+        super(ReadDRPrimative, self).__init__()
         self.bitcount = bitcount
 
     def _expand_macro(self, command_queue):
@@ -361,11 +362,11 @@ class DefaultReadDRPrimative(Level2Primative):
     def __repr__(self):
         return "<ReadDR(%s bits)>"%(len(self.data))
 
-class DefaultLoadDRPrimative(Level2Primative):
+class LoadDRPrimative(Level2Primative):
     _function_name = 'load_dr'
     _is_macro = True
     def __init__(self, data, read):
-        super(DefaultLoadDRPrimative, self).__init__()
+        super(LoadDRPrimative, self).__init__()
         self.data = data
         self.read = read
 
@@ -381,11 +382,11 @@ class DefaultLoadDRPrimative(Level2Primative):
         return "<LoadDR(%s bits, %sRead)>"%(len(self.data),
                                             '' if self.read else 'No')
 
-class DefaultLoadIRPrimative(Level2Primative):
+class LoadIRPrimative(Level2Primative):
     _function_name = 'load_ir'
     _is_macro = True
     def __init__(self, data, read):
-        super(DefaultLoadIRPrimative, self).__init__()
+        super(LoadIRPrimative, self).__init__()
         self.data = data
         self.read = read
 
@@ -401,15 +402,15 @@ class DefaultLoadIRPrimative(Level2Primative):
         return "<LoadIR(%s bits, %sRead)>"%(len(self.data),
                                             '' if self.read else 'No')
 
-class DefaultSleepPrimative(Level2Primative, Executable):
+class SleepPrimative(Level2Primative, Executable):
     _function_name = 'sleep'
     _driver_function_name = 'sleep'
     def __init__(self, delay):
-        super(DefaultSleepPrimative, self).__init__()
+        super(SleepPrimative, self).__init__()
         self.delay = delay
 
     def _stage(self, fsm_state):
-        super(DefaultSleepPrimative, self)._stage(fsm_state)
+        super(SleepPrimative, self)._stage(fsm_state)
         return self.delay>0
 
     def _get_args(self):

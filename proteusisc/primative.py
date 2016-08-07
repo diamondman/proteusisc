@@ -9,16 +9,9 @@ SEQUENCE = CONSTANT|4
 
 class Primative(object):
     _layer = None
-    _is_macro = False
     def __init__(self):
         self._staged = False
         self._committed = False
-
-    def _stage(self, fsm_state):
-        if self._staged:
-            raise Exception("Primative already staged")
-        self._staged = True
-        return True
 
     def _commit(self, trans):
         if not self._staged:
@@ -33,8 +26,7 @@ class Primative(object):
             getattr(type(self), 'name', None) or \
             type(self).__name__
         return "<%s>"%n
-    #    attrs = [attr+":"+str(getattr(self, attr)) for attr in dir(self) if attr[0] != '_']
-    #    return "<P%d: %s (%s)>"%(self._layer, n, ", ".join(attrs))
+
     @property
     def _device_index(self):
         if hasattr(self, 'target_device'):
@@ -71,9 +63,12 @@ class Primative(object):
 
 class Executable(object):
     def execute(self):
-        print("Executing", self.__class__.__name__)
+        raise NotImplemented()
 
 class DeviceTarget(object):
+    pass
+
+class TDORead(object):
     pass
 
 class Level1Primative(Primative):
@@ -89,9 +84,12 @@ class Level1Primative(Primative):
         if isinstance(self.tms, bitarray):
             if len(self.tms)>30:
                 tms = "%s...(%s bits)"%(tms[0:30], len(tms))
-        return "<%s(TMS:%s; TDI:%s; TDO:%s)>"%(self.__class__.__name__, tms, tdi, tdo)
+        return "<%s(TMS:%s; TDI:%s; TDO:%s)>"%\
+            (self.__class__.__name__, tms, tdi, tdo)
+
 class Level2Primative(Primative):
     _layer = 2
+
 class Level3Primative(Primative):
     _layer = 3
     _is_macro = True

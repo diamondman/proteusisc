@@ -4,7 +4,7 @@ import sys
 
 from bitarray import bitarray
 
-from .primative_defaults import DefaultRunInstructionPrimative
+from .primative_defaults import RunInstructionPrimative
 from .jtagDeviceDescription import JTAGDeviceDescription
 from .jtagUtils import pstatus
 
@@ -43,16 +43,8 @@ class JTAGDeviceBase(object):
         self._desc = None
 
     def run_tap_instruction(self, *args, **kwargs):
-        expret = kwargs.pop('expret', None)
-        self._chain.queue_command(
-            DefaultRunInstructionPrimative(self, *args, **kwargs))
-        #res = self._chain._command_queue.get_return()
-        #if expret and res != expret:
-        #    print("MISMATCH status on ins %s. Expected %s"%\
-        #          (args[0], expret.__repr__()))
-        #    print("GOT:", res, "\n")
-        #    pstatus(res)
-        #return res
+        return self._chain.queue_command(
+            RunInstructionPrimative(self, *args, **kwargs))
 
     @property
     def chain_index(self):
