@@ -30,13 +30,13 @@ d2 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
 chain._devices = [d0, d1, d2]#, d3]
 
-d0.run_tap_instruction("ISC_ENABLE", read=True)#, delay=0.01)
+d0.run_tap_instruction("ISC_ENABLE", read=True, arg=bitarray(bin(7)[2:].zfill(8)))#, delay=0.01)
 d0.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01, execute=False)
 for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
     d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
 d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 d1.run_tap_instruction("ISC_ENABLE", read=False, execute=False, arg=bitarray(), delay=0.01)
-d2.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
+#d2.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
 d1.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
 for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
     d2.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=.01)
@@ -141,29 +141,20 @@ def report():
     ######################### STAGE 06 #########################
     ################ TRANSLATION TO LOWER LAYER ################
 
-    #for frame in combined_fences:
-    #    tmpframes = frame.expand_macro()
+    expanded_prims = FrameSequence(chain,
+                                   *combined_fences[0].expand_macro())
 
-    f = combined_fences[0]
-    tmpframes = f.expand_macro()
-    new_frames = FrameSequence(chain, *tmpframes).finalize()
-    #stages.append(f.expand_macro())
+    for f in combined_fences:
+        if f._layer == 3:
+            tmpframes = f.expand_macro()
+            expanded_prims._frames += tmpframes
+            #expanded_prims._frame_types += fence._frame_types
+        elif f._layer == 2:
+            expanded_prims.append(f)
+    expanded_prims.finalize()
 
+    stages.append(expanded_prims.snapshot())
 
-    #tracks = [[] for i in range(len(chain._devices))]
-    #for frame in new_frames:
-    #    if frame._dev_specific:
-    #        for p in frame:
-    #            tracks[p._device_index].append(p.snapshot())
-    #    else:
-    #        tracks[0].append(frame[0].snapshot())
-    #        for i, p in enumerate(frame[1:]):
-    #            tracks[i+1].append({'valid':False})
-    #
-    #
-    #
-    #stages.append(tracks)
-    stages.append(new_frames.snapshot())
     ######################### !!END!! ##########################
 
     print(time.time()-t)

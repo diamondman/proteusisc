@@ -66,7 +66,6 @@ class Primative(object):
             },
         }
 
-
 class Executable(object):
     def execute(self):
         print("Executing", self.__class__.__name__)
@@ -114,46 +113,48 @@ class DefaultRunInstructionPrimative(Level3Primative, DeviceTarget):
         self.target_device = device
         self._synthetic = synthetic
 
-    def mergable(self, *target):
-        return all((self.execute == t.execute and
-                    isinstance(t, type(self)) for t in target))
-
     @classmethod
-    def expand_frame(self, frame):
+    def expand_frame(cls, frame):
         chain = frame._chain
-        return [
-            [DefaultLoadReadDevRegisterPrimative(d, bitarray("1001"))
-             for d in chain._devices]
-            ]
+        devs = chain._devices
+        #parts = ['ir', 'dr?', 'exe?', 'delay?', 'read?']
+        f_seq = [
+            [DefaultLoadDevIRPrimative(d,
+                    bitarray(d._desc.
+                             _instructions[frame[i].insname]))
+             for i, d in enumerate(devs)]
+        ]
+        if frame._valid_prim.arg:
+            f_seq.append([])
+            for i, d in enumerate(devs):
+                f_seq[-1].append(
+                    DefaultLoadDevDRPrimative(d, frame[i].arg)
+                )
 
-    def _expand_macro(self, command_queue):
-        devices = command_queue.sc._devices
+        if frame._valid_prim.execute:
+            f_seq.append([DefaultChangeTAPStatePrimative('TLR')])
 
-        out_ir = bitarray(self.target_device._desc.
-                          _instructions[self.insname])
+        if any((p.delay for p in frame)):
+            f_seq.append([DefaultSleepPrimative(max((p.delay for p in frame)))])
 
-        macro = [command_queue.sc._lv2_primatives.get('load_ir')\
-                 (out_ir, read=self.read)]
+        if any((p.read for p in frame)):
+            f_seq.append([])
+            for i, d in enumerate(devs):
+                f_seq[-1].append(
+                    DefaultLoadDevDRPrimative(d, frame[i].read)
+                )
 
-        if self.arg is not None:
-            macro.append(command_queue.sc._lv2_primatives.get('load_dr')\
-                         (self.arg, False))
-
-        if self.execute:
-            macro.append(command_queue.sc._lv2_primatives.\
-                         get('transition_tap')("RTI"))
-
-        if self.delay:
-            macro.append(command_queue.sc._lv2_primatives.get('sleep')\
-                         (self.delay))
-        #TODO ADD READ
-        return macro
+        return f_seq
 
     def __repr__(self):
         n = getattr(self, '_function_name', None) or \
             getattr(type(self), 'name', None) or \
             type(self).__name__
         return "<%s(D:%s;exe:%s)>"%(n, self.target_device.chain_index, self.execute)
+
+    def mergable(self, *target):
+        return all((self._group_type == t._group_type and
+                    isinstance(t, type(self)) for t in target))
 
     @property
     def _group_type(self):
@@ -184,9 +185,77 @@ class DefaultChangeTAPStatePrimative(Level2Primative):
         return "<TAPTransition(%s=>%s)>"%(self._startstate if self._startstate
                                           else '?', self.targetstate)
 
+    @classmethod
+    def expand_frame(cls, frame):
+        return [frame]
+
     @property
     def _group_type(self):
         return 0
+
+class DefaultLoadDevDRPrimative(Level2Primative, DeviceTarget):
+    _function_name = 'load_dev_dr'
+    _is_macro = True
+    def __init__(self, dev, data, read=False):
+        super(DefaultLoadDevDRPrimative, self).__init__()
+        self.target_device = dev
+        self.data = data
+        self.read = read
+
+    def _expand_macro(self, command_queue):
+        return [command_queue.sc._lv2_primatives.get('transition_tap')\
+                ("SHIFTDR"),
+                command_queue.sc._lv2_primatives.get('_load_register')\
+                (self.data, read=self.read)]
+
+    @classmethod
+    def expand_frame(cls, frame):
+        return [frame]
+
+    @property
+    def _group_type(self):
+        return 0
+
+    def __repr__(self):
+        return "<LoadDevDR(D:%s;%s bits; %sRead)>"%(
+            self.target_device.chain_index,
+            len(self.data),
+            '' if self.read else 'No ')
+
+
+class DefaultLoadDevIRPrimative(Level2Primative, DeviceTarget):
+    _function_name = 'load_dev_ir'
+    _is_macro = True
+    def __init__(self, dev, data, read=False):
+        super(DefaultLoadDevIRPrimative, self).__init__()
+        self.target_device = dev
+        self.data = data
+        self.read = read
+
+    def _expand_macro(self, command_queue):
+        return [command_queue.sc._lv2_primatives.get('transition_tap')("SHIFTIR"),
+                command_queue.sc._lv2_primatives.get('_load_register')(self.data, read=self.read)]
+
+    @classmethod
+    def expand_frame(cls, frame):
+        return [frame]
+
+    @property
+    def _group_type(self):
+        return 0
+
+    def __repr__(self):
+        return "<LoadDevIR(D:%s;%s bits; %sRead)>"%(
+            self.target_device.chain_index,
+            len(self.data),
+            '' if self.read else 'No ')
+
+
+
+
+
+
+
 
 
 class DefaultLoadReadDevRegisterPrimative(Level2Primative, DeviceTarget):
@@ -219,7 +288,6 @@ class DefaultLoadReadDevRegisterPrimative(Level2Primative, DeviceTarget):
             synthetic=True)
         assert self._group_type == tmp._group_type
         return tmp
-
 
 
 
