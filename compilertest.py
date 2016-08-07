@@ -15,8 +15,8 @@ from proteusisc.frame import FrameSequence
 from proteusisc.jtagDevice import JTAGDevice
 from proteusisc import errors as proteusiscerrors
 from proteusisc.primative import DeviceTarget
-from proteusisc.primative_defaults import RunInstructionPrimative,\
-    LoadReadDevRegisterPrimative
+from proteusisc.primative_defaults import RunInstruction,\
+    LoadReadDevRegister
 from proteusisc.test_utils import FakeDev
 
 drvr = _controllerfilter[0x1443][None]
@@ -51,10 +51,8 @@ d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(
 #
 chain.transition_tap("TLR")
 #chain._load_register(bitarray("1001"))
-chain.queue_command(LoadReadDevRegisterPrimative\
-                    (d0, bitarray("1001")))
-chain.queue_command(LoadReadDevRegisterPrimative\
-                    (d2, bitarray("1001")))
+chain.queue_command(LoadReadDevRegister(d0, bitarray("1001")))
+chain.queue_command(LoadReadDevRegister(d2, bitarray("1001")))
 #
 #
 #d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
@@ -155,7 +153,7 @@ def report():
     ######################### STAGE 07 #########################
     ################# COMBINE COMPATIBLE PRIMS #################
 
-    
+
 
     ######################### !!END!! ##########################
 

@@ -6,10 +6,10 @@ from bitarray import bitarray
 from . import jtagDeviceDescription
 from .jtagStateMachine import JTAGStateMachine
 from .primative import Level1Primative, Level2Primative
-from .primative_defaults import ChangeTAPStatePrimative,\
-    LoadIRPrimative, ReadDRPrimative,\
-    LoadDRPrimative, LoadReadRegisterPrimative,\
-    SleepPrimative
+from .primative_defaults import TransitionTAP,\
+    LoadIR, ReadDR,\
+    LoadDR, LoadReadRegister,\
+    Sleep
 from .jtagDevice import JTAGDevice
 from .command_queue import CommandQueue
 from .cabledriver import InaccessibleController
@@ -63,12 +63,12 @@ class JTAGScanChain(object):
             else:
                 print("WTF", primative)
 
-        for primative_cls in [ChangeTAPStatePrimative,
-                              LoadIRPrimative,
-                              ReadDRPrimative,
-                              LoadDRPrimative,
-                              LoadReadRegisterPrimative,
-                              SleepPrimative]:
+        for primative_cls in [TransitionTAP,
+                              LoadIR,
+                              ReadDR,
+                              LoadDR,
+                              LoadReadRegister,
+                              Sleep]:
             self.gen_prim_adder(primative_cls)
 
     def snapshot_queue(self):

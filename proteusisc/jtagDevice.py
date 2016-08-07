@@ -4,7 +4,7 @@ import sys
 
 from bitarray import bitarray
 
-from .primative_defaults import RunInstructionPrimative
+from .primative_defaults import RunInstruction
 from .jtagDeviceDescription import JTAGDeviceDescription
 from .jtagUtils import pstatus
 
@@ -44,7 +44,7 @@ class JTAGDeviceBase(object):
 
     def run_tap_instruction(self, *args, **kwargs):
         return self._chain.queue_command(
-            RunInstructionPrimative(self, *args, **kwargs))
+            RunInstruction(self, *args, **kwargs))
 
     @property
     def chain_index(self):

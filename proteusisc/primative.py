@@ -9,23 +9,20 @@ SEQUENCE = CONSTANT|4
 
 class Primative(object):
     _layer = None
-    def __init__(self):
-        self._staged = False
-        self._committed = False
-
-    def _commit(self, trans):
-        if not self._staged:
-            raise Exception("Primative must be staged before commit.")
-        if self._committed:
-            raise Exception("Primative already committed.")
-        self._committed = True
-        return False
 
     def __repr__(self):
         n = getattr(self, '_function_name', None) or \
             getattr(type(self), 'name', None) or \
             type(self).__name__
-        return "<%s>"%n
+        parts = []
+        if isinstance(self, DeviceTarget):
+            parts.append("D:%s"%self.target_device.chain_index)
+        for v in vars(self):
+            if v not in {"target_device"}:
+                parts.append("%s:%s"%\
+                             (v, getattr(self, v)))
+
+        return "<%s(%s)>" % (n, "; ".join(parts))
 
     @property
     def _device_index(self):
@@ -61,12 +58,18 @@ class Primative(object):
     def signature(self):
         return (type(self), self._group_type)
 
+    @property
+    def _group_type(self):
+        return 0
+
+
 class Executable(object):
     def execute(self):
         raise NotImplemented()
 
 class DeviceTarget(object):
-    pass
+    def get_placeholder_for_dev(self, dev):
+        raise NotImplemented()
 
 class TDORead(object):
     pass
