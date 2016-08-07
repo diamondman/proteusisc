@@ -4,7 +4,7 @@ import sys
 
 from bitarray import bitarray
 
-from .primative import DefaultRunInstructionPrimative
+from .primative_defaults import DefaultRunInstructionPrimative
 from .jtagDeviceDescription import JTAGDeviceDescription
 from .jtagUtils import pstatus
 

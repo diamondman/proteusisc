@@ -206,7 +206,7 @@ class DigilentAdeptController(CableDriver):
             self._jtagon = True
             raise JTAGAlreadyEnabledError()
         else:
-            raise JTAGEnableFailedError("Error enabling JTAG. Error code: %s." %res[1])
+            raise JTAGEnableFailedError("Error enabling JTAG. Error code: %s." %status_code)
 
 
     def jtag_disable(self):

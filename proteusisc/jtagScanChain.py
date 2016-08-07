@@ -5,10 +5,11 @@ from bitarray import bitarray
 
 from . import jtagDeviceDescription
 from .jtagStateMachine import JTAGStateMachine
-from .primative import Level1Primative, Level2Primative,\
-    DefaultChangeTAPStatePrimative, DefaultLoadIRPrimative,\
-    DefaultReadDRPrimative, DefaultLoadDRPrimative,\
-    DefaultLoadReadRegisterPrimative, DefaultSleepPrimative
+from .primative import Level1Primative, Level2Primative
+from .primative_defaults import DefaultChangeTAPStatePrimative,\
+    DefaultLoadIRPrimative, DefaultReadDRPrimative,\
+    DefaultLoadDRPrimative, DefaultLoadReadRegisterPrimative,\
+    DefaultSleepPrimative
 from .jtagDevice import JTAGDevice
 from .command_queue import CommandQueue
 from .cabledriver import InaccessibleController
@@ -20,9 +21,9 @@ class JTAGScanChain(object):
         if not hasattr(self, cls_._function_name):
             def adder(*args, **kwargs):
                 self._command_queue.append(cls_(*args, **kwargs))
-                res = self._command_queue.get_return()
+                #res = self._command_queue.get_return()
                 #print(" "*3, cls_.__name__, "returns", res)
-                return res
+                #return res
             setattr(self, cls_._function_name, adder)
             self._lv2_primatives[cls_._function_name] = cls_
             #print("Adding %s->%s OK"%(cls_._function_name, cls_))

@@ -14,8 +14,8 @@ from bitarray import bitarray
 import numbers
 
 from proteusisc.cabledriver import CableDriver
-from proteusisc.primative import Level1Primative, Level2Primative,\
-    Level3Primative, Executable, DefaultRunInstructionPrimative,\
+from proteusisc.primative import Level1Primative,\
+    Level2Primative, Level3Primative, Executable,\
     DOESNOTMATTER, ZERO, ONE, CONSTANT, SEQUENCE
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGNotEnabledError

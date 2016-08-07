@@ -11,11 +11,12 @@ sys.path.append("/home/diamondman/src/proteusisc")
 import proteusisc
 from proteusisc.controllerManager import _controllerfilter
 from proteusisc.jtagScanChain import JTAGScanChain
-from proteusisc.command_queue import FrameSequence
+from proteusisc.frame import FrameSequence
 from proteusisc.jtagDevice import JTAGDevice
 from proteusisc import errors as proteusiscerrors
-from proteusisc.primative import DefaultRunInstructionPrimative,\
-    DefaultLoadReadDevRegisterPrimative, DeviceTarget
+from proteusisc.primative import DeviceTarget
+from proteusisc.primative_defaults import DefaultRunInstructionPrimative,\
+    DefaultLoadReadDevRegisterPrimative
 from proteusisc.test_utils import FakeDev
 
 drvr = _controllerfilter[0x1443][None]
@@ -64,7 +65,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def report():
-    if len(chain._command_queue.queue) == 0:
+    if len(chain._command_queue) == 0:
         return "No commands in Queue."
     t = time.time()
     stages = []
@@ -78,8 +79,8 @@ def report():
     ############### GROUPING BY EXEC BOUNDARIES!################
 
     fences = []
-    fence = [chain._command_queue.queue[0]]
-    for p in chain._command_queue.queue[1:]:
+    fence = [chain._command_queue[0]]
+    for p in chain._command_queue[1:]:
         if type(fence[0])._layer == type(p)._layer and\
            isinstance(fence[0], DeviceTarget) == \
               isinstance(p, DeviceTarget):
@@ -133,8 +134,7 @@ def report():
 
     combined_fences = grouped_fences[0]
     for fence in grouped_fences[1:]:
-        combined_fences._frames += fence._frames
-        combined_fences._frame_types += fence._frame_types
+        combined_fences += fence
 
     stages.append(combined_fences.snapshot())
 
@@ -142,13 +142,10 @@ def report():
     ################ TRANSLATION TO LOWER LAYER ################
 
     expanded_prims = FrameSequence(chain,
-                                   *combined_fences[0].expand_macro())
-
+        *combined_fences[0].expand_macro())
     for f in combined_fences:
         if f._layer == 3:
-            tmpframes = f.expand_macro()
-            expanded_prims._frames += tmpframes
-            #expanded_prims._frame_types += fence._frame_types
+            expanded_prims += f.expand_macro()
         elif f._layer == 2:
             expanded_prims.append(f)
     expanded_prims.finalize()
