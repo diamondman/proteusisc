@@ -1,5 +1,5 @@
 import collections
-from .primative import DeviceTarget, Primative
+from .primitive import DeviceTarget, Primitive
 
 class Frame(collections.MutableSequence):
     def __init__(self, chain, *prims, fill=False):
@@ -13,7 +13,7 @@ class Frame(collections.MutableSequence):
         if fill:
             self.fill()
 
-    def add(self, *args: Primative):
+    def add(self, *args: Primitive):
         for prim in args:
             if prim is None:
                 raise ValueError("None is not a valid prom. "

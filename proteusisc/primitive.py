@@ -7,7 +7,7 @@ ONE = 2
 CONSTANT = ZERO|ONE
 SEQUENCE = CONSTANT|4
 
-class Primative(object):
+class Primitive(object):
     _layer = None
 
     def __repr__(self):
@@ -23,12 +23,6 @@ class Primative(object):
                              (v, getattr(self, v)))
 
         return "<%s(%s)>" % (n, "; ".join(parts))
-
-    @property
-    def _device_index(self):
-        if hasattr(self, 'target_device'):
-            return self.target_device.chain_index
-        return None
 
     def snapshot(self):
         return {
@@ -71,10 +65,14 @@ class DeviceTarget(object):
     def get_placeholder_for_dev(self, dev):
         raise NotImplemented()
 
+    @property
+    def _device_index(self):
+        return self.target_device.chain_index
+
 class TDORead(object):
     pass
 
-class Level1Primative(Primative):
+class Level1Primitive(Primitive):
     _layer = 1
     _effect = [0, 0, 0]
     def __repr__(self):
@@ -90,9 +88,9 @@ class Level1Primative(Primative):
         return "<%s(TMS:%s; TDI:%s; TDO:%s)>"%\
             (self.__class__.__name__, tms, tdi, tdo)
 
-class Level2Primative(Primative):
+class Level2Primitive(Primitive):
     _layer = 2
 
-class Level3Primative(Primative):
+class Level3Primitive(Primitive):
     _layer = 3
     _is_macro = True

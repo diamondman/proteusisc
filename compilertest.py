@@ -14,8 +14,8 @@ from proteusisc.jtagScanChain import JTAGScanChain
 from proteusisc.frame import FrameSequence
 from proteusisc.jtagDevice import JTAGDevice
 from proteusisc import errors as proteusiscerrors
-from proteusisc.primative import DeviceTarget
-from proteusisc.primative_defaults import RunInstruction,\
+from proteusisc.primitive import DeviceTarget
+from proteusisc.primitive_defaults import RunInstruction,\
     LoadReadDevRegister
 from proteusisc.test_utils import FakeDev
 
@@ -31,32 +31,32 @@ d2 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
 chain._devices = [d0, d1, d2]#, d3]
 
-d0.run_tap_instruction("ISC_ENABLE", read=True, arg=bitarray(bin(7)[2:].zfill(8)))#, delay=0.01)
-d0.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01, execute=False)
+d0.run_instruction("ISC_ENABLE", read=True, arg=bitarray(bin(7)[2:].zfill(8)))#, delay=0.01)
+d0.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01, execute=False)
 for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
-    d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
-d1.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
-d1.run_tap_instruction("ISC_ENABLE", read=False, execute=False, arg=bitarray(), delay=0.01)
-#d2.run_tap_instruction("ISC_ENABLE", read=False, delay=0.01)
-d1.run_tap_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
+    d0.run_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
+d1.run_instruction("ISC_ENABLE", read=False, delay=0.01)
+d1.run_instruction("ISC_ENABLE", read=False, execute=False, arg=bitarray(), delay=0.01)
+#d2.run_instruction("ISC_ENABLE", read=False, delay=0.01)
+d1.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
 for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
-    d2.run_tap_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=.01)
-##d0.run_tap_instruction("ISC_INIT", loop=8, delay=0.01) #DISCHARGE
-#d0.run_tap_instruction("ISC_INIT", loop=8, arg=bitarray(), delay=0.01)
-#d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarray('00010101'))
-#d0.run_tap_instruction("BYPASS")#, expret=bitarray('00100101'))
+    d2.run_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=.01)
+##d0.run_instruction("ISC_INIT", loop=8, delay=0.01) #DISCHARGE
+#d0.run_instruction("ISC_INIT", loop=8, arg=bitarray(), delay=0.01)
+#d0.run_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarray('00010101'))
+#d0.run_instruction("BYPASS")#, expret=bitarray('00100101'))
 #d0._chain.transition_tap("TLR")
-d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
-d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
+d0.run_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
+d0.run_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
 #
 chain.transition_tap("TLR")
 #chain._load_register(bitarray("1001"))
-chain.queue_command(LoadReadDevRegister(d0, bitarray("1001")))
-chain.queue_command(LoadReadDevRegister(d2, bitarray("1001")))
+d0._load_dev_register(bitarray("1001"))
+d2._load_dev_register(bitarray("1001"))
 #
 #
-#d0.run_tap_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
-#d0.run_tap_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
+#d0.run_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
+#d0.run_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
 
 
 app = Flask(__name__)

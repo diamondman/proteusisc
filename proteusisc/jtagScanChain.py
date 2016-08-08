@@ -5,11 +5,12 @@ from bitarray import bitarray
 
 from . import jtagDeviceDescription
 from .jtagStateMachine import JTAGStateMachine
-from .primative import Level1Primative, Level2Primative
-from .primative_defaults import TransitionTAP,\
-    LoadIR, ReadDR,\
-    LoadDR, LoadReadRegister,\
-    Sleep
+from .primitive import Primitive, DeviceTarget
+from .primitive_defaults import RunInstruction,\
+    TransitionTAP, LoadReadRegister,\
+    LoadIR, LoadIR, LoadDR, ReadDR, Sleep
+from .primitive_defaults import LoadDevDR, LoadDevIR, ReadDevDR, \
+    ReadDevIR, LoadReadDevRegister
 from .jtagDevice import JTAGDevice
 from .command_queue import CommandQueue
 from .cabledriver import InaccessibleController
@@ -21,14 +22,8 @@ class JTAGScanChain(object):
         if not hasattr(self, cls_._function_name):
             def adder(*args, **kwargs):
                 self._command_queue.append(cls_(*args, **kwargs))
-                #res = self._command_queue.get_return()
-                #print(" "*3, cls_.__name__, "returns", res)
-                #return res
             setattr(self, cls_._function_name, adder)
-            self._lv2_primatives[cls_._function_name] = cls_
-            #print("Adding %s->%s OK"%(cls_._function_name, cls_))
             return True
-        #print("Adding %s FAIL"%cls_)
         return False
 
     def __init__(self, controller,
@@ -41,35 +36,48 @@ class JTAGScanChain(object):
         self._ignore_jtag_enabled = ignore_jtag_enabled
 
         self.initialize_device_from_id = device_initializer
-        self.get_descriptor_for_idcode = jtagDeviceDescription.get_descriptor_for_idcode
+        self.get_descriptor_for_idcode = \
+                    jtagDeviceDescription.get_descriptor_for_idcode
 
         if isinstance(controller, InaccessibleController):
             raise DevicePermissionDeniedError()
         self._controller = controller
-        self._controller._scanchain = self #This might necessitate a factory
+        #This might necessitate a factory
+        self._controller._scanchain = self
 
         self._command_queue = CommandQueue(self)
 
-        self._lv1_primatives = []
-        self._lv2_primatives = {}
-        for primative in self._controller._primatives:
-            if issubclass(primative, Level2Primative):
-                if not self.gen_prim_adder(primative):
-                    raise Exception("Failed adding primative %s, primative with name %s "\
-                                        "already exists on scanchain"%\
-                                        (primative, primative._function_name))
-            elif issubclass(primative, Level1Primative):
-                self._lv1_primatives.append(primative)
-            else:
-                print("WTF", primative)
+        default_prims = {RunInstruction,
+                         TransitionTAP, LoadReadRegister,
+                         LoadIR, LoadIR, LoadDR, ReadDR, Sleep,
+                         LoadDevDR, LoadDevIR, ReadDevDR,
+                         ReadDevIR, LoadReadDevRegister}
+        self._chain_primitives = {}
+        self._device_primitives = {}
 
-        for primative_cls in [TransitionTAP,
-                              LoadIR,
-                              ReadDR,
-                              LoadDR,
-                              LoadReadRegister,
-                              Sleep]:
-            self.gen_prim_adder(primative_cls)
+        for prim in default_prims:
+            assert issubclass(prim, Primitive)
+            if issubclass(prim, DeviceTarget):
+                self._device_primitives[prim._function_name] = prim
+            else:
+                self._chain_primitives[prim._function_name] = prim
+
+        for prim in self._controller._primitives:
+            if not issubclass(prim, Primitive):
+                raise Exception("Registered Controller Prim has "
+                                "unknown type. (%s)"%primitive)
+            if issubclass(prim, DeviceTarget):
+                self._device_primitives[prim._function_name] = prim
+            else:
+                self._chain_primitives[prim._function_name] = prim
+
+        for func_name, prim in self._chain_primitives.items():
+            if not self.gen_prim_adder(prim):
+                raise Exception("Failed adding primitive %s, "\
+                                "primitive with name %s "\
+                                "already exists on scanchain"%\
+                                (prim, prim._function_name))
+        
 
     def snapshot_queue(self):
         return self._command_queue.snapshot()
@@ -86,7 +94,7 @@ class JTAGScanChain(object):
             while True:
                 idcode_str = self.read_dr(32)
                 if idcode_str in NULL_ID_CODES: break
-                dev = self.initialize_device_from_id(self, idcode_str)
+                dev = self.initialize_device_from_id(self, idcode_str)  
                 self._devices.append(dev)
 
             self.flush()

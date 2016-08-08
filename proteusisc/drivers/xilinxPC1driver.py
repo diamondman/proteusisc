@@ -14,8 +14,8 @@ from bitarray import bitarray
 import numbers
 
 from proteusisc.cabledriver import CableDriver
-from proteusisc.primative import Level1Primative,\
-    Level2Primative, Level3Primative, Executable,\
+from proteusisc.primitive import Level1Primitive,\
+    Level2Primitive, Level3Primitive, Executable,\
     DOESNOTMATTER, ZERO, ONE, CONSTANT, SEQUENCE
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGNotEnabledError
@@ -26,9 +26,10 @@ from proteusisc.errors import JTAGEnableFailedError,\
 #TDI = 1
 #TDO = 1
 
-class XPC1TransferPrimative(Level1Primative, Executable):
+class XPC1TransferPrimitive(Level1Primitive, Executable):
     #transfer_bits_single can be used for single bit jtag transfers.
     #This will be necessary for firmware upgrade.
+    _function_name = 'transfer_bits'
     _driver_function_name = 'transfer_bits'#_single'#_cpld_upgrade'
     _max_bits = 65536
     """TMS, TDI, TDO"""
@@ -39,7 +40,7 @@ class XPC1TransferPrimative(Level1Primative, Executable):
         return [self.count, self.tms, self.tdi], {'TDO': self.tdo}
 
 class XilinxPC1Driver(CableDriver):
-    _primatives = [XPC1TransferPrimative]
+    _primitives = [XPC1TransferPrimitive]
     def __init__(self, dev, mock=False):
         super(XilinxPC1Driver, self).__init__(dev)
         self.mock = mock

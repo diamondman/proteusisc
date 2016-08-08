@@ -4,11 +4,19 @@ import sys
 
 from bitarray import bitarray
 
-from .primative_defaults import RunInstruction
 from .jtagDeviceDescription import JTAGDeviceDescription
 from .jtagUtils import pstatus
 
 class JTAGDeviceBase(object):
+    def gen_prim_adder(self, cls_):
+        if not hasattr(self, cls_._function_name):
+            def adder(*args, **kwargs):
+                self._chain._command_queue.append(cls_(self, *args,
+                                                       **kwargs))
+            setattr(self, cls_._function_name, adder)
+            return True
+        return False
+
     def __init__(self, chain, idcode):
         self._chain = chain
         self._current_DR = None
@@ -30,21 +38,27 @@ class JTAGDeviceBase(object):
             else:
                 self._id = struct.unpack("<L", idcode[::-1])[0]
         else:
-            raise ValueError("JTAGDevice idcode parameter must be an int or "
-                             "string of length 4. (Invalid Type: %s)"%type(idcode))
+            raise ValueError("JTAGDevice idcode parameter must be an int "
+                             "or string of length 4. (Invalid Type: %s)"%\
+                             type(idcode))
         if fail:
             raise ValueError("JTAGDevice idcode parameter must be a 32 "
-                             "bit int, a string of length 4, or a bitarray "
-                             "of 32 bits (%s len: %s)"%(idcode,len(idcode)))
+                             "bit int, a string of length 4, or a "
+                             "bitarray of 32 bits (%s len: %s)"%\
+                             (idcode,len(idcode)))
 
         if not self._id & 1:
-            raise Exception("Invalid JTAG ID Code: LSB must be 1 (IEEE 1149.1)")
+            raise Exception("Invalid JTAG ID Code: LSB must be 1 "
+                            "(IEEE 1149.1)")
 
         self._desc = None
 
-    def run_tap_instruction(self, *args, **kwargs):
-        return self._chain.queue_command(
-            RunInstruction(self, *args, **kwargs))
+        for func_name, prim in self._chain._device_primitives.items():
+            if not self.gen_prim_adder(prim):
+                raise Exception("Failed adding primitive %s, "\
+                                "primitive with name %s "\
+                                "already exists on device"%\
+                                (prim, prim._function_name))
 
     @property
     def chain_index(self):
