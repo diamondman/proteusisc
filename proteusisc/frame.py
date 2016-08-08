@@ -96,14 +96,15 @@ class FrameSequence(collections.MutableSequence):
     def __init__(self, chain, *init_prims_lists):
         self._chain = chain
         self._frames = []
-        if isinstance(init_prims_lists[0], Frame):
-            for frame in init_prims_lists:
-                self._frames.append(frame)
-        else:
-            for p in init_prims_lists[0]:
-                self._frames.append(Frame(self._chain, p))
-            for ps in init_prims_lists[1:]:
-                self.addstream(ps)
+        if init_prims_lists:
+            if isinstance(init_prims_lists[0], Frame):
+                for frame in init_prims_lists:
+                    self._frames.append(frame)
+            else:
+                for p in init_prims_lists[0]:
+                    self._frames.append(Frame(self._chain, p))
+                    for ps in init_prims_lists[1:]:
+                        self.addstream(ps)
 
     #Needleman–Wunsch algorithm
     def _lcs(self, prims):

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 import time
 from bitarray import bitarray
 from flask import Flask, escape, render_template
@@ -139,8 +140,7 @@ def report():
     ######################### STAGE 06 #########################
     ################ TRANSLATION TO LOWER LAYER ################
 
-    expanded_prims = FrameSequence(chain,
-        *combined_fences[0].expand_macro())
+    expanded_prims = FrameSequence(chain)
     for f in combined_fences:
         if f._layer == 3:
             expanded_prims += f.expand_macro()
