@@ -1,6 +1,8 @@
 from bitarray import bitarray
 import types
 
+from proteusisc.promise import TDOPromise
+
 DOESNOTMATTER = 0
 ZERO = 1
 ONE = 2
@@ -9,6 +11,11 @@ SEQUENCE = CONSTANT|4
 
 class Primitive(object):
     _layer = None
+    def __init__(self, _synthetic=False, *args, **kwargs):
+        assert not args and not kwargs
+        super(Primitive, self).__init__()
+        self._synthetic = _synthetic
+        self._chain = None
 
     def __repr__(self):
         n = getattr(self, '_function_name', None) or \
@@ -27,6 +34,8 @@ class Primitive(object):
     def snapshot(self):
         return {
             'valid':True,
+            'promise': self.get_promise() if isinstance(self, TDORead)
+                       else None,
             #'rowspan': not isinstance(self, DeviceTarget),
             'dev':self.target_device.chain_index \
                 if hasattr(self, 'target_device') else "CHAIN",
@@ -69,8 +78,16 @@ class DeviceTarget(object):
     def _device_index(self):
         return self.target_device.chain_index
 
-class TDORead(object):
-    pass
+class TDORead(Primitive):
+    def __init__(self, read=False, _promise=None, *args, **kwargs):
+        super(TDORead, self).__init__(*args, **kwargs)
+        self.read = read
+        self._promise = _promise
+
+    def get_promise(self):
+        if self._promise is None and self.read:
+            self._promise = TDOPromise(self._chain)
+        return self._promise
 
 class Level1Primitive(Primitive):
     _layer = 1
@@ -93,4 +110,3 @@ class Level2Primitive(Primitive):
 
 class Level3Primitive(Primitive):
     _layer = 3
-    _is_macro = True

@@ -3,10 +3,10 @@ import collections
 from .jtagStateMachine import JTAGStateMachine
 
 class CommandQueue(collections.MutableSequence):
-    def __init__(self, sc):
+    def __init__(self, chain):
         self.queue = []
         self._fsm = JTAGStateMachine()
-        self.sc = sc
+        self._chain = chain
         self._return_queue = []
 
     def reset(self):
@@ -33,3 +33,7 @@ class CommandQueue(collections.MutableSequence):
 
     def insert(self, index, val):
         self.queue.insert(index, val)
+
+    def append(self, elem):
+        elem._chain = self._chain
+        super(CommandQueue, self).append(elem)

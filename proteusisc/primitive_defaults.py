@@ -14,43 +14,48 @@ class RunInstruction(Level3Primitive, DeviceTarget, TDORead):
     _function_name = 'run_instruction'
     name = "INS_PRIM"
 
-    def __init__(self, device, insname, read=True, execute=True,
-                 loop=0, arg=None, delay=0, synthetic=False):
-        super(RunInstruction, self).__init__()
+    def __init__(self, device, insname, execute=True,
+                 loop=0, arg=None, delay=0, *args, **kwargs):
+        super(RunInstruction, self).__init__(*args, **kwargs)
         self.insname = insname
-        self.read = read
         self.execute = execute
         self.arg = arg
         self.delay = delay
         self.target_device = device
-        self._synthetic = synthetic
 
     @classmethod
     def expand_frame(cls, frame):
         chain = frame._chain
         devs = chain._devices
-        seq = FrameSequence(frame._chain,
-            Frame(frame._chain, *(LoadDevIR(d,
+
+        load_dev_ir = chain.get_prim('load_dev_ir')
+        load_dev_dr = chain.get_prim('load_dev_dr')
+        transition_tap = chain.get_prim('transition_tap')
+        sleep = chain.get_prim('sleep')
+        read_dev_ir = chain.get_prim('read_dev_ir')
+
+        seq = FrameSequence(chain,
+            Frame(chain, *(load_dev_ir(d,
                     bitarray(d._desc._instructions[frame[i].insname]))
                                   for i, d in enumerate(devs)))
         )
 
         if frame._valid_prim.arg:
-            seq.append(Frame(frame._chain,
-                         *(LoadDevDR(d, frame[i].arg)
+            seq.append(Frame(chain,
+                         *(load_dev_dr(d, frame[i].arg)
                           for i, d in enumerate(devs))))
 
         if frame._valid_prim.execute:
-            seq.append(Frame.from_prim(chain,
-                    TransitionTAP('TLR')))
+            seq.append(Frame.from_prim(chain, transition_tap('TLR')))
 
         if any((p.delay for p in frame)):
             seq.append(Frame.from_prim(chain,
-                    Sleep(max((p.delay for p in frame)))))
+                    sleep(max((p.delay for p in frame)))))
 
         if any((p.read for p in frame)):
-            seq.append(Frame(frame._chain,
-                        *(ReadDevIR(d,
+            seq.append(Frame(chain,
+                        *(read_dev_ir(d, read=frame[i].read,
+                            _promise=frame[i]._promise,
                             bitcount=0 if frame[i].read else None)
                           for i, d in enumerate(devs))))
 
@@ -67,39 +72,39 @@ class RunInstruction(Level3Primitive, DeviceTarget, TDORead):
             insname="BYPASS",
             execute=self.execute,
             arg=None if self.arg == None else bitarray(),
-            synthetic=True)
+            _synthetic=True)
         assert self._group_type == tmp._group_type
         return tmp
+
+################# END LV3 Primatimes (Dev) #################
 
 ################### LV2 Primatimes (Dev) ###################
 
 class LoadDevDR(Level2Primitive, DeviceTarget, TDORead):
     _function_name = 'load_dev_dr'
-    def __init__(self, dev, data, read=False):
-        super(LoadDevDR, self).__init__()
+    def __init__(self, dev, data, *args, **kwargs):
+        super(LoadDevDR, self).__init__(*args, **kwargs)
         self.target_device = dev
         self.data = data
-        self.read = read
 
-class LoadDevIR(Level2Primitive, DeviceTarget):
+class LoadDevIR(Level2Primitive, DeviceTarget, TDORead):
     _function_name = 'load_dev_ir'
-    def __init__(self, dev, data, read=False):
-        super(LoadDevIR, self).__init__()
+    def __init__(self, dev, data, *args, **kwargs):
+        super(LoadDevIR, self).__init__(*args, **kwargs)
         self.target_device = dev
         self.data = data
-        self.read = read
 
-class ReadDevDR(Level2Primitive, DeviceTarget):
+class ReadDevDR(Level2Primitive, DeviceTarget, TDORead):
     _function_name = 'read_dev_dr'
-    def __init__(self, dev, bitcount=None):
-        super(ReadDevDR, self).__init__()
+    def __init__(self, dev, bitcount=None, *args, **kwargs):
+        super(ReadDevDR, self).__init__(*args, **kwargs)
         self.target_device = dev
         self.bitcount = bitcount
 
-class ReadDevIR(Level2Primitive, DeviceTarget):
+class ReadDevIR(Level2Primitive, DeviceTarget, TDORead):
     _function_name = 'read_dev_ir'
-    def __init__(self, dev, bitcount=None):
-        super(ReadDevIR, self).__init__()
+    def __init__(self, dev, bitcount=None, *args, **kwargs):
+        super(ReadDevIR, self).__init__(*args, **kwargs)
         self.target_device = dev
         self.bitcount = bitcount
 
@@ -108,16 +113,15 @@ class ReadDevIR(Level2Primitive, DeviceTarget):
 
 
 
-class LoadReadDevRegister(Level2Primitive, DeviceTarget):
+class LoadReadDevRegister(Level2Primitive, DeviceTarget, TDORead):
     _function_name = '_load_dev_register'
-    def __init__(self, device, data, read=False, TMSLast=True, bitcount=None, synthetic=False):
-        super(LoadReadDevRegister, self).__init__()
+    def __init__(self, device, data, TMSLast=True,
+                 bitcount=None, *args, **kwargs):
+        super(LoadReadDevRegister, self).__init__(*args, **kwargs)
         self.target_device = device
         self.data = data
-        self.read = read
         self.TMSLast = TMSLast
         self.bitcount=bitcount
-        self._synthetic = synthetic
 
     def get_placeholder_for_dev(self, dev):
         tmp = LoadReadDevRegister(
@@ -125,7 +129,7 @@ class LoadReadDevRegister(Level2Primitive, DeviceTarget):
             read=False,
             bitcount=self.bitcount,
             TMSLast = self.TMSLast, #This needs to be reviewed
-            synthetic=True)
+            _synthetic=True)
         assert self._group_type == tmp._group_type
         return tmp
 
@@ -143,44 +147,41 @@ class TransitionTAP(Level2Primitive):
         self.targetstate = state
         self._startstate = None
 
-class LoadReadRegister(Level2Primitive):
+class LoadReadRegister(Level2Primitive, TDORead):
     _function_name = '_load_register'
-    def __init__(self, data, read=False, TMSLast=True, bitcount=None):
-        super(LoadReadRegister, self).__init__()
+    def __init__(self, data, TMSLast=True, bitcount=None, *args, **kwargs):
+        super(LoadReadRegister, self).__init__(*args, **kwargs)
         self.data = data
-        self.read = read
         self.TMSLast = TMSLast
         self.bitcount=bitcount
 
-class LoadDR(Level2Primitive):
+class LoadDR(Level2Primitive, TDORead):
     _function_name = 'load_dr'
-    def __init__(self, data, read):
-        super(LoadDR, self).__init__()
+    def __init__(self, data, *args, **kwargs):
+        super(LoadDR, self).__init__(*args, **kwargs)
         self.data = data
-        self.read = read
 
-class ReadDR(Level2Primitive):
+class ReadDR(Level2Primitive, TDORead):
     _function_name = 'read_dr'
-    def __init__(self, bitcount):
-        super(ReadDR, self).__init__()
+    def __init__(self, bitcount, *args, **kwargs):
+        super(ReadDR, self).__init__(*args, **kwargs)
         self.bitcount = bitcount
 
-class LoadIR(Level2Primitive):
+class LoadIR(Level2Primitive, TDORead):
     _function_name = 'load_ir'
-    def __init__(self, data, read):
-        super(LoadIR, self).__init__()
+    def __init__(self, data, *args, **kwargs):
+        super(LoadIR, self).__init__(*args, **kwargs)
         self.data = data
-        self.read = read
 
-class ReadIR(Level2Primitive):
+class ReadIR(Level2Primitive, TDORead):
     _function_name = 'read_ir'
-    def __init__(self, bitcount):
-        super(ReadIR, self).__init__()
+    def __init__(self, bitcount, *args, **kwargs):
+        super(ReadIR, self).__init__(*args, **kwargs)
         self.bitcount = bitcount
 
 class Sleep(Level2Primitive, Executable):
     _function_name = 'sleep'
     _driver_function_name = 'sleep'
-    def __init__(self, delay):
-        super(Sleep, self).__init__()
+    def __init__(self, delay, *args, **kwargs):
+        super(Sleep, self).__init__(*args, **kwargs)
         self.delay = delay

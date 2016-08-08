@@ -5,7 +5,7 @@ from bitarray import bitarray
 
 from . import jtagDeviceDescription
 from .jtagStateMachine import JTAGStateMachine
-from .primitive import Primitive, DeviceTarget
+from .primitive import Primitive, DeviceTarget, TDORead
 from .primitive_defaults import RunInstruction,\
     TransitionTAP, LoadReadRegister,\
     LoadIR, LoadIR, LoadDR, ReadDR, Sleep
@@ -21,7 +21,7 @@ class JTAGScanChain(object):
     def gen_prim_adder(self, cls_):
         if not hasattr(self, cls_._function_name):
             def adder(*args, **kwargs):
-                self._command_queue.append(cls_(*args, **kwargs))
+                return self.queue_command(cls_(*args, **kwargs))
             setattr(self, cls_._function_name, adder)
             return True
         return False
@@ -77,13 +77,22 @@ class JTAGScanChain(object):
                                 "primitive with name %s "\
                                 "already exists on scanchain"%\
                                 (prim, prim._function_name))
-        
 
     def snapshot_queue(self):
         return self._command_queue.snapshot()
 
     def queue_command(self, prim):
         self._command_queue.append(prim)
+        res = None
+        if isinstance(prim, TDORead):
+            res = prim.get_promise()
+        return res
+
+    def get_prim(self, name):
+        res = self._chain_primitives.get(name)
+        if res:
+            return res
+        return self._device_primitives[name]
 
     def init_chain(self):
         if not self._hasinit:
@@ -94,7 +103,7 @@ class JTAGScanChain(object):
             while True:
                 idcode_str = self.read_dr(32)
                 if idcode_str in NULL_ID_CODES: break
-                dev = self.initialize_device_from_id(self, idcode_str)  
+                dev = self.initialize_device_from_id(self, idcode_str)
                 self._devices.append(dev)
 
             self.flush()

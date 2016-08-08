@@ -31,8 +31,8 @@ d2 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
 chain._devices = [d0, d1, d2]#, d3]
 
-d0.run_instruction("ISC_ENABLE", read=True, arg=bitarray(bin(7)[2:].zfill(8)))#, delay=0.01)
-d0.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01, execute=False)
+a = d0.run_instruction("ISC_ENABLE", read=True, arg=bitarray(bin(7)[2:].zfill(8)))#, delay=0.01)
+b = d0.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01, execute=False)
 for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
     d0.run_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
 d1.run_instruction("ISC_ENABLE", read=False, delay=0.01)
@@ -158,6 +158,8 @@ def report():
     ######################### !!END!! ##########################
 
     print(time.time()-t)
+    print(a)
+    print(b)
 
     return render_template("layout.html", stages=stages,
                            dev_count=len(chain._devices))
