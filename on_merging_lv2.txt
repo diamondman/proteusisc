@@ -1,0 +1,23 @@
+LV2 prim traits
+    CAN READ/WRITE
+	IR OR DR
+    DEV OR CHAIN
+
+LV2 prims
+    RWDevIR
+    RWDevDR
+    RWIR
+    RWDR
+    TransitionTAP
+    Sleep
+
+
+* Write/Read only combines with same reg type (IR/DR)
+* A Read (A) can merge forward (->) into a write (B), but only if A does not write and B does not read. (May change based on how same types merge)
+* A Write (A) can not merge forward (->) into a Read (B) because reads can not cross write boundaries.
+* What does it mean to merge a read with a read or a write with a write???
+  * No real reason to merge two sid eby side writes or reads because it should never happen. It would only read what was just put in or shift out what was just written.
+
+* Sleep can merge into Sleep, and simply sums the two values.
+* TransitionTAP can merge into TransitionTAP if same state target. Duplicate is emilimated.
+* TransitionTap may be able to merge if on same path through state machine. Maybe not worth the effort as it will be merged on layer 1. However, this could save extra commands sent to layer 2 controllers. Consider.

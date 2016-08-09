@@ -30,21 +30,25 @@ d2 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
 chain._devices = [d0, d1, d2]#, d3]
 
-a = d0.run_instruction("ISC_ENABLE", read=True, data=bitarray(bin(7)[2:].zfill(8)))
-b = d0.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01, execute=False)
-for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
-    d0.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=0.01)
-d1.run_instruction("ISC_ENABLE", read=False, delay=0.01)
-d1.run_instruction("ISC_ENABLE", read=False, execute=False, data=bitarray(), delay=0.01)
-d1.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
-for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
-    d2.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=.01)
-d0.run_instruction("ISC_DISABLE", loop=8, delay=0.01)
-d0.run_instruction("ISC_PROGRAM", read=False, data=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
-chain.transition_tap("TLR")
-d0.rw_dev_dr(data=bitarray("1001"))
-d2.rw_dev_dr(data=bitarray("1001"))
-
+#a = d0.run_instruction("ISC_ENABLE", read=True, data=bitarray(bin(7)[2:].zfill(8)))
+#b = d0.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
+#for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
+#    d0.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=0.01)
+#d1.run_instruction("ISC_ENABLE", read=False, delay=0.01)
+#d1.run_instruction("ISC_ENABLE", read=False, execute=False, data=bitarray(), delay=0.01)
+#d1.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
+#for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
+#    d2.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=.01)
+#d0.run_instruction("ISC_DISABLE", loop=8, delay=0.01)
+#d0.run_instruction("ISC_PROGRAM", read=False, data=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
+#chain.transition_tap("TLR")
+#d0.rw_dev_dr(data=bitarray("1001"))
+#d2.rw_dev_dr(data=bitarray("1001"))
+chain.sleep(delay=1)
+chain.sleep(delay=2)
+chain.sleep(delay=1)
+chain.sleep(delay=2)
+chain.sleep(delay=1)
 
 app = Flask(__name__)
 
@@ -140,22 +144,26 @@ def report():
     ################# COMBINE COMPATIBLE PRIMS #################
 
     merged_prims = FrameSequence(chain)
+
+    working_prim = expanded_prims[0]
     fs_len = len(expanded_prims)
-    i = 0
-    while i < fs_len-1:
-        tmp1 = expanded_prims[i]
-        tmp2 = expanded_prims[i+1]
-        if tmp1.mergable(tmp2):
-            print(tmp1._valid_prim, tmp2._valid_prim)
+    i = 1
+    while i < fs_len:
+        tmp = expanded_prims[i]
+        res = working_prim.merge(tmp)
+        if res is not None:
+            working_prim = res
+        else:
+            merged_prims.append(working_prim)
+            working_prim = tmp
         i += 1
+    merged_prims.append(working_prim)
 
     stages.append(merged_prims.snapshot())
 
     ######################### !!END!! ##########################
 
     print(time.time()-t)
-    print(a)
-    print(b)
 
     return render_template("layout.html", stages=stages,
                            dev_count=len(chain._devices))

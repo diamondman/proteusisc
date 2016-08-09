@@ -6,6 +6,7 @@ class Frame(collections.MutableSequence):
         self._chain = chain
         self._prims = [None for i in range(len(chain._devices))]
         self._valid_prim = None
+        #self._prim_type = None
         self._layer = None
         self._dev_specific = True
         if prims:
@@ -22,6 +23,7 @@ class Frame(collections.MutableSequence):
                                  "specific prims.")
             elif not self._valid_prim:
                 self._valid_prim = prim
+                #self._prim_type = type(prim)
                 self._layer = type(prim)._layer
                 self._dev_specific = isinstance(prim, DeviceTarget)
                 if self._dev_specific:
@@ -90,6 +92,20 @@ class Frame(collections.MutableSequence):
 
     def signature(self):
         return self._valid_prim.signature()
+
+    def merge(self, t):
+        if self._layer != t._layer or self._prim_type != t._prim_type:
+            return None
+        if self._dev_specific:
+            resl = [self[i].merge(t[i])
+                    for i in range(len(self))]
+            if all(resl):
+                return Frame(self._chain, *resl)
+        else:
+            res = self._valid_prim.merge(t._valid_prim)
+            if res:
+                return Frame.from_prim(self._chain, res)
+
 
     def mergable(self, targetf):
         if len(self) is not len(targetf):
@@ -201,4 +217,3 @@ class FrameSequence(collections.MutableSequence):
                     tracks[i+1].append({'valid':False})
 
         return tracks
-

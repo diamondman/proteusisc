@@ -6,7 +6,7 @@ from .primitive import Level3Primitive, Level2Primitive, DeviceTarget,\
 
 #RunInstruction
 #RWDevDR, RWDevIR,
-#ChangeTAPState, RWDR, RWIR, Sleep
+#TransitionTAP, RWDR, RWIR, Sleep
 
 ################### LV3 Primatimes (Dev) ###################
 
@@ -46,17 +46,13 @@ class RunInstruction(Level3Primitive, DeviceTarget, DataRW):
 
         if frame._valid_prim.execute:
             seq.append(Frame.from_prim(chain,
-                transition_tap('TLR',
-                    #_synthetic=all((frame[i]._synthetic
-                    #                for i in range(len(devs))))
-            )))
+                transition_tap('TLR')
+            ))
 
         if any((p.delay for p in frame)):
             seq.append(Frame.from_prim(chain,
-                sleep(delay=max((p.delay for p in frame)),
-                    _synthetic=all((frame[i]._synthetic
-                                    for i in range(len(devs))))
-            )))
+                sleep(delay=max((p.delay for p in frame)))
+            ))
 
         if any((p.read for p in frame)):
             seq.append(Frame(chain,
@@ -127,16 +123,16 @@ class RWDevIR(Level2Primitive, DeviceTarget, DataRW):
 
 class TransitionTAP(Level2Primitive):
     _function_name = 'transition_tap'
-    def __init__(self, state):
-        super(TransitionTAP, self).__init__()
+    def __init__(self, state, *args, **kwargs):
+        super(TransitionTAP, self).__init__(*args, **kwargs)
         self.targetstate = state
         self._startstate = None
 
-    def mergable(self, target):
+    def merge(self, target):
         if isinstance(target, TransitionTAP):
             if self.targetstate == target.targetstate:
-                return True
-        return super(TransitionTAP, self).mergable(target)
+                return self
+        return None
 
 class RWDR(Level2Primitive, DataRW):
     _function_name = 'rw_dr'
@@ -161,10 +157,10 @@ class Sleep(Level2Primitive, Executable):
         super(Sleep, self).__init__(*args, **kwargs)
         self.delay = delay
 
-    def mergable(self, target):
+    def merge(self, target):
         if isinstance(target, Sleep):
-            return True
-        return super(Sleep, self).mergable(target)
+            return Sleep(delay=self.delay+target.delay)
+        return None
 
 
 ############### END LV2 Primatimes (No Dev) ################

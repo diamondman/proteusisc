@@ -29,7 +29,7 @@ class Primitive(object):
         if isinstance(self, DeviceTarget):
             parts.append("D:%s"%self.dev.chain_index)
         for v in vars(self):
-            if v not in {"dev"}:
+            if v not in {"dev", "_chain", "_promise", "_synthetic"}:
                 parts.append("%s:%s"%\
                              (v, getattr(self, v)))
 
@@ -114,8 +114,8 @@ class Level1Primitive(Primitive):
 
 class Level2Primitive(Primitive):
     _layer = 2
-    def mergable(self, target):
-        return False
+    def merge(self, target):
+        return None
 
 class Level3Primitive(Primitive):
     _layer = 3
