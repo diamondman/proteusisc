@@ -23,9 +23,9 @@ class Primitive(object):
             type(self).__name__
         parts = []
         if isinstance(self, DeviceTarget):
-            parts.append("D:%s"%self.target_device.chain_index)
+            parts.append("D:%s"%self.dev.chain_index)
         for v in vars(self):
-            if v not in {"target_device"}:
+            if v not in {"dev"}:
                 parts.append("%s:%s"%\
                              (v, getattr(self, v)))
 
@@ -34,16 +34,14 @@ class Primitive(object):
     def snapshot(self):
         return {
             'valid':True,
-            'promise': self.get_promise() if isinstance(self, TDORead)
+            'promise': self.get_promise() if isinstance(self, DataRW)
                        else None,
-            #'rowspan': not isinstance(self, DeviceTarget),
-            'dev':self.target_device.chain_index \
-                if hasattr(self, 'target_device') else "CHAIN",
+            'dev':self.dev.chain_index \
+                if isinstance(self, DeviceTarget) else "CHAIN",
             'name':getattr(self, '_function_name', None) or \
                 getattr(type(self), 'name', None) or \
                 type(self).__name__,
-            'synthetic': self._synthetic if hasattr(self, '_synthetic')
-                else False,
+            'synthetic': self._synthetic,
             'layer': type(self)._layer,
             'grouping': self._group_type,
             'data':{
@@ -51,8 +49,7 @@ class Primitive(object):
                 getattr(self, attr)
                 for attr in vars(self)
                 if attr[0] != '_' and
-                attr not in ["name", "target_device",
-                             "required_effect"] and
+                attr not in ["name", "dev", "required_effect"] and
                 getattr(self, attr) is not None and
                 not isinstance(getattr(self, attr), types.FunctionType)
             },
@@ -70,17 +67,22 @@ class Executable(object):
     def execute(self):
         raise NotImplemented()
 
-class DeviceTarget(object):
+class DeviceTarget(Primitive):
+    def __init__(self, *args, dev, **kwargs):
+        super(DeviceTarget, self).__init__(*args, **kwargs)
+        self.dev  = dev
+
     def get_placeholder_for_dev(self, dev):
         raise NotImplemented()
 
     @property
     def _device_index(self):
-        return self.target_device.chain_index
+        return self.dev.chain_index
 
-class TDORead(Primitive):
-    def __init__(self, read=False, _promise=None, *args, **kwargs):
-        super(TDORead, self).__init__(*args, **kwargs)
+class DataRW(Primitive):
+    def __init__(self, data=None, read=False, _promise=None, *args, **kwargs):
+        super(DataRW, self).__init__(*args, **kwargs)
+        self.data = data
         self.read = read
         self._promise = _promise
 
@@ -107,6 +109,8 @@ class Level1Primitive(Primitive):
 
 class Level2Primitive(Primitive):
     _layer = 2
+    def mergable(self, target):
+        return False
 
 class Level3Primitive(Primitive):
     _layer = 3

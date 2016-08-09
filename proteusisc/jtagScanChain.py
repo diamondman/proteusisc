@@ -5,7 +5,7 @@ from bitarray import bitarray
 
 from . import jtagDeviceDescription
 from .jtagStateMachine import JTAGStateMachine
-from .primitive import Primitive, DeviceTarget, TDORead
+from .primitive import Primitive, DeviceTarget, DataRW
 from .primitive_defaults import RunInstruction,\
     TransitionTAP, LoadReadRegister,\
     LoadIR, LoadIR, LoadDR, ReadDR, Sleep
@@ -84,7 +84,7 @@ class JTAGScanChain(object):
     def queue_command(self, prim):
         self._command_queue.append(prim)
         res = None
-        if isinstance(prim, TDORead):
+        if isinstance(prim, DataRW):
             res = prim.get_promise()
         return res
 

@@ -32,32 +32,20 @@ d2 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
 chain._devices = [d0, d1, d2]#, d3]
 
-a = d0.run_instruction("ISC_ENABLE", read=True, arg=bitarray(bin(7)[2:].zfill(8)))#, delay=0.01)
+a = d0.run_instruction("ISC_ENABLE", read=True, data=bitarray(bin(7)[2:].zfill(8)))
 b = d0.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01, execute=False)
 for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
-    d0.run_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=0.01)
+    d0.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=0.01)
 d1.run_instruction("ISC_ENABLE", read=False, delay=0.01)
-d1.run_instruction("ISC_ENABLE", read=False, execute=False, arg=bitarray(), delay=0.01)
-#d2.run_instruction("ISC_ENABLE", read=False, delay=0.01)
+d1.run_instruction("ISC_ENABLE", read=False, execute=False, data=bitarray(), delay=0.01)
 d1.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
 for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
-    d2.run_instruction("ISC_PROGRAM", read=False, arg=r, loop=8, delay=.01)
-##d0.run_instruction("ISC_INIT", loop=8, delay=0.01) #DISCHARGE
-#d0.run_instruction("ISC_INIT", loop=8, arg=bitarray(), delay=0.01)
-#d0.run_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarray('00010101'))
-#d0.run_instruction("BYPASS")#, expret=bitarray('00100101'))
-#d0._chain.transition_tap("TLR")
-d0.run_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
-d0.run_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
-#
+    d2.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=.01)
+d0.run_instruction("ISC_DISABLE", loop=8, delay=0.01)
+d0.run_instruction("ISC_PROGRAM", read=False, data=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
 chain.transition_tap("TLR")
-#chain._load_register(bitarray("1001"))
 d0._load_dev_register(bitarray("1001"))
 d2._load_dev_register(bitarray("1001"))
-#
-#
-#d0.run_instruction("ISC_DISABLE", loop=8, delay=0.01)#, expret=bitarra
-#d0.run_instruction("ISC_PROGRAM", read=False, arg=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
 
 
 app = Flask(__name__)
@@ -103,8 +91,8 @@ def report():
     for fence in fences:
         tmp_chains = {}
         for p in fence:
-            k = p.target_device.chain_index \
-                if hasattr(p, 'target_device') else "chain"
+            k = p._device_index \
+                if isinstance(p, DeviceTarget) else "chain"
             subchain = tmp_chains.setdefault(k, []).append(p)
         split_fences.append(list(tmp_chains.values()))
 
@@ -153,7 +141,17 @@ def report():
     ######################### STAGE 07 #########################
     ################# COMBINE COMPATIBLE PRIMS #################
 
+    merged_prims = FrameSequence(chain)
+    fs_len = len(expanded_prims)
+    i = 0
+    while i < fs_len-1:
+        tmp1 = expanded_prims[i]
+        tmp2 = expanded_prims[i+1]
+        if tmp1.mergable(tmp2):
+            print(tmp1._valid_prim, tmp2._valid_prim)
+        i += 1
 
+    stages.append(merged_prims.snapshot())
 
     ######################### !!END!! ##########################
 

@@ -11,7 +11,7 @@ class JTAGDeviceBase(object):
     def gen_prim_adder(self, cls_):
         if not hasattr(self, cls_._function_name):
             def adder(*args, **kwargs):
-                return self._chain.queue_command(cls_(self, *args, **kwargs))
+                return self._chain.queue_command(cls_(dev=self, *args, **kwargs))
             setattr(self, cls_._function_name, adder)
             return True
         return False

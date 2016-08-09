@@ -91,6 +91,11 @@ class Frame(collections.MutableSequence):
     def signature(self):
         return self._valid_prim.signature()
 
+    def mergable(self, targetf):
+        if len(self) is not len(targetf):
+            return False
+        return all((self[i].mergable(targetf[i])
+                    for i in range(len(self))))
 
 class FrameSequence(collections.MutableSequence):
     def __init__(self, chain, *init_prims_lists):
