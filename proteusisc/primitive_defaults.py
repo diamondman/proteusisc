@@ -5,8 +5,8 @@ from .primitive import Level3Primitive, Level2Primitive, DeviceTarget,\
     Executable, DataRW
 
 #RunInstruction
-#LoadDevDR, LoadDevIR, ReadDevDR, ReadDevIR, LoadReadDevRegister
-#ChangeTAPState, LoadReadRegister, ReadDR, LoadDR, LoadIR, Sleep
+#RWDevDR, RWDevIR,
+#ChangeTAPState, RWDR, RWIR, Sleep
 
 ################### LV3 Primatimes (Dev) ###################
 
@@ -26,35 +26,43 @@ class RunInstruction(Level3Primitive, DeviceTarget, DataRW):
         chain = frame._chain
         devs = chain._devices
 
-        load_dev_ir = chain.get_prim('load_dev_ir')
-        load_dev_dr = chain.get_prim('load_dev_dr')
+        rw_dev_ir = chain.get_prim('rw_dev_ir')
+        rw_dev_dr = chain.get_prim('rw_dev_dr')
         transition_tap = chain.get_prim('transition_tap')
         sleep = chain.get_prim('sleep')
-        read_dev_ir = chain.get_prim('read_dev_ir')
 
         seq = FrameSequence(chain,
-            Frame(chain, *(load_dev_ir(dev=d,
+            Frame(chain, *(rw_dev_ir(dev=d,
+                    _synthetic=frame[i]._synthetic,
                     data=bitarray(d._desc._instructions[frame[i].insname]))
                                   for i, d in enumerate(devs)))
         )
 
         if frame._valid_prim.data:
             seq.append(Frame(chain,
-                         *(load_dev_dr(dev=d, data=frame[i].data)
+                         *(rw_dev_dr(dev=d, data=frame[i].data,
+                                _synthetic=frame[i]._synthetic)
                           for i, d in enumerate(devs))))
 
         if frame._valid_prim.execute:
-            seq.append(Frame.from_prim(chain, transition_tap('TLR')))
+            seq.append(Frame.from_prim(chain,
+                transition_tap('TLR',
+                    #_synthetic=all((frame[i]._synthetic
+                    #                for i in range(len(devs))))
+            )))
 
         if any((p.delay for p in frame)):
             seq.append(Frame.from_prim(chain,
-                    sleep(max((p.delay for p in frame)))))
+                sleep(delay=max((p.delay for p in frame)),
+                    _synthetic=all((frame[i]._synthetic
+                                    for i in range(len(devs))))
+            )))
 
         if any((p.read for p in frame)):
             seq.append(Frame(chain,
-                        *(read_dev_ir(dev=d, read=frame[i].read,
-                            _promise=frame[i]._promise,
-                            bitcount=0 if frame[i].read else None)
+                        *(rw_dev_ir(dev=d, read=frame[i].read,
+                        _synthetic=frame[i]._synthetic,
+                        _promise=frame[i]._promise)
                           for i, d in enumerate(devs))))
 
         return seq
@@ -78,60 +86,40 @@ class RunInstruction(Level3Primitive, DeviceTarget, DataRW):
 
 ################### LV2 Primatimes (Dev) ###################
 
-class LoadDevDR(Level2Primitive, DeviceTarget, DataRW):
-    _function_name = 'load_dev_dr'
-
-class ReadDevDR(Level2Primitive, DeviceTarget, DataRW):
-    _function_name = 'read_dev_dr'
-    def __init__(self, bitcount=None, *args, **kwargs):
-        super(ReadDevDR, self).__init__(*args, **kwargs)
-        self.bitcount = bitcount
-
+class RWDevDR(Level2Primitive, DeviceTarget, DataRW):
+    _function_name = 'rw_dev_dr'
     def mergable(self, target):
-        if isinstance(target, LoadDevDR):
+        if isinstance(target, RWDevDR):
             if not target.read:
                 return True
 
-        return super(ReadDevDR, self).mergable(target)
-
-
-class LoadDevIR(Level2Primitive, DeviceTarget, DataRW):
-    _function_name = 'load_dev_ir'
-
-class ReadDevIR(Level2Primitive, DeviceTarget, DataRW):
-    _function_name = 'read_dev_ir'
-    def __init__(self, bitcount=None, *args, **kwargs):
-        super(ReadDevIR, self).__init__(*args, **kwargs)
-        self.bitcount = bitcount
-
-    def mergable(self, target):
-        if isinstance(target, LoadDevIR):
-            if not target.read:
-                return True
-
-        return super(ReadDevIR, self).mergable(target)
-
-
-
-
-
-class LoadReadDevRegister(Level2Primitive, DeviceTarget, DataRW):
-    _function_name = '_load_dev_register'
-    def __init__(self, bitcount=None, *args, **kwargs):
-        super(LoadReadDevRegister, self).__init__(*args, **kwargs)
-        self.bitcount=bitcount
+        return super(RWDevDR, self).mergable(target)
 
     def get_placeholder_for_dev(self, dev):
-        tmp = LoadReadDevRegister(
+        tmp = RWDevDR(
             dev=dev, data=bitarray(),
             read=False,
-            bitcount=self.bitcount,
             _synthetic=True)
         assert self._group_type == tmp._group_type
         return tmp
 
 
+class RWDevIR(Level2Primitive, DeviceTarget, DataRW):
+    _function_name = 'rw_dev_ir'
+    def mergable(self, target):
+        if isinstance(target, RWDevIR):
+            if not target.read:
+                return True
 
+        return super(RWDevIR, self).mergable(target)
+
+    def get_placeholder_for_dev(self, dev):
+        tmp = RWDevIR(
+            dev=dev, data=bitarray(),
+            read=False,
+            _synthetic=True)
+        assert self._group_type == tmp._group_type
+        return tmp
 
 ################# END LV2 Primatimes (Dev) #################
 
@@ -150,48 +138,26 @@ class TransitionTAP(Level2Primitive):
                 return True
         return super(TransitionTAP, self).mergable(target)
 
-
-class LoadReadRegister(Level2Primitive, DataRW):
-    _function_name = '_load_register'
-    def __init__(self, bitcount=None, *args, **kwargs):
-        super(LoadReadRegister, self).__init__(*args, **kwargs)
-        self.bitcount=bitcount
-
-class LoadDR(Level2Primitive, DataRW):
-    _function_name = 'load_dr'
-
-class ReadDR(Level2Primitive, DataRW):
-    _function_name = 'read_dr'
-    def __init__(self, bitcount, *args, **kwargs):
-        super(ReadDR, self).__init__(*args, **kwargs)
-        self.bitcount = bitcount
-
+class RWDR(Level2Primitive, DataRW):
+    _function_name = 'rw_dr'
     def mergable(self, target):
-        if isinstance(target, LoadDR):
+        if isinstance(target, RWDR):
             if not target.read:
                 return True
-        return super(ReadDR, self).mergable(target)
+        return super(RWDR, self).mergable(target)
 
-
-class LoadIR(Level2Primitive, DataRW):
-    _function_name = 'load_ir'
-
-class ReadIR(Level2Primitive, DataRW):
-    _function_name = 'read_ir'
-    def __init__(self, bitcount, *args, **kwargs):
-        super(ReadIR, self).__init__(*args, **kwargs)
-        self.bitcount = bitcount
-
+class RWIR(Level2Primitive, DataRW):
+    _function_name = 'rw_ir'
     def mergable(self, target):
-        if isinstance(target, LoadIR):
+        if isinstance(target, RWIR):
             if not target.read:
                 return True
-        return super(ReadIR, self).mergable(target)
+        return super(RWIR, self).mergable(target)
 
 class Sleep(Level2Primitive, Executable):
     _function_name = 'sleep'
     _driver_function_name = 'sleep'
-    def __init__(self, delay, *args, **kwargs):
+    def __init__(self, *args, delay, **kwargs):
         super(Sleep, self).__init__(*args, **kwargs)
         self.delay = delay
 

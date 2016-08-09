@@ -12,6 +12,10 @@ SEQUENCE = CONSTANT|4
 class Primitive(object):
     _layer = None
     def __init__(self, _synthetic=False, *args, **kwargs):
+        if args or kwargs:
+            print(args)
+            print(kwargs)
+            print()
         assert not args and not kwargs
         super(Primitive, self).__init__()
         self._synthetic = _synthetic
@@ -73,7 +77,8 @@ class DeviceTarget(Primitive):
         self.dev  = dev
 
     def get_placeholder_for_dev(self, dev):
-        raise NotImplemented()
+        print(self, dev)
+        raise NotImplementedError()
 
     @property
     def _device_index(self):

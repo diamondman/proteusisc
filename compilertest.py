@@ -16,8 +16,6 @@ from proteusisc.frame import FrameSequence
 from proteusisc.jtagDevice import JTAGDevice
 from proteusisc import errors as proteusiscerrors
 from proteusisc.primitive import DeviceTarget
-from proteusisc.primitive_defaults import RunInstruction,\
-    LoadReadDevRegister
 from proteusisc.test_utils import FakeDev
 
 drvr = _controllerfilter[0x1443][None]
@@ -44,8 +42,8 @@ for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
 d0.run_instruction("ISC_DISABLE", loop=8, delay=0.01)
 d0.run_instruction("ISC_PROGRAM", read=False, data=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
 chain.transition_tap("TLR")
-d0._load_dev_register(bitarray("1001"))
-d2._load_dev_register(bitarray("1001"))
+d0.rw_dev_dr(data=bitarray("1001"))
+d2.rw_dev_dr(data=bitarray("1001"))
 
 
 app = Flask(__name__)

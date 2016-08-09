@@ -7,10 +7,8 @@ from . import jtagDeviceDescription
 from .jtagStateMachine import JTAGStateMachine
 from .primitive import Primitive, DeviceTarget, DataRW
 from .primitive_defaults import RunInstruction,\
-    TransitionTAP, LoadReadRegister,\
-    LoadIR, LoadIR, LoadDR, ReadDR, Sleep
-from .primitive_defaults import LoadDevDR, LoadDevIR, ReadDevDR, \
-    ReadDevIR, LoadReadDevRegister
+    TransitionTAP, RWDR, RWIR, Sleep
+from .primitive_defaults import RWDevDR, RWDevIR
 from .jtagDevice import JTAGDevice
 from .command_queue import CommandQueue
 from .cabledriver import InaccessibleController
@@ -48,10 +46,8 @@ class JTAGScanChain(object):
         self._command_queue = CommandQueue(self)
 
         default_prims = {RunInstruction,
-                         TransitionTAP, LoadReadRegister,
-                         LoadIR, LoadIR, LoadDR, ReadDR, Sleep,
-                         LoadDevDR, LoadDevIR, ReadDevDR,
-                         ReadDevIR, LoadReadDevRegister}
+                         TransitionTAP, RWDR, RWIR, Sleep,
+                         RWDevDR, RWDevIR}
         self._chain_primitives = {}
         self._device_primitives = {}
 
