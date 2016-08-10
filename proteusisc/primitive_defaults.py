@@ -10,7 +10,7 @@ from .primitive import Level3Primitive, Level2Primitive, DeviceTarget,\
 
 ################### LV3 Primatimes (Dev) ###################
 
-class RunInstruction(Level3Primitive, DeviceTarget, DataRW):
+class RunInstruction(Level3Primitive, DeviceTarget):
     _function_name = 'run_instruction'
     name = "INS_PRIM"
 
@@ -32,15 +32,15 @@ class RunInstruction(Level3Primitive, DeviceTarget, DataRW):
         sleep = chain.get_prim('sleep')
 
         seq = FrameSequence(chain,
-            Frame(chain, *(rw_dev_ir(dev=d,
-                    _synthetic=frame[i]._synthetic,
-                    data=bitarray(d._desc._instructions[frame[i].insname]))
-                                  for i, d in enumerate(devs)))
-        )
+            Frame(chain, *(
+                rw_dev_ir(dev=d, _synthetic=frame[i]._synthetic,
+                    data=bitarray(d._desc._instructions[frame[i].insname])
+                ) for i, d in enumerate(devs))))
 
         if frame._valid_prim.data:
             seq.append(Frame(chain,
                          *(rw_dev_dr(dev=d, data=frame[i].data,
+                                regname=d._desc._instruction_register_map[frame[i].insname],
                                 _synthetic=frame[i]._synthetic)
                           for i, d in enumerate(devs))))
 
@@ -82,44 +82,80 @@ class RunInstruction(Level3Primitive, DeviceTarget, DataRW):
 
 ################### LV2 Primatimes (Dev) ###################
 
-class RWDevDR(Level2Primitive, DeviceTarget, DataRW):
+class RWDevDR(Level2Primitive, DeviceTarget):
     _function_name = 'rw_dev_dr'
-    def mergable(self, target):
-        if isinstance(target, RWDevDR):
-            if not target.read:
-                return True
+    #Complexities arise if people want to get a placeholder. Fix later.
+    def __init__(self, *args, regname, **kwargs):
+        super(RWDevDR, self).__init__(*args, **kwargs)
+        self.bitcount = self.dev._desc._registers[regname]
+        if self.data and len(self.data) is not self.bitcount:
+            if len(self.data) > self.bitcount:
+                raise ValueError("TOO MUCH DATA for IR")
+            else:
+                self.data = bitarray('0'*(self.bitcount-len(self.data)))\
+                            +self.data
 
-        return super(RWDevDR, self).mergable(target)
+    @classmethod
+    def expand_frame(cls, frame):
+        chain = frame._chain
+        data = bitarray()
+        for p in reversed(frame):
+            if p.data:
+                data += p.data
+            else:
+                data += bitarray('0'*p.bitcount)
+        return FrameSequence(chain,
+            Frame.from_prim(chain,
+                chain.get_prim('transition_tap')('SHIFTDR')
+            ),
+            Frame.from_prim(chain,
+                chain.get_prim('rw_dr')(read=frame._valid_prim.read,
+                                        data=data))
+            )
 
-    def get_placeholder_for_dev(self, dev):
-        tmp = RWDevDR(
-            dev=dev, data=bitarray(),
-            read=False,
-            _synthetic=True)
-        assert self._group_type == tmp._group_type
-        return tmp
-
-
-class RWDevIR(Level2Primitive, DeviceTarget, DataRW):
+class RWDevIR(Level2Primitive, DeviceTarget):
     _function_name = 'rw_dev_ir'
-    def mergable(self, target):
-        if isinstance(target, RWDevIR):
-            if not target.read:
-                return True
+    #Complexities arise if people want to get a placeholder. Fix later.
+    def __init__(self, *args, **kwargs):
+        super(RWDevIR, self).__init__(*args, **kwargs)
+        self.bitcount = self.dev._desc._ir_length
+        if self.data and len(self.data) is not self.bitcount:
+            if len(self.data) > self.bitcount:
+                raise ValueError("TOO MUCH DATA for IR")
+            else:
+                self.data = bitarray('0'*(self.bitcount-len(self.data)))\
+                            +self.data
 
-        return super(RWDevIR, self).mergable(target)
+    @classmethod
+    def expand_frame(cls, frame):
+        chain = frame._chain
+        data = bitarray()
+        for p in reversed(frame):
+            if p.data:
+                data += p.data
+            else:
+                data += bitarray('1'*p.bitcount)
+        return FrameSequence(chain,
+            Frame.from_prim(chain,
+                chain.get_prim('transition_tap')('SHIFTIR')
+            ),
+            Frame.from_prim(chain,
+                chain.get_prim('rw_ir')(read=frame._valid_prim.read,
+                                        data=data))
+            )
 
-    def get_placeholder_for_dev(self, dev):
-        tmp = RWDevIR(
-            dev=dev, data=bitarray(),
-            read=False,
-            _synthetic=True)
-        assert self._group_type == tmp._group_type
-        return tmp
+        return seq
+
 
 ################# END LV2 Primatimes (Dev) #################
 
 ################# LV2 Primatimes (No Dev) ##################
+
+class RWDR(Level2Primitive, DataRW):
+    _function_name = 'rw_dr'
+
+class RWIR(Level2Primitive, DataRW):
+    _function_name = 'rw_ir'
 
 class TransitionTAP(Level2Primitive):
     _function_name = 'transition_tap'
@@ -133,22 +169,6 @@ class TransitionTAP(Level2Primitive):
             if self.targetstate == target.targetstate:
                 return self
         return None
-
-class RWDR(Level2Primitive, DataRW):
-    _function_name = 'rw_dr'
-    def mergable(self, target):
-        if isinstance(target, RWDR):
-            if not target.read:
-                return True
-        return super(RWDR, self).mergable(target)
-
-class RWIR(Level2Primitive, DataRW):
-    _function_name = 'rw_ir'
-    def mergable(self, target):
-        if isinstance(target, RWIR):
-            if not target.read:
-                return True
-        return super(RWIR, self).mergable(target)
 
 class Sleep(Level2Primitive, Executable):
     _function_name = 'sleep'

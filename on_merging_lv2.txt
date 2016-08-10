@@ -17,6 +17,9 @@ LV2 prims
 * A Write (A) can not merge forward (->) into a Read (B) because reads can not cross write boundaries.
 * What does it mean to merge a read with a read or a write with a write???
   * No real reason to merge two sid eby side writes or reads because it should never happen. It would only read what was just put in or shift out what was just written.
+  * Combining writes may be necessary to deal with state change when exiting SHIFTDR state. Keep this in mind while proceding.
+
+* For now Chain level prims that write to TDI will not have their length checked. People should use higher level prims, and babysitting the values all the way down is a waste of time. Use will determine if this safe guard should be added.
 
 * Sleep can merge into Sleep, and simply sums the two values.
 * TransitionTAP can merge into TransitionTAP if same state target. Duplicate is emilimated.

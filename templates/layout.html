@@ -52,6 +52,11 @@
       span.v_INS {
       text-decoration: underline;
       }
+      span.v_data {
+      display:block;
+      max-width:350px;
+      word-wrap:break-word;
+      }
 
       span.L_1 {
       background-color: #00FFFF;
@@ -75,6 +80,7 @@
       background-color: #FF0000;
       }
 
+
     </style>
   </head>
   <body>
@@ -97,7 +103,10 @@
 		<ul>
 		  {% for key,value in prim['data'].items() %}
 		  <li>
-		    <span class="k_{{ key }}"><b>{{ key }}</b>:</span><span class="v_{{ key }}">{{ value }}</span>
+		    <span class="k_{{ key }}"><b>{{ key }}</b>:</span>
+		    <span class="v_{{ key }}">
+		      {% if key == 'data' %}(len:{{ value|length  }}){% endif%} {{ value }}
+		    </span>
 		  </li>
 		  {% endfor %}
 		</ul>

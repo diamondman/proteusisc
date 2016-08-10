@@ -30,8 +30,8 @@ d2 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
 chain._devices = [d0, d1, d2]#, d3]
 
-#a = d0.run_instruction("ISC_ENABLE", read=True, data=bitarray(bin(7)[2:].zfill(8)))
-#b = d0.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
+a = d0.run_instruction("ISC_ENABLE", read=True, data=bitarray(bin(7)[2:].zfill(8)))
+b = d0.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
 #for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
 #    d0.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=0.01)
 #d1.run_instruction("ISC_ENABLE", read=False, delay=0.01)
@@ -144,11 +144,9 @@ def report():
     ################# COMBINE COMPATIBLE PRIMS #################
 
     merged_prims = FrameSequence(chain)
-
     working_prim = expanded_prims[0]
-    fs_len = len(expanded_prims)
     i = 1
-    while i < fs_len:
+    while i < len(expanded_prims):
         tmp = expanded_prims[i]
         res = working_prim.merge(tmp)
         if res is not None:
@@ -160,6 +158,21 @@ def report():
     merged_prims.append(working_prim)
 
     stages.append(merged_prims.snapshot())
+
+    ######################### STAGE 08 #########################
+    ################ TRANSLATION TO LOWER LAYER ################
+
+    expanded_prims2 = FrameSequence(chain)
+    for f in merged_prims:
+        if f._layer == 3:
+            raise Exception("There should be no lv3 prims at this stage")
+        if issubclass(f._prim_type, DeviceTarget):
+            expanded_prims2 += f.expand_macro()
+        else:
+            expanded_prims2.append(f)
+    #expanded_prims2.finalize() #Necessary?
+
+    stages.append(expanded_prims2.snapshot())
 
     ######################### !!END!! ##########################
 
