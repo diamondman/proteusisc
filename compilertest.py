@@ -174,6 +174,41 @@ def report():
 
     stages.append(expanded_prims2.snapshot())
 
+    ######################### STAGE 09 #########################
+    ################# COMBINE COMPATIBLE PRIMS #################
+
+    merged_prims2 = FrameSequence(chain)
+    working_prim = expanded_prims2[0]
+    i = 1
+    while i < len(expanded_prims2):
+        tmp = expanded_prims2[i]
+        res = working_prim.merge(tmp)
+        if res is not None:
+            working_prim2 = res
+        else:
+            merged_prims2.append(working_prim)
+            working_prim = tmp
+        i += 1
+    merged_prims2.append(working_prim)
+
+    stages.append(merged_prims2.snapshot())
+
+    ######################### STAGE 10 #########################
+    ################ TRANSLATION TO LOWER LAYER ################
+
+    expanded_prims3 = FrameSequence(chain)
+    for f in merged_prims2:
+        if f._layer == 3 or issubclass(f._prim_type, DeviceTarget):
+            raise Exception("Invalid prims at this stage.")
+        tmp = f.expand_macro()
+        if tmp:
+            expanded_prims3 += tmp
+        else:
+            expanded_prims3.append(f)
+    #expanded_prims3.finalize() #Necessary?
+
+    stages.append(expanded_prims3.snapshot())
+
     ######################### !!END!! ##########################
 
     print(time.time()-t)
