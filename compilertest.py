@@ -12,10 +12,12 @@ sys.path.append("/home/diamondman/src/proteusisc")
 import proteusisc
 from proteusisc.controllerManager import _controllerfilter
 from proteusisc.jtagScanChain import JTAGScanChain
+from proteusisc.jtagStateMachine import JTAGStateMachine
 from proteusisc.frame import FrameSequence
 from proteusisc.jtagDevice import JTAGDevice
 from proteusisc import errors as proteusiscerrors
-from proteusisc.primitive import DeviceTarget
+from proteusisc.primitive import DeviceTarget, Level3Primitive,\
+    ExpandRequiresTAP, Executable
 from proteusisc.test_utils import FakeDev
 
 drvr = _controllerfilter[0x1443][None]
@@ -50,6 +52,23 @@ chain.sleep(delay=1)
 chain.sleep(delay=2)
 chain.sleep(delay=1)
 
+def mergePrims(inchain):
+    merged_prims = FrameSequence(chain)
+    working_prim = inchain[0]
+    i = 1
+    while i < len(inchain):
+        tmp = inchain[i]
+        res = working_prim.merge(tmp)
+        if res is not None:
+            working_prim = res
+        else:
+            merged_prims.append(working_prim)
+            working_prim = tmp
+        i += 1
+    merged_prims.append(working_prim)
+    return merged_prims
+
+
 app = Flask(__name__)
 
 @app.route('/')
@@ -58,11 +77,13 @@ def report():
         return "No commands in Queue."
     t = time.time()
     stages = []
+    stagenames = []
 
     ######################### STAGE 01 #########################
     ###################### INITIAL PRIMS! ######################
 
     stages.append([chain.snapshot_queue()])
+    stagenames.append("Input Stream")
 
     ######################### STAGE 02 #########################
     ############### GROUPING BY EXEC BOUNDARIES!################
@@ -85,6 +106,7 @@ def report():
         formatted_fences.append(formatted_fence)
         formatted_fences.append([])
     stages.append(formatted_fences[:-1]) #Ignore trailing []
+    stagenames.append("Fencing off execution boundaries")
 
     ######################### STAGE 03 #########################
     ############## SPLIT GROUPS BY DEVICE TARGET! ##############
@@ -104,6 +126,7 @@ def report():
             formatted_split_fences.append([p.snapshot() for p in group])
         formatted_split_fences.append([])
     stages.append(formatted_split_fences[:-1])
+    stagenames.append("Grouping prims of each boundary by target device")
 
     ######################### STAGE 04 #########################
     ############## ALIGN SEQUENCES AND PAD FRAMES ##############
@@ -117,103 +140,106 @@ def report():
     for fence in grouped_fences:
         formatted_grouped_fences += fence.snapshot() + [[]]
     stages.append(formatted_grouped_fences[:-1])
+    stagenames.append("Aligning and combining each group dev prim stream")
 
     ######################### STAGE 05 #########################
     ################## RECOMBINE FRAME GROUPS ##################
 
-    combined_fences = grouped_fences[0]
+    ingested_chain = grouped_fences[0]
     for fence in grouped_fences[1:]:
-        combined_fences += fence
+        ingested_chain += fence
 
-    stages.append(combined_fences.snapshot())
+    stages.append(ingested_chain.snapshot())
+    stagenames.append("Recombining sanitized execution boundaries")
 
-    ######################### STAGE 06 #########################
-    ################ TRANSLATION TO LOWER LAYER ################
+    ###################### POST INGESTION ######################
+    ######################### STAGE 6+ #########################
+    ################ Flatten out LV3 Primitives ################
+    while(any((f._layer == 3 for f in ingested_chain))):
+        ################# COMBINE COMPATIBLE PRIMS #################
+        ingested_chain = mergePrims(ingested_chain)
 
-    expanded_prims = FrameSequence(chain)
-    for f in combined_fences:
-        if f._layer == 3:
-            expanded_prims += f.expand_macro()
-        elif f._layer == 2:
-            expanded_prims.append(f)
-    expanded_prims.finalize()
+        stages.append(ingested_chain.snapshot())
+        stagenames.append("Combining compatible lv3 prims.")
 
-    stages.append(expanded_prims.snapshot())
+        ################ TRANSLATION TO LOWER LAYER ################
+        expanded_prims = FrameSequence(chain)
+        for f in ingested_chain:
+            if f._layer == 3:
+                expanded_prims += f.expand_macro()
+            else:
+                expanded_prims.append(f)
+        expanded_prims.finalize()
+        ingested_chain = expanded_prims
 
-    ######################### STAGE 07 #########################
+        stages.append(ingested_chain.snapshot())
+        stagenames.append("Expanding lv3 prims")
+
+
+    ######################### STAGE 8+ #########################
+    ############## Flatten out Dev LV2 Primitives ##############
+    while(any((isinstance(f._valid_prim, DeviceTarget)
+               for f in ingested_chain))):
+        ################# COMBINE COMPATIBLE PRIMS #################
+
+        ingested_chain = mergePrims(ingested_chain)
+
+        stages.append(ingested_chain.snapshot())
+        stagenames.append("Merging Device Specific Prims")
+
+        ################ TRANSLATION TO LOWER LAYER ################
+
+        expanded_prims = FrameSequence(chain)
+        for f in ingested_chain:
+            if issubclass(f._prim_type, DeviceTarget):
+                expanded_prims += f.expand_macro()
+            else:
+                expanded_prims.append(f)
+        expanded_prims.finalize()
+        ingested_chain = expanded_prims
+
+        stages.append(ingested_chain.snapshot())
+        stagenames.append("Expanding Device Specific Prims")
+
+
+    ######################## STAGE 10+ #########################
+    ########## Flatten out remaining macros Primitives #########
+    while (not all((isinstance(f._valid_prim, (ExpandRequiresTAP,
+                                               Executable))
+                    for f in ingested_chain))):
+        ################# COMBINE COMPATIBLE PRIMS #################
+        ingested_chain = mergePrims(ingested_chain)
+
+        stages.append(ingested_chain.snapshot())
+        stagenames.append("Merging Device Agnostic LV2 Prims")
+
+        ################ TRANSLATION TO LOWER LAYER ################
+        expanded_prims = FrameSequence(chain)
+        for f in ingested_chain:
+            tmp = f.expand_macro()
+            if tmp:
+                expanded_prims += tmp
+            else:
+                expanded_prims.append(f)
+        expanded_prims.finalize()
+        ingested_chain = expanded_prims
+
+        stages.append(ingested_chain.snapshot())
+        stagenames.append("Expanding Device Agnostic LV2 Prims")
+
+
     ################# COMBINE COMPATIBLE PRIMS #################
+    ingested_chain = mergePrims(ingested_chain)
 
-    merged_prims = FrameSequence(chain)
-    working_prim = expanded_prims[0]
-    i = 1
-    while i < len(expanded_prims):
-        tmp = expanded_prims[i]
-        res = working_prim.merge(tmp)
-        if res is not None:
-            working_prim = res
-        else:
-            merged_prims.append(working_prim)
-            working_prim = tmp
-        i += 1
-    merged_prims.append(working_prim)
+    stages.append(ingested_chain.snapshot())
+    stagenames.append("Final LV2 merge")
 
-    stages.append(merged_prims.snapshot())
-
-    ######################### STAGE 08 #########################
-    ################ TRANSLATION TO LOWER LAYER ################
-
-    expanded_prims2 = FrameSequence(chain)
-    for f in merged_prims:
-        if f._layer == 3:
-            raise Exception("There should be no lv3 prims at this stage")
-        if issubclass(f._prim_type, DeviceTarget):
-            expanded_prims2 += f.expand_macro()
-        else:
-            expanded_prims2.append(f)
-    #expanded_prims2.finalize() #Necessary?
-
-    stages.append(expanded_prims2.snapshot())
-
-    ######################### STAGE 09 #########################
-    ################# COMBINE COMPATIBLE PRIMS #################
-
-    merged_prims2 = FrameSequence(chain)
-    working_prim = expanded_prims2[0]
-    i = 1
-    while i < len(expanded_prims2):
-        tmp = expanded_prims2[i]
-        res = working_prim.merge(tmp)
-        if res is not None:
-            working_prim2 = res
-        else:
-            merged_prims2.append(working_prim)
-            working_prim = tmp
-        i += 1
-    merged_prims2.append(working_prim)
-
-    stages.append(merged_prims2.snapshot())
-
-    ######################### STAGE 10 #########################
-    ################ TRANSLATION TO LOWER LAYER ################
-
-    expanded_prims3 = FrameSequence(chain)
-    for f in merged_prims2:
-        if f._layer == 3 or issubclass(f._prim_type, DeviceTarget):
-            raise Exception("Invalid prims at this stage.")
-        tmp = f.expand_macro()
-        if tmp:
-            expanded_prims3 += tmp
-        else:
-            expanded_prims3.append(f)
-    #expanded_prims3.finalize() #Necessary?
-
-    stages.append(expanded_prims3.snapshot())
-
-    ######################### !!END!! ##########################
 
     print(time.time()-t)
+    pprint(chain._chain_primitives)
 
     return render_template("layout.html", stages=stages,
+                           stagenames=stagenames,
                            dev_count=len(chain._devices))
 
 if __name__ == "__main__":

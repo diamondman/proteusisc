@@ -71,6 +71,9 @@ class Executable(Primitive):
     def execute(self):
         raise NotImplemented()
 
+class ExpandRequiresTAP(Primitive):
+    pass
+
 class DataRW(Primitive):
     def __init__(self, data=None, read=False, _promise=None,
                  *args, **kwargs):

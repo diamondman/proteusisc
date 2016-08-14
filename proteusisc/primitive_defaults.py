@@ -2,7 +2,7 @@ from bitarray import bitarray
 
 from .frame import Frame, FrameSequence
 from .primitive import Level3Primitive, Level2Primitive, DeviceTarget,\
-    Executable, DataRW
+    Executable, DataRW, ExpandRequiresTAP
 
 #RunInstruction
 #RWDevDR, RWDevIR,
@@ -77,6 +77,9 @@ class RunInstruction(Level3Primitive, DeviceTarget):
             _synthetic=True)
         assert self._group_type == tmp._group_type
         return tmp
+
+    def merge(self, target):
+        return None
 
 ################# END LV3 Primatimes (Dev) #################
 
@@ -187,7 +190,7 @@ class RWIR(Level2Primitive, DataRW):
 
         return seq
 
-class RWReg(Level2Primitive, DataRW):
+class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
     _function_name = 'rw_reg'
 
     def merge(self, target):
@@ -197,7 +200,7 @@ class RWReg(Level2Primitive, DataRW):
     def expand_frame(cls, frame):
         return None
 
-class TransitionTAP(Level2Primitive):
+class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
     _function_name = 'transition_tap'
     def __init__(self, state, *args, **kwargs):
         super(TransitionTAP, self).__init__(*args, **kwargs)

@@ -25,8 +25,11 @@ class JTAGStateMachine(object):
         "UPDATEIR": ["RTI","DRSCAN"]
         }
 
-    def __init__(self):
+    def __init__(self, state=None):
         self.reset()
+        if state:
+            self.state = state
+
 
     def transition_bit(self, bit):
         choice = self.states.get(self._statestr, None)
