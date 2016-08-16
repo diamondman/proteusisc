@@ -80,15 +80,19 @@ class Frame(collections.MutableSequence):
     def from_prim(cls, chain, *prim):
         return cls(chain, *prim, fill=True)
 
-    def expand_macro(self):
-        return type(self._valid_prim).expand_frame(self)
-        res = []
-        dat = type(self._valid_prim).expand_frame(self)
-        for newfdat in dat:
-            newf = Frame(self._chain, *newfdat)
-            newf.fill()
-            res.append(newf)
-        return res
+    def expand_macro(self, sm):
+        cls = type(self._valid_prim)
+        if issubclass(cls, DeviceTarget):
+            return cls.expand_frame(self, sm)
+        else:
+            prims = self._valid_prim.expand(self._chain, sm)
+            print(self, prims)
+            if prims is None: #TODO REMOVE AFTER DEV
+                #Will cause infinite loop in real system
+                return FrameSequence(self._chain, self)
+            return FrameSequence(self._chain,
+                                 *[Frame.from_prim(self._chain, prim)
+                                   for prim in prims])
 
     def signature(self):
         return self._valid_prim.signature()

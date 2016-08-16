@@ -33,7 +33,7 @@ chain._hasinit = True
 chain._devices = [d0, d1, d2]#, d3]
 
 a = d0.run_instruction("ISC_ENABLE", read=True, data=bitarray(bin(7)[2:].zfill(8)))
-b = d0.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
+b = d0.run_instruction("ISC_ENABLE", read=False, execute=False, data=bitarray(bin(7)[2:].zfill(14)))#loop=8, delay=0.01)
 #for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
 #    d0.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=0.01)
 #d1.run_instruction("ISC_ENABLE", read=False, delay=0.01)
@@ -46,6 +46,7 @@ b = d0.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
 #chain.transition_tap("TLR")
 #d0.rw_dev_dr(data=bitarray("1001"))
 #d2.rw_dev_dr(data=bitarray("1001"))
+#chain.rw_reg(data=bitarray('11001010'))
 chain.sleep(delay=1)
 chain.sleep(delay=2)
 chain.sleep(delay=1)
@@ -53,7 +54,10 @@ chain.sleep(delay=2)
 chain.sleep(delay=1)
 
 def mergePrims(inchain):
-    merged_prims = FrameSequence(chain)
+    if isinstance(inchain, FrameSequence):
+        merged_prims = FrameSequence(chain)
+    else:
+        merged_prims = []
     working_prim = inchain[0]
     i = 1
     while i < len(inchain):
@@ -163,10 +167,11 @@ def report():
         stagenames.append("Combining compatible lv3 prims.")
 
         ################ TRANSLATION TO LOWER LAYER ################
+        sm = JTAGStateMachine(chain._sm.state)
         expanded_prims = FrameSequence(chain)
         for f in ingested_chain:
             if f._layer == 3:
-                expanded_prims += f.expand_macro()
+                expanded_prims += f.expand_macro(sm)
             else:
                 expanded_prims.append(f)
         expanded_prims.finalize()
@@ -189,10 +194,11 @@ def report():
 
         ################ TRANSLATION TO LOWER LAYER ################
 
+        sm = JTAGStateMachine(chain._sm.state)
         expanded_prims = FrameSequence(chain)
         for f in ingested_chain:
             if issubclass(f._prim_type, DeviceTarget):
-                expanded_prims += f.expand_macro()
+                expanded_prims += f.expand_macro(sm)
             else:
                 expanded_prims.append(f)
         expanded_prims.finalize()
@@ -201,39 +207,59 @@ def report():
         stages.append(ingested_chain.snapshot())
         stagenames.append("Expanding Device Specific Prims")
 
+    ############ Convert FrameSequence to flat array ###########
+    flattened_prims = [f._valid_prim for f in ingested_chain]
+    stages.append([[p.snapshot() for p in flattened_prims]])
+    stagenames.append("Converting format to single stream.")
 
-    ######################## STAGE 10+ #########################
-    ########## Flatten out remaining macros Primitives #########
-    while (not all((isinstance(f._valid_prim, (ExpandRequiresTAP,
-                                               Executable))
-                    for f in ingested_chain))):
+    del ingested_chain
+
+    ####################### STAGE 10+ #########################
+    ######### Flatten out remaining macros Primitives #########
+    while (not all((isinstance(p, (ExpandRequiresTAP,Executable))
+                    for p in flattened_prims))):
         ################# COMBINE COMPATIBLE PRIMS #################
-        ingested_chain = mergePrims(ingested_chain)
+        flattened_prims = mergePrims(flattened_prims)
 
-        stages.append(ingested_chain.snapshot())
+        stages.append([[p.snapshot() for p in flattened_prims]])
         stagenames.append("Merging Device Agnostic LV2 Prims")
 
         ################ TRANSLATION TO LOWER LAYER ################
-        expanded_prims = FrameSequence(chain)
-        for f in ingested_chain:
-            tmp = f.expand_macro()
+        sm = JTAGStateMachine(chain._sm.state)
+        expanded_prims = []
+        for p in flattened_prims:
+            tmp = p.expand(chain, sm)
             if tmp:
                 expanded_prims += tmp
             else:
-                expanded_prims.append(f)
-        expanded_prims.finalize()
-        ingested_chain = expanded_prims
+                expanded_prims.append(p)
+        flattened_prims = expanded_prims
 
-        stages.append(ingested_chain.snapshot())
+        stages.append([[p.snapshot() for p in flattened_prims]])
         stagenames.append("Expanding Device Agnostic LV2 Prims")
 
 
     ################# COMBINE COMPATIBLE PRIMS #################
-    ingested_chain = mergePrims(ingested_chain)
+    flattened_prims = mergePrims(flattened_prims)
 
-    stages.append(ingested_chain.snapshot())
+    stages.append([[p.snapshot() for p in flattened_prims]])
     stagenames.append("Final LV2 merge")
 
+    ################### EXPAND TO LV1 PRIMS ####################
+    sm = JTAGStateMachine(chain._sm.state)
+    expanded_prims = []
+    for p in flattened_prims:
+        tmp = p.expand(chain, sm)
+        if tmp:
+            expanded_prims += tmp
+        else:
+            expanded_prims.append(p)
+    flattened_prims = expanded_prims
+
+    stages.append([[p.snapshot() for p in flattened_prims]])
+    stagenames.append("TEST")
+
+    ############################################################
 
     print(time.time()-t)
     pprint(chain._chain_primitives)

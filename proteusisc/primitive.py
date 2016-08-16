@@ -7,11 +7,11 @@ DOESNOTMATTER = 0
 ZERO = 1
 ONE = 2
 CONSTANT = ZERO|ONE
-SEQUENCE = CONSTANT|4
+ARBITRARY = CONSTANT|4
 
 class Primitive(object):
     _layer = None
-    def __init__(self, _synthetic=False, *args, **kwargs):
+    def __init__(self, _synthetic=False, *args, _chain, **kwargs):
         if args or kwargs:
             print(args)
             print(kwargs)
@@ -19,7 +19,7 @@ class Primitive(object):
         assert not args and not kwargs
         super(Primitive, self).__init__()
         self._synthetic = _synthetic
-        self._chain = None
+        self._chain = _chain
 
     def __repr__(self):
         n = getattr(self, '_function_name', None) or \
@@ -29,7 +29,7 @@ class Primitive(object):
         if isinstance(self, DeviceTarget):
             parts.append("D:%s"%self.dev.chain_index)
         for v in vars(self):
-            if v not in {"dev", "_chain", "_promise", "_synthetic"}:
+            if v not in {"dev", "_promise", "_synthetic"}:
                 parts.append("%s:%s"%\
                              (v, getattr(self, v)))
 
@@ -42,9 +42,9 @@ class Primitive(object):
                        else None,
             'dev':self.dev.chain_index \
                 if isinstance(self, DeviceTarget) else "CHAIN",
-            'name':getattr(self, '_function_name', None) or \
+            'name':(getattr(self, '_function_name', None) or \
                 getattr(type(self), 'name', None) or \
-                type(self).__name__,
+                type(self).__name__).upper(),
             'synthetic': self._synthetic,
             'layer': type(self)._layer,
             'grouping': self._group_type,
@@ -93,16 +93,6 @@ class DeviceTarget(DataRW):
         self.dev  = dev
 
     def get_placeholder_for_dev(self, dev):
-        #kwargs = {}
-        #Maybe this should be guaranteed by inheritance
-        #if isinstance(self, DataRW):
-        #    kwargs['read'] = False
-        #    kwargs['data'] = bitarray()
-        tmp = type(self)(dev=dev, _synthetic=True,
-                         data=bitarray(),
-                         read=False)
-        assert self._group_type == tmp._group_type
-        return tmp
         raise NotImplementedError()
 
     @property
@@ -129,7 +119,7 @@ class Level2Primitive(Primitive):
     _layer = 2
     def merge(self, target):
         if type(self) == type(target):
-            kwargs = {}
+            kwargs = {'_chain': self._chain}
             if isinstance(self, DeviceTarget) and self.dev is target.dev:
                 kwargs['dev'] = self.dev
             if isinstance(self, DataRW) and  self.read and \

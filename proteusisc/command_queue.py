@@ -7,7 +7,6 @@ class CommandQueue(collections.MutableSequence):
         self.queue = []
         self._fsm = JTAGStateMachine()
         self._chain = chain
-        self._return_queue = []
 
     def reset(self):
         self._fsm.reset()

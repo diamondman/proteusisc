@@ -5,7 +5,7 @@ from bitarray import bitarray
 
 from . import jtagDeviceDescription
 from .jtagStateMachine import JTAGStateMachine
-from .primitive import Primitive, DeviceTarget, DataRW
+from .primitive import Primitive, DeviceTarget, DataRW, Level1Primitive
 from .primitive_defaults import RunInstruction,\
     TransitionTAP, RWReg, RWDR, RWIR, Sleep
 from .primitive_defaults import RWDevDR, RWDevIR
@@ -19,7 +19,8 @@ class JTAGScanChain(object):
     def gen_prim_adder(self, cls_):
         if not hasattr(self, cls_._function_name):
             def adder(*args, **kwargs):
-                return self.queue_command(cls_(*args, **kwargs))
+                return self.queue_command(cls_(_chain=self, *args,
+                                               **kwargs))
             setattr(self, cls_._function_name, adder)
             return True
         return False
@@ -50,6 +51,7 @@ class JTAGScanChain(object):
                          RWDevDR, RWDevIR}
         self._chain_primitives = {}
         self._device_primitives = {}
+        self._lv1_chain_primitives = []
 
         for prim in default_prims:
             assert issubclass(prim, Primitive)
@@ -57,6 +59,8 @@ class JTAGScanChain(object):
                 self._device_primitives[prim._function_name] = prim
             else:
                 self._chain_primitives[prim._function_name] = prim
+                if issubclass(prim, Level1Primitive):
+                    self._lv1_chain_primitives.append(prim)
 
         for prim in self._controller._primitives:
             if not issubclass(prim, Primitive):

@@ -3,6 +3,7 @@ from bitarray import bitarray
 from .frame import Frame, FrameSequence
 from .primitive import Level3Primitive, Level2Primitive, DeviceTarget,\
     Executable, DataRW, ExpandRequiresTAP
+from .errors import ProteusISCError
 
 #RunInstruction
 #RWDevDR, RWDevIR,
@@ -22,7 +23,7 @@ class RunInstruction(Level3Primitive, DeviceTarget):
         self.delay = delay
 
     @classmethod
-    def expand_frame(cls, frame):
+    def expand_frame(cls, frame, sm):
         chain = frame._chain
         devs = chain._devices
 
@@ -34,32 +35,40 @@ class RunInstruction(Level3Primitive, DeviceTarget):
         seq = FrameSequence(chain,
             Frame(chain, *(
                 rw_dev_ir(dev=d, _synthetic=frame[i]._synthetic,
+                    _chain=chain,
                     data=bitarray(d._desc._instructions[frame[i].insname])
                 ) for i, d in enumerate(devs))))
+        sm.state = "EXIT1IR"
 
         if frame._valid_prim.data:
             seq.append(Frame(chain,
                          *(rw_dev_dr(dev=d, data=frame[i].data,
+                                _chain=chain,
                                 regname=d._desc._instruction_register_map[frame[i].insname],
                                 _synthetic=frame[i]._synthetic)
                           for i, d in enumerate(devs))))
+            sm.state = "EXIT1DR"
 
         if frame._valid_prim.execute:
             seq.append(Frame.from_prim(chain,
-                transition_tap('TLR')
+                transition_tap( 'TLR', _chain=chain)
             ))
+            sm.state = "TLR"
 
         if any((p.delay for p in frame)):
             seq.append(Frame.from_prim(chain,
-                sleep(delay=max((p.delay for p in frame)))
+                sleep(delay=max((p.delay for p in frame)),
+                      _chain=chain)
             ))
 
         if any((p.read for p in frame)):
             seq.append(Frame(chain,
                         *(rw_dev_ir(dev=d, read=frame[i].read,
                         _synthetic=frame[i]._synthetic,
-                        _promise=frame[i]._promise)
+                        _promise=frame[i]._promise,
+                        _chain=chain)
                           for i, d in enumerate(devs))))
+            sm.state = "EXIT1IR"
 
         return seq
 
@@ -69,7 +78,7 @@ class RunInstruction(Level3Primitive, DeviceTarget):
             (2 if self.data is not None else 0)
 
     def get_placeholder_for_dev(self, dev):
-        tmp = RunInstruction(
+        tmp = RunInstruction(_chain=self._chain,
             dev=dev, read=False,
             insname="BYPASS",
             execute=self.execute,
@@ -99,7 +108,8 @@ class RWDevDR(Level2Primitive, DeviceTarget):
                             +self.data
 
     @classmethod
-    def expand_frame(cls, frame):
+    def expand_frame(cls, frame, sm):
+        sm.state = "EXIT1DR"
         chain = frame._chain
         data = bitarray()
         for p in reversed(frame):
@@ -111,7 +121,7 @@ class RWDevDR(Level2Primitive, DeviceTarget):
             Frame.from_prim(chain,
                 chain.get_prim('rw_dr')
                             (read=frame._valid_prim.read,
-                             data=data[::-1],
+                             data=data[::-1], _chain=chain,
                              _promise=frame._valid_prim._promise))
             )
 
@@ -129,7 +139,8 @@ class RWDevIR(Level2Primitive, DeviceTarget):
                             +self.data
 
     @classmethod
-    def expand_frame(cls, frame):
+    def expand_frame(cls, frame, sm):
+        sm.state = "EXIT1IR"
         chain = frame._chain
         data = bitarray()
         for p in reversed(frame):
@@ -141,7 +152,7 @@ class RWDevIR(Level2Primitive, DeviceTarget):
             Frame.from_prim(chain,
                 chain.get_prim('rw_ir')
                             (read=frame._valid_prim.read,
-                             data=data[::-1],
+                             data=data[::-1], _chain=chain,
                              _promise=frame._valid_prim._promise))
             )
 
@@ -154,41 +165,29 @@ class RWDevIR(Level2Primitive, DeviceTarget):
 
 class RWDR(Level2Primitive, DataRW):
     _function_name = 'rw_dr'
-    @classmethod
-    def expand_frame(cls, frame):
-        chain = frame._chain
-        data = frame[0].data #only can be 1
-        return FrameSequence(chain,
-            Frame.from_prim(chain,
-                chain.get_prim('transition_tap')('SHIFTDR')
-            ),
-            Frame.from_prim(chain,
-                chain.get_prim('rw_reg')
-                            (read=frame._valid_prim.read,
-                             data=data,
-                             _promise=frame._valid_prim._promise))
-            )
+    def merge(self, target):
+        return None
 
-        return seq
+    def expand(self, chain, sm):
+        sm.state = "EXIT1DR"
+        return [
+            chain.get_prim('transition_tap')('SHIFTDR',  _chain=chain),
+            chain.get_prim('rw_reg')(read=self.read, data=self.data,
+                                     _promise=self._promise, _chain=chain)
+        ]
 
 class RWIR(Level2Primitive, DataRW):
     _function_name = 'rw_ir'
-    @classmethod
-    def expand_frame(cls, frame):
-        chain = frame._chain
-        data = frame[0].data #only can be 1
-        return FrameSequence(chain,
-            Frame.from_prim(chain,
-                chain.get_prim('transition_tap')('SHIFTIR')
-            ),
-            Frame.from_prim(chain,
-                chain.get_prim('rw_reg')
-                            (read=frame._valid_prim.read,
-                             data=data,
-                             _promise=frame._valid_prim._promise))
-            )
+    def merge(self, target):
+        return None
 
-        return seq
+    def expand(self, chain, sm):
+        sm.state = "EXIT1IR"
+        return [
+            chain.get_prim('transition_tap')('SHIFTIR', _chain=chain,),
+            chain.get_prim('rw_reg')(read=self.read, data=self.data,
+                                     _promise=self._promise, _chain=chain)
+        ]
 
 class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
     _function_name = 'rw_reg'
@@ -196,25 +195,28 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
     def merge(self, target):
         return None
 
-    @classmethod
-    def expand_frame(cls, frame):
+    def expand(self, chain, sm):
+        if sm.state not in {"SHIFTIR", "SHIFTDR"}:
+            raise ProteusISCError("Invalid State. RWReg Requires state "
+                                  "to be SHIFTIR or SHIFTDR. This "
+                                  "is caused by not proceeding RWReg "
+                                  "with a tap transition.")
         return None
 
 class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
     _function_name = 'transition_tap'
     def __init__(self, state, *args, **kwargs):
         super(TransitionTAP, self).__init__(*args, **kwargs)
-        self.targetstate = state
-        self._startstate = None
+        self.state = state
 
     def merge(self, target):
         if isinstance(target, TransitionTAP):
-            if self.targetstate == target.targetstate:
+            if self.state == target.state:
                 return self
         return None
 
-    @classmethod
-    def expand_frame(cls, frame):
+    def expand(self, chain, sm):
+        sm.state = self.state
         return None
 
 class Sleep(Level2Primitive, Executable):
@@ -226,11 +228,11 @@ class Sleep(Level2Primitive, Executable):
 
     def merge(self, target):
         if isinstance(target, Sleep):
-            return Sleep(delay=self.delay+target.delay)
+            return Sleep(delay=self.delay+target.delay,
+                         _chain=self._chain)
         return None
 
-    @classmethod
-    def expand_frame(cls, frame):
+    def expand(self, chain, sm):
         return None
 
 
