@@ -3,7 +3,7 @@ import types
 
 from proteusisc.promise import TDOPromise
 
-DOESNOTMATTER = 0
+NOCARE = 0
 ZERO = 1
 ONE = 2
 CONSTANT = ZERO|ONE
@@ -30,8 +30,13 @@ class Primitive(object):
             parts.append("D:%s"%self.dev.chain_index)
         for v in vars(self):
             if v not in {"dev", "_promise", "_synthetic"}:
+                value = getattr(self, v)
+                if isinstance(value, bitarray):
+                    value = value.to01()
+                    if len(value) > 30:
+                        value = str(value)[:30]+"...(%s)"%len(value)
                 parts.append("%s:%s"%\
-                             (v, getattr(self, v)))
+                             (v, value))
 
         return "<%s(%s)>" % (n, "; ".join(parts))
 
@@ -50,7 +55,9 @@ class Primitive(object):
             'grouping': self._group_type,
             'data':{
                 attr.replace("insname","INS"):
-                getattr(self, attr)
+                getattr(self, attr) if not
+                    isinstance(getattr(self, attr), bitarray)
+                    else getattr(self, attr).to01()
                 for attr in vars(self)
                 if attr[0] != '_' and
                 attr not in ["name", "dev", "required_effect"] and
@@ -102,7 +109,13 @@ class DeviceTarget(DataRW):
 class Level1Primitive(Primitive):
     _layer = 1
     _effect = [0, 0, 0]
+    def __init__(self, count, tms, tdi, tdo, *args, **kwargs):
+        super(Level1Primitive, self).__init__(*args, **kwargs)
+        self.count, self.tms, self.tdi, self.tdo = count, tms, tdi, tdo
+
     def __repr__(self):
+        import ipdb
+        ipdb.set_trace()
         tms = self.tms
         tdi = self.tdi
         tdo = self.tdo
@@ -114,6 +127,12 @@ class Level1Primitive(Primitive):
                 tms = "%s...(%s bits)"%(tms[0:30], len(tms))
         return "<%s(TMS:%s; TDI:%s; TDO:%s)>"%\
             (self.__class__.__name__, tms, tdi, tdo)
+
+    def merge(self, target):
+        return None
+
+    def expand(self, chain, sm):
+        return None
 
 class Level2Primitive(Primitive):
     _layer = 2

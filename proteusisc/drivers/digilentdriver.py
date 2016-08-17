@@ -15,7 +15,7 @@ from proteusisc.jtagUtils import blen2Blen, buff2Blen,\
     build_byte_align_buff
 from proteusisc.cabledriver import CableDriver
 from proteusisc.primitive import Level1Primitive,\
-    Executable, DOESNOTMATTER, ZERO, ONE, CONSTANT, ARBITRARY
+    Executable, NOCARE, ZERO, ONE, CONSTANT, ARBITRARY
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGControlError, JTAGNotEnabledError
 
@@ -84,8 +84,6 @@ class DigilentWriteTMSPrimitive(Level1Primitive, Executable):
     _driver_function_name = 'write_tms_bits'
     """TMS, TDI, TDO"""
     _effect = [ARBITRARY, CONSTANT, CONSTANT]
-    def __init__(self, count, tms, tdi, tdo):
-        self.count, self.tms, self.tdi, self.tdo = count, tms, tdi, tdo
     def _get_args(self):
         return [self.tms], {'return_tdo':self.tdo, 'TDI': self.tdi}
 
@@ -94,8 +92,6 @@ class DigilentWriteTDIPrimitive(Level1Primitive, Executable):
     _driver_function_name = 'write_tdi_bits'
     """TMS, TDI, TDO"""
     _effect = [CONSTANT, ARBITRARY, CONSTANT]
-    def __init__(self, count, tms, tdi, tdo):
-        self.count, self.tms, self.tdi, self.tdo = count, tms, tdi, tdo
     def _get_args(self):
         return [self.tdi], {'return_tdo':self.tdo, 'TMS': self.tms}
 
@@ -104,8 +100,6 @@ class DigilentWriteTMSTDIPrimitive(Level1Primitive, Executable):
     _driver_function_name = 'write_tms_tdi_bits'
     """TMS, TDI, TDO"""
     _effect = [ARBITRARY, ARBITRARY, CONSTANT]
-    def __init__(self, count, tms, tdi, tdo):
-        self.count, self.tms, self.tdi, self.tdo = count, tms, tdi, tdo
     def _get_args(self):
         return [self.tms, self.tdi], {'return_tdo':self.tdo}
 
@@ -114,8 +108,6 @@ class DigilentReadTDOPrimitive(Level1Primitive, Executable):
     _driver_function_name = 'read_tdo_bits'
     """TMS, TDI, TDO"""
     _effect = [CONSTANT, CONSTANT, ONE]
-    def __init__(self, count, tms, tdi, tdo):
-        self.count, self.tms, self.tdi, self.tdo = count, tms, tdi, tdo
     def _get_args(self):
         return [self.count], {'TMS': self.tms, 'TDI': self.tdi}
 
@@ -124,8 +116,6 @@ class LIESTDIHighPrimitive(Level1Primitive, Executable):
     _driver_function_name = 'lies_lies'
     """TMS, TDI, TDO"""
     _effect = [CONSTANT, ONE, ONE]
-    def __init__(self, count, tms, tdi, tdo):
-        self.count, self.tms, self.tdi, self.tdo = count, tms, tdi, tdo
     def _get_args(self):
         return [], {}
 

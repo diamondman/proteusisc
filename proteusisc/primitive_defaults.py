@@ -2,7 +2,8 @@ from bitarray import bitarray
 
 from .frame import Frame, FrameSequence
 from .primitive import Level3Primitive, Level2Primitive, DeviceTarget,\
-    Executable, DataRW, ExpandRequiresTAP
+    Executable, DataRW, ExpandRequiresTAP, ZERO, ONE, ARBITRARY, \
+    CONSTANT, NOCARE
 from .errors import ProteusISCError
 
 #RunInstruction
@@ -201,7 +202,37 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
                                   "to be SHIFTIR or SHIFTDR. This "
                                   "is caused by not proceeding RWReg "
                                   "with a tap transition.")
-        return None
+        sm.transition_bit(True)
+
+        data = self.data
+        res = []
+
+        if len(data)>1:
+            #TMS TDI TDO
+            reqef = (
+                ZERO,
+                ONE if all(data[:-1]) else (ZERO if not any(data[:-1])
+                                            else ARBITRARY),
+                ONE if self.read else NOCARE
+            )
+            #print(('  \033[95m%s %s %s\033[94m'%tuple(reqef))\
+            #  .replace('0', '-'), self,'\033[0m')
+            write_data = self._chain.get_best_lv1_prim(reqef)
+            res.append(write_data(len(data)-1, 0, data[:-1], 0,
+                                 _chain=self._chain))
+
+        #TMS TDI TDO
+        reqef = (
+            ONE,
+            ONE if data[-1] else ZERO,
+            ONE if self.read else NOCARE
+        )
+        #print(('  \033[95m%s %s %s\033[94m'%tuple(reqef))\
+        #      .replace('0', '-'), self,'\033[0m')
+        write_last = self._chain.get_best_lv1_prim(reqef)
+        res.append(write_last(1, 1, data[-1], 0, _chain=self._chain))
+
+        return res
 
 class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
     _function_name = 'transition_tap'
@@ -216,8 +247,19 @@ class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
         return None
 
     def expand(self, chain, sm):
+        data = sm.calc_transition_to_state(self.state)
         sm.state = self.state
-        return None
+
+        reqef = (ONE if all(data) else (ZERO if not any(data) \
+                                        else ARBITRARY),
+                 NOCARE, NOCARE)
+        #print(('  \033[95m%s %s %s\033[94m'%tuple(reqef))\
+        #  .replace('0', '-'), self,'\033[0m')
+        best_prim = self._chain.get_best_lv1_prim(reqef)
+
+        return [
+            best_prim(len(data), data, 0, 0, _chain=chain)
+        ]
 
 class Sleep(Level2Primitive, Executable):
     _function_name = 'sleep'

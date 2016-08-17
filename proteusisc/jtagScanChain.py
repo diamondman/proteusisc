@@ -5,7 +5,8 @@ from bitarray import bitarray
 
 from . import jtagDeviceDescription
 from .jtagStateMachine import JTAGStateMachine
-from .primitive import Primitive, DeviceTarget, DataRW, Level1Primitive
+from .primitive import Primitive, DeviceTarget, DataRW, Level1Primitive,\
+    ZERO, ONE, ARBITRARY, CONSTANT, NOCARE
 from .primitive_defaults import RunInstruction,\
     TransitionTAP, RWReg, RWDR, RWIR, Sleep
 from .primitive_defaults import RWDevDR, RWDevIR
@@ -59,8 +60,6 @@ class JTAGScanChain(object):
                 self._device_primitives[prim._function_name] = prim
             else:
                 self._chain_primitives[prim._function_name] = prim
-                if issubclass(prim, Level1Primitive):
-                    self._lv1_chain_primitives.append(prim)
 
         for prim in self._controller._primitives:
             if not issubclass(prim, Primitive):
@@ -70,6 +69,8 @@ class JTAGScanChain(object):
                 self._device_primitives[prim._function_name] = prim
             else:
                 self._chain_primitives[prim._function_name] = prim
+                if issubclass(prim, Level1Primitive):
+                    self._lv1_chain_primitives.append(prim)
 
         for func_name, prim in self._chain_primitives.items():
             if not self.gen_prim_adder(prim):
@@ -135,3 +136,40 @@ class JTAGScanChain(object):
         for bit in bits[::-1]:
             self._sm.transition_bit(bit)
             statetrans.append(self._sm.state)
+
+    def get_best_lv1_prim(self, reqef):
+        #styles = {0:'\033[92m', #GREEN
+        #          1:'\033[93m', #YELLOW
+        #          2:'\033[91m'} #RED
+        possible_prims = []
+        for prim in self._lv1_chain_primitives:
+            efstyledstr = ''
+            ef = prim._effect
+
+            worststyle = 0
+            for i in range(3):
+                if reqef[i] is None:
+                    reqef[i] = 0
+
+                curstyle = 0
+                if (ef[i]&reqef[i]) is not reqef[i]:
+                    curstyle = 1 if ef[i]==CONSTANT else 2
+
+                efstyledstr += "%s%s "%(styles.get(curstyle), ef[i])
+                if curstyle > worststyle:
+                    worststyle = curstyle
+
+            if worststyle == 0:
+                possible_prims.append(prim)
+            #print(" ",efstyledstr, styles.get(worststyle)+\
+            #      prim.__name__+"\033[0m")
+
+        if not len(possible_prims):
+            raise Exception('Unable to match Primative to lower '
+                            'level Primative.')
+        best_prim = possible_prims[0]
+        for prim in possible_prims[1:]:
+            if sum(prim._effect)<sum(best_prim._effect):
+                best_prim = prim
+        #print("PICKED", best_prim)
+        return best_prim

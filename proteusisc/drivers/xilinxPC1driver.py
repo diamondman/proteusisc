@@ -16,7 +16,7 @@ import numbers
 from proteusisc.cabledriver import CableDriver
 from proteusisc.primitive import Level1Primitive,\
     Level2Primitive, Level3Primitive, Executable,\
-    DOESNOTMATTER, ZERO, ONE, CONSTANT, ARBITRARY
+    NOCARE, ZERO, ONE, CONSTANT, ARBITRARY
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGNotEnabledError
 
@@ -34,8 +34,6 @@ class XPC1TransferPrimitive(Level1Primitive, Executable):
     _max_bits = 65536
     """TMS, TDI, TDO"""
     _effect = [ARBITRARY, ARBITRARY, ARBITRARY]
-    def __init__(self, count, tms, tdi, tdo):
-        self.count, self.tms, self.tdi, self.tdo = count, tms, tdi, tdo
     def _get_args(self):
         return [self.count, self.tms, self.tdi], {'TDO': self.tdo}
 

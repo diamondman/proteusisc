@@ -17,9 +17,10 @@ from proteusisc.frame import FrameSequence
 from proteusisc.jtagDevice import JTAGDevice
 from proteusisc import errors as proteusiscerrors
 from proteusisc.primitive import DeviceTarget, Level3Primitive,\
-    ExpandRequiresTAP, Executable
+    Level2Primitive, ExpandRequiresTAP, Executable
 from proteusisc.test_utils import FakeDev
 
+#drvr = _controllerfilter[0x03FD][0x0008]
 drvr = _controllerfilter[0x1443][None]
 c = drvr(FakeDev())
 chain = JTAGScanChain(c)
@@ -228,7 +229,8 @@ def report():
         sm = JTAGStateMachine(chain._sm.state)
         expanded_prims = []
         for p in flattened_prims:
-            tmp = p.expand(chain, sm)
+            tmp = p.expand(chain, sm) if not \
+                  isinstance(p, ExpandRequiresTAP) else None
             if tmp:
                 expanded_prims += tmp
             else:
@@ -259,10 +261,18 @@ def report():
     stages.append([[p.snapshot() for p in flattened_prims]])
     stagenames.append("TEST")
 
+
+    if not all((isinstance(p, Executable) for p in flattened_prims)):
+        raise proteusiscerrors.ProteusISCException(
+            "Reduction did not produce executable instruction sequence.")
+
+
+    #################### COMBINE LV1 PRIMS #####################
+
+
     ############################################################
 
     print(time.time()-t)
-    pprint(chain._chain_primitives)
 
     return render_template("layout.html", stages=stages,
                            stagenames=stagenames,

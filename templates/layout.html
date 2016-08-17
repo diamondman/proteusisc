@@ -53,6 +53,23 @@
       text-decoration: underline;
       }
       span.v_data {
+      font-family: "Lucida Console", Monaco, monospace;
+      max-height: 200px;
+      overflow: auto;
+      display:block;
+      max-width:350px;
+      word-wrap:break-word;
+      }
+      span.v_tms {
+      font-family: "Lucida Console", Monaco, monospace;
+      max-height: 200px;
+      overflow: auto;
+      display:block;
+      max-width:350px;
+      word-wrap:break-word;
+      }
+      span.v_tdi {
+      font-family: "Lucida Console", Monaco, monospace;
       max-height: 200px;
       overflow: auto;
       display:block;
@@ -98,16 +115,25 @@
 	      {% for prim in r %}
 	      {% if prim['valid'] %}
 	      <td class="dev{{ prim['dev'] }} {{ "synthetic" if prim['synthetic'] else "" }}" >
-		<span class="primtype"><span class="L_{{ prim['layer'] }}">L{{ prim['layer'] }} {{ prim['name'] }}</span> (D{{ prim['dev'] }}; T{{ prim['grouping'] }})</span>
+		<span class="primtype">
+		  <span class="L_{{ prim['layer'] }}">
+		    L{{ prim['layer'] }} {{ prim['name'] }}
+		  </span>
+		  (D{{ prim['dev'] }}; T{{ prim['grouping'] }})
+		</span>
 		{% if prim['promise'] %}
-		<br> <span class="primtype">Promise: {{ prim['promise'] }}</span>
+		<br> <span class="primtype">
+		  Promise: {{ prim['promise'] }}
+		</span>
 		{% endif %}
 		<ul>
 		  {% for key,value in prim['data'].items() %}
 		  <li>
 		    <span class="k_{{ key }}"><b>{{ key }}</b>:</span>
 		    <span class="v_{{ key }}">
-		      {% if key == 'data' %}(len:{{ value|length  }}){% endif%} {{ value }}
+		      {% if key == 'data' %}
+		      (len:{{ value|length  }})
+		      {% endif%} {{ value }}
 		    </span>
 		  </li>
 		  {% endfor %}
