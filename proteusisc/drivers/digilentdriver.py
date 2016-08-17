@@ -122,8 +122,8 @@ class LIESTDIHighPrimitive(Level1Primitive, Executable):
 
 class DigilentAdeptController(CableDriver):
     _primitives = [DigilentWriteTDIPrimitive, DigilentWriteTMSPrimitive,
-                   DigilentWriteTMSTDIPrimitive, DigilentReadTDOPrimitive,
-                   LIESTDIHighPrimitive]
+                   DigilentWriteTMSTDIPrimitive, DigilentReadTDOPrimitive,]
+    #               LIESTDIHighPrimitive]
     def __init__(self, dev):
         super(DigilentAdeptController, self).__init__(dev)
         h = self._dev.open()

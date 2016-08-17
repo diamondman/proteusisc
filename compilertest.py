@@ -269,6 +269,10 @@ def report():
 
     #################### COMBINE LV1 PRIMS #####################
 
+    flattened_prims = mergePrims(flattened_prims)
+
+    stages.append([[p.snapshot() for p in flattened_prims]])
+    stagenames.append("Final LV2 merge")
 
     ############################################################
 

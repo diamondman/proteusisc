@@ -138,9 +138,9 @@ class JTAGScanChain(object):
             statetrans.append(self._sm.state)
 
     def get_best_lv1_prim(self, reqef):
-        #styles = {0:'\033[92m', #GREEN
-        #          1:'\033[93m', #YELLOW
-        #          2:'\033[91m'} #RED
+        styles = {0:'\033[92m', #GREEN
+                  1:'\033[93m', #YELLOW
+                  2:'\033[91m'} #RED
         possible_prims = []
         for prim in self._lv1_chain_primitives:
             efstyledstr = ''
@@ -161,8 +161,8 @@ class JTAGScanChain(object):
 
             if worststyle == 0:
                 possible_prims.append(prim)
-            #print(" ",efstyledstr, styles.get(worststyle)+\
-            #      prim.__name__+"\033[0m")
+            print(" ",efstyledstr, styles.get(worststyle)+\
+                  prim.__name__+"\033[0m")
 
         if not len(possible_prims):
             raise Exception('Unable to match Primative to lower '
@@ -171,5 +171,5 @@ class JTAGScanChain(object):
         for prim in possible_prims[1:]:
             if sum(prim._effect)<sum(best_prim._effect):
                 best_prim = prim
-        #print("PICKED", best_prim)
+        print("PICKED", best_prim, "\n")
         return best_prim

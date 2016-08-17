@@ -114,8 +114,6 @@ class Level1Primitive(Primitive):
         self.count, self.tms, self.tdi, self.tdo = count, tms, tdi, tdo
 
     def __repr__(self):
-        import ipdb
-        ipdb.set_trace()
         tms = self.tms
         tdi = self.tdi
         tdo = self.tdo
@@ -129,7 +127,54 @@ class Level1Primitive(Primitive):
             (self.__class__.__name__, tms, tdi, tdo)
 
     def merge(self, target):
-        return None
+        if not isinstance(target, Level1Primitive):
+            return None
+        print(('  \033[95m%s %s %s\033[94m'%tuple(self._effect))\
+              .replace('0', '-'), self,'\033[0m')
+        print(('  \033[95m%s %s %s\033[94m'%tuple(target._effect))\
+              .replace('0', '-'), target,'\033[0m')
+        #7 7 2 <LIESTDIHighPrimitive(TMS:bitarray('1111'); TDI:0; TDO:0)>
+        #7 7 3 <DigilentWriteTMSPrimitive(TMS:; TDI:0; TDO:0)>
+        #7 7 2 CONBINED
+
+        #2 = ONE
+        #3 = CONSTANT
+
+        #TMS TDI TDO
+        reqef = list(self._effect)
+        attrnames = ('tms','tdi','tdo')
+        for i in range(3):
+            curr = reqef[i] #2
+            other = target._effect[i] #3
+            if not curr:
+                reqef[i] = other
+            elif not other:
+                pass
+            elif curr is CONSTANT and other is CONSTANT:
+                if getattr(self, attrnames[i]) != \
+                   getattr(target, attrnames[i]):
+                    reqef[i] = ARBITRARY
+            elif (curr is CONSTANT and other in {ZERO, ONE}) or\
+                 (other is CONSTANT and curr in {ZERO, ONE}):
+                if getattr(self, attrnames[i]) == \
+                   getattr(target, attrnames[i]):
+                    reqef[i] = CONSTANT
+                else:
+                    reqef[i] = ARBITRARY
+            elif curr is ARBITRARY or other is ARBITRARY:
+                reqef[i] = ARBITRARY
+            elif curr is not CONSTANT and other is not CONSTANT and\
+                 (curr|other is CONSTANT):
+                reqef[i] = ARBITRARY
+
+        print(('  \033[95m%s %s %s\033[94m'%tuple(reqef))\
+              .replace('0', '-'), "CONBINED",'\033[0m')
+
+
+        best_prim = self._chain.get_best_lv1_prim(reqef)
+
+        return best_prim(self.count+target.count,0,0,0,
+                         _chain=self._chain)
 
     def expand(self, chain, sm):
         return None
