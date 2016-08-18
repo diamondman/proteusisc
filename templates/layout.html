@@ -52,23 +52,8 @@
       span.v_INS {
       text-decoration: underline;
       }
-      span.v_data {
-      font-family: "Lucida Console", Monaco, monospace;
-      max-height: 200px;
-      overflow: auto;
-      display:block;
-      max-width:350px;
-      word-wrap:break-word;
-      }
-      span.v_tms {
-      font-family: "Lucida Console", Monaco, monospace;
-      max-height: 200px;
-      overflow: auto;
-      display:block;
-      max-width:350px;
-      word-wrap:break-word;
-      }
-      span.v_tdi {
+
+      span.vt_bitarray {
       font-family: "Lucida Console", Monaco, monospace;
       max-height: 200px;
       overflow: auto;
@@ -130,10 +115,16 @@
 		  {% for key,value in prim['data'].items() %}
 		  <li>
 		    <span class="k_{{ key }}"><b>{{ key }}</b>:</span>
-		    <span class="v_{{ key }}">
+		    <span class="v_{{ key }} vt_{{ value.__class__.__name__ }}">
 		      {% if key == 'data' %}
 		      (len:{{ value|length  }})
-		      {% endif%} {{ value }}
+		      {% endif%}
+
+		      {% if value.__class__.__name__ == "bitarray" %}
+		      {{ value.to01() }}
+		      {% else %}
+		      {{ value }}
+		      {% endif %}
 		    </span>
 		  </li>
 		  {% endfor %}

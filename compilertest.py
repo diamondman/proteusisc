@@ -1,13 +1,11 @@
 #!/usr/bin/env python
+#Must be run from the project directory.
 
 import time
 from bitarray import bitarray
 from flask import Flask, escape, render_template
 
 from pprint import pprint
-
-import sys
-sys.path.append("/home/diamondman/src/proteusisc")
 
 import proteusisc
 from proteusisc.controllerManager import _controllerfilter

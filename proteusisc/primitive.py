@@ -1,6 +1,7 @@
 from bitarray import bitarray
 import types
 import operator
+import collections
 
 from proteusisc.promise import TDOPromise
 
@@ -149,6 +150,35 @@ CONSTANTZERO = Requirement(False, True,  False, False)
 CONSTANTONE =  Requirement(False, True,  False, True)
 ARBITRARY =    Requirement(True,  False, False, False)
 
+class ConstantBitarray(collections.Sequence):
+    def __init__(self, val, length):
+        self._val = val
+        self._length = length
+
+    def __len__(self):
+        return self._length
+    def __getitem__(self, index):
+        if index < self._length and index >= 0:
+            return self._val
+        raise IndexError("ConstantBitarray index out of range")
+    def __repr__(self):
+        return "<ConstBitArray: %s (%s)>"%(self._val, self._length)
+    def __add__(self, other):
+        if isinstance(other, ConstantBitarray):
+            if self._val == other._val:
+                return ConstantBitarray(self._val,
+                                        self._length+other._length)
+            else:
+                return bitarray((*(self._val,)*self._length,
+                                 *(other._val,)*other._length))
+        elif ininstance(other, bool):
+            if self._val == other:
+                return ConstantBitarray(self._val, self._length+1)
+            else:
+                return bitarray((*(self._val,)*self._length, other))
+        else:
+            return NotImplemented
+
 class Primitive(object):
     _layer = None
     def __init__(self, *args, _chain, _synthetic=False, **kwargs):
@@ -195,9 +225,9 @@ class Primitive(object):
             'grouping': self._group_type,
             'data':{
                 attr.replace("insname","INS"):
-                getattr(self, attr) if not
-                    isinstance(getattr(self, attr), bitarray)
-                    else getattr(self, attr).to01()
+                getattr(self, attr) #if not
+                #    isinstance(getattr(self, attr), bitarray)
+                #    else getattr(self, attr).to01()
                 for attr in vars(self)
                 if attr[0] != '_' and
                 attr not in ["name", "dev", "required_effect"] and
@@ -246,6 +276,24 @@ class DeviceTarget(DataRW):
     def _device_index(self):
         return self.dev.chain_index
 
+class Level3Primitive(Primitive):
+    _layer = 3
+
+class Level2Primitive(Primitive):
+    _layer = 2
+    def merge(self, target):
+        if type(self) == type(target):
+            kwargs = {'_chain': self._chain}
+            if isinstance(self, DeviceTarget) and self.dev is target.dev:
+                kwargs['dev'] = self.dev
+            if isinstance(self, DataRW) and  self.read and \
+               not self.data and not target.read:
+                kwargs['read'] = True
+                kwargs['data'] = target.data
+                kwargs['_promise'] = self._promise
+            return type(self)(**kwargs)
+        return None
+
 class Level1Primitive(Primitive):
     _layer = 1
     _effect = [0, 0, 0]
@@ -288,21 +336,3 @@ class Level1Primitive(Primitive):
 
     def expand(self, chain, sm):
         return None
-
-class Level2Primitive(Primitive):
-    _layer = 2
-    def merge(self, target):
-        if type(self) == type(target):
-            kwargs = {'_chain': self._chain}
-            if isinstance(self, DeviceTarget) and self.dev is target.dev:
-                kwargs['dev'] = self.dev
-            if isinstance(self, DataRW) and  self.read and \
-               not self.data and not target.read:
-                kwargs['read'] = True
-                kwargs['data'] = target.data
-                kwargs['_promise'] = self._promise
-            return type(self)(**kwargs)
-        return None
-
-class Level3Primitive(Primitive):
-    _layer = 3

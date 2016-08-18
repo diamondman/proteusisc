@@ -30,9 +30,6 @@ class CommandQueue(collections.MutableSequence):
     def __getitem__(self, index):
         return self.queue.__getitem__(index)
 
-    def insert(self, index, val):
-        self.queue.insert(index, val)
-
     def append(self, elem):
         elem._chain = self._chain
         super(CommandQueue, self).append(elem)
