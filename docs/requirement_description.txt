@@ -1,0 +1,75 @@
+4 bit number for req state
+abcd
+1XXX = ARBITRARY (A)
+000X = NOCARE (-)
+0010 = ZERO (0)
+0011 = ONE (1)
+01X0 = (CONSTANT) ZERO. use ZERO (C0)
+01X1 = (CONSTANT) ONE. use ONE (C1)
+
+For requesting, ZERO and CONSTANT (with value ZERO) must be treated the same.
+For requesting, ONE and CONSTANT (with value ONE) must be treated the same.
+
+COMBINATION RULES
+TERM1	TERM2	RESULT
+-	-	-
+-	0	0
+-	1	1
+-	C0	0
+-	C1	1
+-	A	A
+0	-	0
+0	0	0
+0	1	A
+0	C0	0
+0	C1	A
+0	A	A
+1	-	1
+1	0	A
+1	1	1
+1	C0	A
+1	C1	1
+1	A	A
+C0	-	0
+C0	0	0
+C0	1	A
+C0	C0	0
+C0	C1	A
+C0	A	A
+C1	-	1
+C1	0	A
+C1	1	1
+C1	C0	A
+C1	C1	1
+C1	A	A
+A	-	A
+A	0	A
+A	1	A
+A	C0	A
+A	C1	A
+A	A	A
+
+
+REDUCED BOOL EXPRESSION 
+O1 = b1 + a3 ~a4 b3 b4 + a3 ~a4 b2 b4 + a3 a4 b3 ~b4 + a3 a4 b2 ~b4 + a2 ~a4 b3 b4 + a2 ~a4 b2 b4 + a2 a4 b3 ~b4 + a2 a4 b2 ~b4 + a1
+O2 = 0
+O3 = b3 + b2 + a3 + a2
+O4 = ~a2 ~a3 b4 + a4 ~b2 ~b3 + a4 b4
+
+O1 = (a1 + a2 + a3 + b1) (a1 + a4 + b1 + b4) (a1 + b1 + b2 + b3) (a1 + ~a4 + b1 + ~b4)
+O2 = 0
+O3 = 03 = b3 + b2 + a3 + a2
+O4 = (a2 + a3 + b4) (a4 + b2 + b3) (a4 + b4)
+
+
+
+
+
+O1 = b1 | (a3 & !a4 & b3 & b4) | (a3 & !a4 & b2 & b4) | (a3 & a4 & b3 & !b4) | (a3 & a4 & b2 & !b4) | (a2 & !a4 & b3 & b4) | (a2 & !a4 & b2 & b4) | (a2 & a4 & b3 & !b4) | (a2 & a4 & b2 & !b4) | a1
+O2 = 0
+O3 = b3 | b2 | a3 | a2
+O4 = (!a2 & !a3 & b4) | (a4 & !b2 & !b3) | (a4 & b4)
+
+O1 = (a1 | a2 | a3 | b1)&(a1 | a4 | b1 | b4)&(a1 | b1 | b2 | b3)&(a1 | !a4 | b1 | !b4)
+O4 = (a2 | a3 | b4)&(a4 | b2 | b3)&(a4 | b4)
+

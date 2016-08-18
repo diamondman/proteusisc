@@ -5,8 +5,7 @@ from bitarray import bitarray
 
 from . import jtagDeviceDescription
 from .jtagStateMachine import JTAGStateMachine
-from .primitive import Primitive, DeviceTarget, DataRW, Level1Primitive,\
-    ZERO, ONE, ARBITRARY, CONSTANT, NOCARE
+from .primitive import Primitive, DeviceTarget, DataRW, Level1Primitive
 from .primitive_defaults import RunInstruction,\
     TransitionTAP, RWReg, RWDR, RWIR, Sleep
 from .primitive_defaults import RWDevDR, RWDevIR
@@ -148,12 +147,10 @@ class JTAGScanChain(object):
 
             worststyle = 0
             for i in range(3):
-                if reqef[i] is None:
-                    reqef[i] = 0
-
                 curstyle = 0
-                if (ef[i]&reqef[i]) is not reqef[i]:
-                    curstyle = 1 if ef[i]==CONSTANT else 2
+                if not ef[i].satisfies(reqef[i]):
+                    #if (ef[i]&reqef[i]) is not reqef[i]:
+                    curstyle = 1 if ef[i].constant else 2
 
                 efstyledstr += "%s%s "%(styles.get(curstyle), ef[i])
                 if curstyle > worststyle:
@@ -169,7 +166,8 @@ class JTAGScanChain(object):
                             'level Primative.')
         best_prim = possible_prims[0]
         for prim in possible_prims[1:]:
-            if sum(prim._effect)<sum(best_prim._effect):
+            if sum((e.score for e in prim._effect)) <\
+               sum((e.score for e in best_prim._effect)):
                 best_prim = prim
         print("PICKED", best_prim, "\n")
         return best_prim

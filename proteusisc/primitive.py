@@ -1,17 +1,157 @@
 from bitarray import bitarray
 import types
+import operator
 
 from proteusisc.promise import TDOPromise
 
-NOCARE = 0
-ZERO = 1
-ONE = 2
-CONSTANT = ZERO|ONE
-ARBITRARY = CONSTANT|4
+class Requirement(object):
+    """Represents the ability of a ISC Controller to transmit data on a
+    signal (wire). A LV1 primitives have different levels of
+    expressiveness per signal.  For each signal, a primitive be able
+    tos end one of the following 4 values during the primitive's
+    execution:
+
+        Only 0 (Primitive always sets signal to 0)
+        Only 1 (Primitive always sets signal to 1)
+        Either 0 OR 1 (Constant for the full primitive execution)
+        Any arbitrary sequence of 0 and 1.
+
+    This class is wrapping a 4 bit number:
+    ABCD
+    1XXX = ARBITRARY (A)
+    000X = NOCARE (-)
+    0010 = ZERO (0)
+    0011 = ONE (1)
+    01X0 = (CONSTANT) ZERO. use ZERO (C0)
+    01X1 = (CONSTANT) ONE. use ONE (C1)
+
+    A Requirement instance can behave in two ways:
+        Describe the capability of a primitive with respect to a signal:
+            Constant specifies that the primitive can send either 0 or 1
+            to the respective signal.
+        Describe matching requirements for expanding primitives
+            Constant is treated the same as single since it is just the
+            requirement of an existing primitive.
+
+    """
+    def __init__(self, arbitrary, constant, single, value):
+        self.arbitrary = arbitrary
+        self.constant = constant
+        self.single = single
+        self.value = value
+
+    def copy(self):
+        return Requirement(self.arbitrary, self.constant, self.single,
+                           self.value)
+
+    @property
+    def A(self):
+        return self.arbitrary
+    @property
+    def B(self):
+        return self.constant
+    @property
+    def C(self):
+        return self.single
+    @property
+    def D(self):
+        return self.value
+    @property
+    def isnocare(self):
+        return not self.arbitrary and not self.constant \
+            and not self.single
+
+    def satisfies(self, other):
+        """
+             other
+              A C 0 1
+           |Y N N N N
+        s A|Y Y Y Y Y
+        e C|Y - Y Y Y
+        l 0|Y * * Y N
+        f 1|Y * * N Y
+
+        ' ' = No Care
+        A = arbitrary
+        C = Constant
+        0 = ZERO
+        1 = ONE
+
+        Y = YES
+        N = NO
+        - = Could satisfy with multiple instances
+        * = Not yet determined behavior. Used for bitbanging controllers.
+
+        """
+        if other.isnocare:
+            return True
+        if self.isnocare:
+            return False
+        if self.arbitrary:
+            return True
+        if self.constant and not other.arbitrary:
+            return True
+        if self.value is other.value and not other.arbitrary:
+            return True
+        return False
+
+    @property
+    def score(self):
+        return sum([v<<i for i, v in
+                    enumerate(reversed(
+                        (self.A, self.B, self.C))
+                    )])
+
+    def __repr__(self):
+        if self.arbitrary:
+            l = 'A'
+        elif self.constant:
+            l = "C"
+        elif self.single:
+            l = "F" if self.value else "T"
+        else:
+            l = "-"
+        return l+"("+bin(sum([v<<i for i, v in
+                        enumerate(reversed(
+                            (self.A, self.B, self.C, self.D))
+                        )]))[2:].zfill(4) +")"
+
+    def __add__(self, other):
+        """
+        Combines two Requirements.
+
+        Assumes both Requirements are being used as feature requests.
+        Adding two Requirements being used as feature lists for a
+        primitive has no meaning.
+
+        The following code is a reduced K-map of the full interaction
+        of two Requirement objects. For details, see
+        requirements_description.txt in the documentation.
+        """
+        if not isinstance(other, Requirement):
+            return NotImplemented
+        a1, a2, a3, a4, b1, b2, b3, b4 = self.A, self.B, self.C, self.D, other.A, other.B, other.C, other.D
+        A = (a1 or a2 or a3 or b1)and(a1 or a4 or b1 or b4)and(a1 or b1 or b2 or b3)and(a1 or not a4 or b1 or not b4)
+        B = False
+        C = b3 or b2 or a3 or a2
+        D = (a2 or a3 or b4)and(a4 or b2 or b3)and(a4 or b4)
+        res = Requirement(A, B, C, D)
+        #print(self, a1, a2, a3, a4)
+        #print(other, b1, b2, b3, b4)
+        #print(res, A, B, C, D, "\n")
+        return res
+
+NOCARE =       Requirement(False, False, False, False)
+ZERO =         Requirement(False, False, True,  False)
+ONE =          Requirement(False, False, True,  True)
+CONSTANT    =  Requirement(False, True,  False, False)
+CONSTANTZERO = Requirement(False, True,  False, False)
+CONSTANTONE =  Requirement(False, True,  False, True)
+ARBITRARY =    Requirement(True,  False, False, False)
 
 class Primitive(object):
     _layer = None
-    def __init__(self, _synthetic=False, *args, _chain, **kwargs):
+    def __init__(self, *args, _chain, _synthetic=False, **kwargs):
         if args or kwargs:
             print(args)
             print(kwargs)
@@ -109,9 +249,10 @@ class DeviceTarget(DataRW):
 class Level1Primitive(Primitive):
     _layer = 1
     _effect = [0, 0, 0]
-    def __init__(self, count, tms, tdi, tdo, *args, **kwargs):
+    def __init__(self, count, tms, tdi, tdo, *args, reqef, **kwargs):
         super(Level1Primitive, self).__init__(*args, **kwargs)
         self.count, self.tms, self.tdi, self.tdo = count, tms, tdi, tdo
+        self.reqef = reqef
 
     def __repr__(self):
         tms = self.tms
@@ -129,52 +270,21 @@ class Level1Primitive(Primitive):
     def merge(self, target):
         if not isinstance(target, Level1Primitive):
             return None
-        print(('  \033[95m%s %s %s\033[94m'%tuple(self._effect))\
-              .replace('0', '-'), self,'\033[0m')
-        print(('  \033[95m%s %s %s\033[94m'%tuple(target._effect))\
-              .replace('0', '-'), target,'\033[0m')
-        #7 7 2 <LIESTDIHighPrimitive(TMS:bitarray('1111'); TDI:0; TDO:0)>
-        #7 7 3 <DigilentWriteTMSPrimitive(TMS:; TDI:0; TDO:0)>
-        #7 7 2 CONBINED
-
-        #2 = ONE
-        #3 = CONSTANT
+        print(('  \033[95m%s %s %s REQEF\033[94m'%tuple(self.reqef)),\
+              self,'\033[0m')
+        print(('  \033[95m%s %s %s REQEF\033[94m'%tuple(target.reqef)),\
+              target,'\033[0m')
 
         #TMS TDI TDO
-        reqef = list(self._effect)
-        attrnames = ('tms','tdi','tdo')
-        for i in range(3):
-            curr = reqef[i] #2
-            other = target._effect[i] #3
-            if not curr:
-                reqef[i] = other
-            elif not other:
-                pass
-            elif curr is CONSTANT and other is CONSTANT:
-                if getattr(self, attrnames[i]) != \
-                   getattr(target, attrnames[i]):
-                    reqef[i] = ARBITRARY
-            elif (curr is CONSTANT and other in {ZERO, ONE}) or\
-                 (other is CONSTANT and curr in {ZERO, ONE}):
-                if getattr(self, attrnames[i]) == \
-                   getattr(target, attrnames[i]):
-                    reqef[i] = CONSTANT
-                else:
-                    reqef[i] = ARBITRARY
-            elif curr is ARBITRARY or other is ARBITRARY:
-                reqef[i] = ARBITRARY
-            elif curr is not CONSTANT and other is not CONSTANT and\
-                 (curr|other is CONSTANT):
-                reqef[i] = ARBITRARY
+        reqef = tuple(map(operator.add, self.reqef, target.reqef))
 
-        print(('  \033[95m%s %s %s\033[94m'%tuple(reqef))\
-              .replace('0', '-'), "CONBINED",'\033[0m')
-
+        print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),\
+              "CONBINED",'\033[0m')
 
         best_prim = self._chain.get_best_lv1_prim(reqef)
 
         return best_prim(self.count+target.count,0,0,0,
-                         _chain=self._chain)
+                         reqef=reqef, _chain=self._chain)
 
     def expand(self, chain, sm):
         return None

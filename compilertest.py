@@ -259,7 +259,7 @@ def report():
     flattened_prims = expanded_prims
 
     stages.append([[p.snapshot() for p in flattened_prims]])
-    stagenames.append("TEST")
+    stagenames.append("Expand to LV1 Primitives")
 
 
     if not all((isinstance(p, Executable) for p in flattened_prims)):
