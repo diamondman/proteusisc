@@ -218,11 +218,9 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
             )
             #print(('  \033[95m%s %s %s\033[94m'%tuple(reqef))\
             #  .replace('0', '-'), self,'\033[0m')
-            write_data = self._chain.get_best_lv1_prim(reqef)
-            res.append(write_data(len(data)-1,
-                                  ConstantBitarray(False, len(data)-1),
-                                  data[:-1], self.read,
-                                  reqef=reqef, _chain=self._chain))
+            write_data = self._chain.get_fitted_lv1_prim(reqef)
+            res.append(write_data(tms=False, tdi=data[:-1],
+                                  tdo=self.read))
 
         #TMS TDI TDO
         reqef = (
@@ -232,9 +230,8 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
         )
         print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),\
               self,'\033[0m')
-        write_last = self._chain.get_best_lv1_prim(reqef)
-        res.append(write_last(1, True, data[-1], self.read,
-                              reqef=reqef, _chain=self._chain))
+        write_last = self._chain.get_fitted_lv1_prim(reqef)
+        res.append(write_last(tms=True, tdi=data[-1]))
 
         return res
 
@@ -254,16 +251,14 @@ class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
         data = sm.calc_transition_to_state(self.state)
         sm.state = self.state
 
-        reqef = (ONE if all(data) else (ZERO if not any(data) \
-                                        else ARBITRARY),
+        reqef = (ONE if all(data) else
+                 (ZERO if not any(data) else ARBITRARY),
                  NOCARE, NOCARE)
-        print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),\
-          self,'\033[0m')
-        best_prim = self._chain.get_best_lv1_prim(reqef)
+        print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
+        best_prim = self._chain.get_fitted_lv1_prim(reqef)
 
         return [
-            best_prim(len(data), data, False, False,
-                      reqef=reqef, _chain=chain)
+            best_prim(tms=data, tdi=False)
         ]
 
 class Sleep(Level2Primitive, Executable):

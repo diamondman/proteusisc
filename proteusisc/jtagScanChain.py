@@ -1,6 +1,7 @@
 import math
 import time
 import struct
+from functools import partial
 from bitarray import bitarray
 
 from . import jtagDeviceDescription
@@ -143,7 +144,7 @@ class JTAGScanChain(object):
         possible_prims = []
         for prim in self._lv1_chain_primitives:
             efstyledstr = ''
-            ef = prim._effect
+            ef = prim.get_effect()
 
             worststyle = 0
             for i in range(3):
@@ -166,8 +167,34 @@ class JTAGScanChain(object):
                             'level Primative.')
         best_prim = possible_prims[0]
         for prim in possible_prims[1:]:
-            if sum((e.score for e in prim._effect)) <\
-               sum((e.score for e in best_prim._effect)):
+            if sum((e.score for e in prim.get_effect())) <\
+               sum((e.score for e in best_prim.get_effect())):
                 best_prim = prim
         print("PICKED", best_prim, "\n")
         return best_prim
+
+    def get_fitted_lv1_prim(self, reqef):
+        """
+             request
+        r   - A C 0 1
+        e -|? ! ! ! !
+        s A|? ✓ ✓ 0 1 Check this logic
+        u C|? m ✓ 0 1
+        l 0|? M M 0 !
+        t 1|? M M ! 1
+
+        - = No Care
+        A = arbitrary
+        C = Constant
+        0 = ZERO
+        1 = ONE
+
+        ! = ERROR
+        ? = NO CARE RESULT
+        ✓ = Pass data directly
+        m = will require reconfiguring argument and using multiple of prim
+        M = Requires using multiple of several prims to satisfy requirement
+        """
+        prim = self.get_best_lv1_prim(reqef)
+
+        return partial(prim, _chain=self, reqef=reqef)

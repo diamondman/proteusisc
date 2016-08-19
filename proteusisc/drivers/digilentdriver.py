@@ -15,7 +15,9 @@ from proteusisc.jtagUtils import blen2Blen, buff2Blen,\
     build_byte_align_buff
 from proteusisc.cabledriver import CableDriver
 from proteusisc.primitive import Level1Primitive,\
-    Executable, NOCARE, ZERO, ONE, CONSTANT, ARBITRARY
+    Executable, NOCARE, ZERO, ONE, CONSTANT, ARBITRARY,\
+    TMSArbitrary, TMSConst, TDIArbitrary, TDIConst, TDIOne,\
+    TDOConst, TDOOne
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGControlError, JTAGNotEnabledError
 
@@ -79,50 +81,45 @@ def index_or_default(s):
 ##############
 # PRIMITIVES #
 ##############
-class DigilentWriteTMSPrimitive(Level1Primitive, Executable):
+class DigilentWriteTMSPrimitive(TMSArbitrary, TDIConst, TDOConst,
+                                Level1Primitive, Executable):
     _function_name = 'write_tms'
     _driver_function_name = 'write_tms_bits'
-    """TMS, TDI, TDO"""
-    _effect = [ARBITRARY, CONSTANT, CONSTANT]
     def _get_args(self):
         return [self.tms], {'return_tdo':self.tdo, 'TDI': self.tdi}
 
-class DigilentWriteTDIPrimitive(Level1Primitive, Executable):
+class DigilentWriteTDIPrimitive(TMSConst, TDIArbitrary, TDOConst,
+                                Level1Primitive, Executable):
     _function_name = 'write_tdi'
     _driver_function_name = 'write_tdi_bits'
-    """TMS, TDI, TDO"""
-    _effect = [CONSTANT, ARBITRARY, CONSTANT]
     def _get_args(self):
         return [self.tdi], {'return_tdo':self.tdo, 'TMS': self.tms}
 
-class DigilentWriteTMSTDIPrimitive(Level1Primitive, Executable):
+class DigilentWriteTMSTDIPrimitive(TMSArbitrary, TDIArbitrary, TDOConst,
+                                   Level1Primitive, Executable):
     _function_name = 'write_tms_tdi'
     _driver_function_name = 'write_tms_tdi_bits'
-    """TMS, TDI, TDO"""
-    _effect = [ARBITRARY, ARBITRARY, CONSTANT]
     def _get_args(self):
         return [self.tms, self.tdi], {'return_tdo':self.tdo}
 
-class DigilentReadTDOPrimitive(Level1Primitive, Executable):
+class DigilentReadTDOPrimitive(TMSConst, TDIConst, TDOOne,
+                               Level1Primitive, Executable):
     _function_name = 'read_tdo'
     _driver_function_name = 'read_tdo_bits'
-    """TMS, TDI, TDO"""
-    _effect = [CONSTANT, CONSTANT, ONE]
     def _get_args(self):
         return [self.count], {'TMS': self.tms, 'TDI': self.tdi}
 
-class LIESTDIHighPrimitive(Level1Primitive, Executable):
+class LIESTDIHighPrimitive(TMSConst, TDIOne, TDOOne,
+                           Level1Primitive, Executable):
     _function_name = 'lies_lies'
     _driver_function_name = 'lies_lies'
-    """TMS, TDI, TDO"""
-    _effect = [CONSTANT, ONE, ONE]
     def _get_args(self):
         return [], {}
 
 
 class DigilentAdeptController(CableDriver):
     _primitives = [DigilentWriteTDIPrimitive, DigilentWriteTMSPrimitive,
-                   DigilentWriteTMSTDIPrimitive, DigilentReadTDOPrimitive,]
+                   DigilentWriteTMSTDIPrimitive, DigilentReadTDOPrimitive]
     #               LIESTDIHighPrimitive]
     def __init__(self, dev):
         super(DigilentAdeptController, self).__init__(dev)

@@ -152,7 +152,7 @@ ARBITRARY =    Requirement(True,  False, False, False)
 
 class ConstantBitarray(collections.Sequence):
     def __init__(self, val, length):
-        self._val = val
+        self._val = bool(val)
         self._length = length
 
     def __len__(self):
@@ -162,7 +162,7 @@ class ConstantBitarray(collections.Sequence):
             return self._val
         raise IndexError("ConstantBitarray index out of range")
     def __repr__(self):
-        return "<ConstBitArray: %s (%s)>"%(self._val, self._length)
+        return "<Const: %s (%s)>"%(self._val, self._length)
     def __add__(self, other):
         if isinstance(other, ConstantBitarray):
             if self._val == other._val:
@@ -171,18 +171,51 @@ class ConstantBitarray(collections.Sequence):
             else:
                 return bitarray((*(self._val,)*self._length,
                                  *(other._val,)*other._length))
-        elif ininstance(other, bool):
+        if isinstance(other, bool):
             if self._val == other:
                 return ConstantBitarray(self._val, self._length+1)
             else:
                 return bitarray((*(self._val,)*self._length, other))
-        else:
-            return NotImplemented
+        if isinstance(other, bitarray):
+            return bitarray(self)+other
+        return NotImplemented
+
+class NoCareBitarray(collections.Sequence):
+    def __init__(self, length):
+        self._length = length
+
+    def __len__(self):
+        return self._length
+    def __getitem__(self, index):
+        if index < self._length and index >= 0:
+            return False
+        raise IndexError("NoCareBitarray index out of range")
+    def __repr__(self):
+        return "<NC: (%s)>"%(self._length)
+    def __add__(self, other):
+        if isinstance(other, NoCareBitarray):
+            return NoCareBitarray(self._length+other._length)
+        if isinstance(other, ConstantBitarray):
+            return ConstantBitarray(other._val,
+                                    self._length+other._length)
+        if isinstance(other, bool):
+            return ConstantBitarray(other, self._length+1)
+        if isinstance(other, bitarray):
+            return bitarray(self)+other
+        return NotImplemented
+    def __radd__(self, other):
+        if isinstance(other, ConstantBitarray):
+            return ConstantBitarray(other._val,
+                                    self._length+other._length)
+        if isinstance(other, bool):
+            return ConstantBitarray(other, self._length+1)
+        return NotImplemented
 
 class Primitive(object):
     _layer = None
     def __init__(self, *args, _chain, _synthetic=False, **kwargs):
         if args or kwargs:
+            print(type(self))
             print(args)
             print(kwargs)
             print()
@@ -237,7 +270,7 @@ class Primitive(object):
         }
 
     def signature(self):
-        return (type(self), self._group_type)
+        return self, self._group_type
 
     @property
     def _group_type(self):
@@ -296,11 +329,51 @@ class Level2Primitive(Primitive):
 
 class Level1Primitive(Primitive):
     _layer = 1
-    _effect = [0, 0, 0]
-    def __init__(self, count, tms, tdi, tdo, *args, reqef, **kwargs):
+    _TMS = NOCARE
+    _TDI = NOCARE
+    _TDO = NOCARE
+    @classmethod
+    def get_effect(cls):
+        return (cls._TMS, cls._TDI, cls._TDO)
+    def __init__(self, count=None, tms=None, tdi=None, tdo=None,
+                 *args, reqef, **kwargs):
         super(Level1Primitive, self).__init__(*args, **kwargs)
-        self.count, self.tms, self.tdi, self.tdo = count, tms, tdi, tdo
+        _tms, _tdi, _tdo = tms, tdi, tdo
+
         self.reqef = reqef
+
+        if isinstance(_tms, collections.Iterable):
+            count = count or len(_tms)
+        if isinstance(_tdi, collections.Iterable):
+            count = count or len(_tdi)
+        if isinstance(_tdo, collections.Iterable):
+            count = count or len(_tdo)
+        if count is None:
+            count = 1
+            #raise ValueError("Length not specified or inferable")
+
+        if _tms is None:
+            _tms = NoCareBitarray(count)
+        elif not isinstance(_tms, collections.Iterable):
+            _tms = ConstantBitarray(_tms, count)
+        if _tdi is None:
+            _tdi = NoCareBitarray(count)
+        elif not isinstance(_tdi, collections.Iterable):
+            _tdi = ConstantBitarray(_tdi, count)
+        if _tdo is None:
+            _tdo = NoCareBitarray(count)
+        elif not isinstance(_tdo, collections.Iterable):
+            _tdo = ConstantBitarray(_tdo, count)
+
+        if len(_tms) != count:
+            raise ValueError("TMS is the wrong length")
+        if len(_tdi) != count:
+            raise ValueError("TDI is the wrong length")
+        if len(_tdo) != count:
+            raise ValueError("TDO is the wrong length")
+
+        self.count, self.tms, self.tdi, self.tdo = count, _tms, _tdi, _tdo
+        print(type(self).get_effect())
 
     def __repr__(self):
         tms = self.tms
@@ -318,21 +391,75 @@ class Level1Primitive(Primitive):
     def merge(self, target):
         if not isinstance(target, Level1Primitive):
             return None
-        print(('  \033[95m%s %s %s REQEF\033[94m'%tuple(self.reqef)),\
+        print(('  \033[95m%s %s %s REQEF\033[94m'%tuple(self.reqef)),
               self,'\033[0m')
-        print(('  \033[95m%s %s %s REQEF\033[94m'%tuple(target.reqef)),\
+        print(('  \033[95m%s %s %s REQEF\033[94m'%tuple(target.reqef)),
               target,'\033[0m')
 
         #TMS TDI TDO
         reqef = tuple(map(operator.add, self.reqef, target.reqef))
 
-        print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),\
+        print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),
               "CONBINED",'\033[0m')
 
-        best_prim = self._chain.get_best_lv1_prim(reqef)
+        best_prim = self._chain.get_fitted_lv1_prim(reqef)
 
-        return best_prim(self.count+target.count,0,0,0,
-                         reqef=reqef, _chain=self._chain)
+        return best_prim(count=self.count+target.count,
+                         tms=self.tms+target.tms,
+                         tdi=self.tdi+target.tdi,
+                         tdo=self.tdo+target.tdo)
 
     def expand(self, chain, sm):
         return None
+
+
+class TMSArbitrary(Level1Primitive):
+    _TMS = ARBITRARY
+    #def __init__(self, *args, tms=None, **kwargs):
+    #    super(TMSArbitrary, self).__init__(_tms=tms, *args, **kwargs)
+class TMSConst(Level1Primitive):
+    _TMS = CONSTANT
+    #def __init__(self, *args, tms=None, **kwargs):
+    #    super(TMSConst, self).__init__(_tms=tms, *args, **kwargs)
+class TMSZero(Level1Primitive):
+    _TMS = ZERO
+    #def __init__(self, *args, **kwargs):
+    #    super(TMSZero, self).__init__(_tms=False, *args, **kwargs)
+class TMSOne(Level1Primitive):
+    _TMS = ONE
+    #def __init__(self, *args, **kwargs):
+    #    super(TMSOne, self).__init__(_tms=True, *args, **kwargs)
+
+class TDIArbitrary(Level1Primitive):
+    _TDI = ARBITRARY
+    #def __init__(self, *args, tdi=None, **kwargs):
+    #    super(TDIArbitrary, self).__init__(_tdi=tdi, *args, **kwargs)
+class TDIConst(Level1Primitive):
+    _TDI = CONSTANT
+    #def __init__(self, *args, tdi=None, **kwargs):
+    #    super(TDIConst, self).__init__(_tdi=tdi, *args, **kwargs)
+class TDIZero(Level1Primitive):
+    _TDI = ZERO
+    #def __init__(self, *args, **kwargs):
+    #    super(TDIZero, self).__init__(_tdi=False, *args, **kwargs)
+class TDIOne(Level1Primitive):
+    _TDI = ONE
+    #def __init__(self, *args, **kwargs):
+    #    super(TDIOne, self).__init__(_tdi=True, *args, **kwargs)
+
+class TDOArbitrary(Level1Primitive):
+    _TDO = ARBITRARY
+    #def __init__(self, *args, tdo=None, **kwargs):
+    #    super(TDOArbitrary, self).__init__(_tdo=tdo, *args, **kwargs)
+class TDOConst(Level1Primitive):
+    _TDO = CONSTANT
+    #def __init__(self, *args, tdo=None, **kwargs):
+    #    super(TDOConst, self).__init__(_tdo=tdo, *args, **kwargs)
+class TDOZero(Level1Primitive):
+    _TDO = ZERO
+    #def __init__(self, *args, **kwargs):
+    #    super(TDOZero, self).__init__(_tdo=False, *args, **kwargs)
+class TDOOne(Level1Primitive):
+    _TDO = ONE
+    #def __init__(self, *args, **kwargs):
+    #    super(TDOOne, self).__init__(_tdo=True, *args, **kwargs)
