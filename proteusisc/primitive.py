@@ -180,6 +180,17 @@ class ConstantBitarray(collections.Sequence):
             return bitarray(self)+other
         return NotImplemented
 
+    def count(self, val=True):
+        if val == self._val:
+            return self._length
+        return 0
+
+    def any(self):
+        return self._val
+
+    def all(self):
+        return self._val
+
 class NoCareBitarray(collections.Sequence):
     def __init__(self, length):
         self._length = length
@@ -210,6 +221,16 @@ class NoCareBitarray(collections.Sequence):
         if isinstance(other, bool):
             return ConstantBitarray(other, self._length+1)
         return NotImplemented
+
+    def count(self, val=True):
+        return 0
+
+    def any(self):
+        return False
+
+    def all(self):
+        return False
+
 
 class Primitive(object):
     _layer = None
@@ -258,9 +279,7 @@ class Primitive(object):
             'grouping': self._group_type,
             'data':{
                 attr.replace("insname","INS"):
-                getattr(self, attr) #if not
-                #    isinstance(getattr(self, attr), bitarray)
-                #    else getattr(self, attr).to01()
+                getattr(self, attr)
                 for attr in vars(self)
                 if attr[0] != '_' and
                 attr not in ["name", "dev", "required_effect"] and
@@ -375,6 +394,50 @@ class Level1Primitive(Primitive):
         self.count, self.tms, self.tdi, self.tdo = count, _tms, _tdi, _tdo
         print(type(self).get_effect())
 
+    _COST_PRIM = 20
+    _COST_READ_MSG = 10
+    _COST_READ_BIT_GROUP = 1
+    _COST_PAYLOAD_BIT_GROUP = 1
+    _BIT_READ_GROUP_SIZE = 1
+    _BIT_PAYLOAD_GROUP_SIZE = 1
+
+    @property
+    def score(self):
+        readenabled = self.tdo.any() or\
+                      (self._TDO.single and self._TDO.value)
+        readcount = self.tdo.count() if self._TDO.arbitrary else\
+                    (self.count if (self._TDO.value or self.tdo.any())\
+                     else 0)
+        tdosendcount = len(self.tdo)*self._TDO.arbitrary
+        tmssendcount = len(self.tms)*self._TMS.arbitrary
+        tdisendcount = len(self.tdi)*self._TDI.arbitrary
+
+        print("Reading",readenabled, "Readnum",readcount,
+              "tmsnum", tmssendcount, "tdinum",tdisendcount)
+
+        SEND_COEFF = (self._COST_PAYLOAD_BIT_GROUP+
+                       self._BIT_PAYLOAD_GROUP_SIZE-1)//\
+                       self._BIT_PAYLOAD_GROUP_SIZE
+        RECV_COEFF = (self._COST_READ_BIT_GROUP+
+                      self._BIT_READ_GROUP_SIZE-1)//\
+                      self._BIT_READ_GROUP_SIZE
+
+        readenablecost = (readenabled*self._COST_READ_MSG)
+        readbitcost = readcount*RECV_COEFF
+        readbitreqcost = tdosendcount*SEND_COEFF
+        writetmscost = tmssendcount*SEND_COEFF
+        writetdicost =  tdisendcount*SEND_COEFF
+
+        print("Base cost        ", self._COST_PRIM)
+        print("Read Enable Cost ", readenablecost)
+        print("Read Bit Req Cost", readbitreqcost)
+        print("Read Bit Cost    ", readbitcost)
+        print("Write tms Cost   ", writetmscost)
+        print("Write tdi Cost   ", writetdicost)
+
+        return self._COST_PRIM + readenablecost +\
+            readbitreqcost + readbitcost + writetmscost + writetdicost
+
     def __repr__(self):
         tms = self.tms
         tdi = self.tdi
@@ -385,6 +448,9 @@ class Level1Primitive(Primitive):
         if isinstance(self.tms, bitarray):
             if len(self.tms)>30:
                 tms = "%s...(%s bits)"%(tms[0:30], len(tms))
+        if isinstance(self.tdo, bitarray):
+            if len(self.tdo)>30:
+                tdo = "%s...(%s bits)"%(tdo[0:30], len(tdo))
         return "<%s(TMS:%s; TDI:%s; TDO:%s)>"%\
             (self.__class__.__name__, tms, tdi, tdo)
 
@@ -402,6 +468,10 @@ class Level1Primitive(Primitive):
         print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),
               "CONBINED",'\033[0m')
 
+        print("*************SCORES!")
+        print(self, self.score)
+        print(target, target.score)
+        print()
         best_prim = self._chain.get_fitted_lv1_prim(reqef)
 
         return best_prim(count=self.count+target.count,

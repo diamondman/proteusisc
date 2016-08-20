@@ -112,7 +112,7 @@
 		</span>
 		{% endif %}
 		<ul>
-		  {% for key,value in prim['data'].items() %}
+		  {% for key,value in prim['data'].items()|sort(attribute='0') %}
 		  <li>
 		    <span class="k_{{ key }}"><b>{{ key }}</b>:</span>
 		    <span class="v_{{ key }} vt_{{ value.__class__.__name__ }}">
