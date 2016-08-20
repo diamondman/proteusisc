@@ -137,7 +137,7 @@ class JTAGScanChain(object):
             self._sm.transition_bit(bit)
             statetrans.append(self._sm.state)
 
-    def get_compatible_lv1_prims(self, reqef, scoreToBeat=None):
+    def get_compatible_lv1_prims(self, reqef):
         styles = {0:'\033[92m', #GREEN
                   1:'\033[93m', #YELLOW
                   2:'\033[91m'} #RED
@@ -167,7 +167,7 @@ class JTAGScanChain(object):
                             'level Primative.')
         return possible_prims
 
-    def get_best_lv1_prim(self, reqef, scoreToBeat=None):
+    def get_best_lv1_prim(self, reqef):
         possible_prims = self.get_compatible_lv1_prims(reqef)
         best_prim = possible_prims[0]
         for prim in possible_prims[1:]:

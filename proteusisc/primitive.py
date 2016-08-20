@@ -462,74 +462,30 @@ class Level1Primitive(Primitive):
         print(('  \033[95m%s %s %s REQEF\033[94m'%tuple(target.reqef)),
               target,'\033[0m')
 
-        #TMS TDI TDO
         reqef = tuple(map(operator.add, self.reqef, target.reqef))
+
+        newcount = self.count+target.count
+        newtms = self.tms+target.tms
+        newtdi = self.tdi+target.tdi
+        newtdo = self.tdo+target.tdo
 
         print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),
               "CONBINED",'\033[0m')
 
-        print("*************SCORES!")
-        print(self, self.score)
-        print(target, target.score)
-        print()
-        best_prim = self._chain.get_fitted_lv1_prim(reqef)
+        possible_prims = self._chain.get_compatible_lv1_prims(reqef)
+        best_prim = None
+        best_score = self.score + target.score
+        for prim_cls in possible_prims:
+            tmp_prim = prim_cls(count=newcount,
+                                tms=newtms, tdi=newtdi,
+                                tdo=newtdo, reqef=reqef,
+                                _chain=self._chain)
+            if tmp_prim.score < best_score:
+                best_prim = tmp_prim
+                best_score = tmp_prim.score
+        print("PICKED", best_prim, "\n")
 
-        return best_prim(count=self.count+target.count,
-                         tms=self.tms+target.tms,
-                         tdi=self.tdi+target.tdi,
-                         tdo=self.tdo+target.tdo)
+        return best_prim
 
     def expand(self, chain, sm):
         return None
-
-
-class TMSArbitrary(Level1Primitive):
-    _TMS = ARBITRARY
-    #def __init__(self, *args, tms=None, **kwargs):
-    #    super(TMSArbitrary, self).__init__(_tms=tms, *args, **kwargs)
-class TMSConst(Level1Primitive):
-    _TMS = CONSTANT
-    #def __init__(self, *args, tms=None, **kwargs):
-    #    super(TMSConst, self).__init__(_tms=tms, *args, **kwargs)
-class TMSZero(Level1Primitive):
-    _TMS = ZERO
-    #def __init__(self, *args, **kwargs):
-    #    super(TMSZero, self).__init__(_tms=False, *args, **kwargs)
-class TMSOne(Level1Primitive):
-    _TMS = ONE
-    #def __init__(self, *args, **kwargs):
-    #    super(TMSOne, self).__init__(_tms=True, *args, **kwargs)
-
-class TDIArbitrary(Level1Primitive):
-    _TDI = ARBITRARY
-    #def __init__(self, *args, tdi=None, **kwargs):
-    #    super(TDIArbitrary, self).__init__(_tdi=tdi, *args, **kwargs)
-class TDIConst(Level1Primitive):
-    _TDI = CONSTANT
-    #def __init__(self, *args, tdi=None, **kwargs):
-    #    super(TDIConst, self).__init__(_tdi=tdi, *args, **kwargs)
-class TDIZero(Level1Primitive):
-    _TDI = ZERO
-    #def __init__(self, *args, **kwargs):
-    #    super(TDIZero, self).__init__(_tdi=False, *args, **kwargs)
-class TDIOne(Level1Primitive):
-    _TDI = ONE
-    #def __init__(self, *args, **kwargs):
-    #    super(TDIOne, self).__init__(_tdi=True, *args, **kwargs)
-
-class TDOArbitrary(Level1Primitive):
-    _TDO = ARBITRARY
-    #def __init__(self, *args, tdo=None, **kwargs):
-    #    super(TDOArbitrary, self).__init__(_tdo=tdo, *args, **kwargs)
-class TDOConst(Level1Primitive):
-    _TDO = CONSTANT
-    #def __init__(self, *args, tdo=None, **kwargs):
-    #    super(TDOConst, self).__init__(_tdo=tdo, *args, **kwargs)
-class TDOZero(Level1Primitive):
-    _TDO = ZERO
-    #def __init__(self, *args, **kwargs):
-    #    super(TDOZero, self).__init__(_tdo=False, *args, **kwargs)
-class TDOOne(Level1Primitive):
-    _TDO = ONE
-    #def __init__(self, *args, **kwargs):
-    #    super(TDOOne, self).__init__(_tdo=True, *args, **kwargs)

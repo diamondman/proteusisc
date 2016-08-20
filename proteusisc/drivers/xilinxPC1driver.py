@@ -32,8 +32,7 @@ class XPC1TransferPrimitive(Level1Primitive, Executable):
     _function_name = 'transfer_bits'
     _driver_function_name = 'transfer_bits'#_single'#_cpld_upgrade'
     _max_bits = 65536
-    """TMS, TDI, TDO"""
-    _effect = [ARBITRARY, ARBITRARY, ARBITRARY]
+    _TMS, _TDI, _TDO = ARBITRARY, ARBITRARY, ARBITRARY
     def _get_args(self):
         return [self.count, self.tms, self.tdi], {'TDO': self.tdo}
 

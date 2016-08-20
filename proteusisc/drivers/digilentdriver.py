@@ -15,9 +15,7 @@ from proteusisc.jtagUtils import blen2Blen, buff2Blen,\
     build_byte_align_buff
 from proteusisc.cabledriver import CableDriver
 from proteusisc.primitive import Level1Primitive,\
-    Executable, NOCARE, ZERO, ONE, CONSTANT, ARBITRARY,\
-    TMSArbitrary, TMSConst, TDIArbitrary, TDIConst, TDIOne,\
-    TDOConst, TDOOne
+    Executable, NOCARE, ZERO, ONE, CONSTANT, ARBITRARY
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGControlError, JTAGNotEnabledError
 
@@ -81,38 +79,38 @@ def index_or_default(s):
 ##############
 # PRIMITIVES #
 ##############
-class DigilentWriteTMSPrimitive(TMSArbitrary, TDIConst, TDOConst,
-                                Level1Primitive, Executable):
+class DigilentWriteTMSPrimitive(Level1Primitive, Executable):
     _function_name = 'write_tms'
     _driver_function_name = 'write_tms_bits'
+    _TMS, _TDI, _TDO = ARBITRARY, CONSTANT, CONSTANT
     def _get_args(self):
         return [self.tms], {'return_tdo':self.tdo, 'TDI': self.tdi}
 
-class DigilentWriteTDIPrimitive(TMSConst, TDIArbitrary, TDOConst,
-                                Level1Primitive, Executable):
+class DigilentWriteTDIPrimitive(Level1Primitive, Executable):
     _function_name = 'write_tdi'
     _driver_function_name = 'write_tdi_bits'
+    _TMS, _TDI, _TDO = CONSTANT, ARBITRARY, CONSTANT
     def _get_args(self):
         return [self.tdi], {'return_tdo':self.tdo, 'TMS': self.tms}
 
-class DigilentWriteTMSTDIPrimitive(TMSArbitrary, TDIArbitrary, TDOConst,
-                                   Level1Primitive, Executable):
+class DigilentWriteTMSTDIPrimitive(Level1Primitive, Executable):
     _function_name = 'write_tms_tdi'
     _driver_function_name = 'write_tms_tdi_bits'
+    _TMS, _TDI, _TDO = ARBITRARY, ARBITRARY, CONSTANT
     def _get_args(self):
         return [self.tms, self.tdi], {'return_tdo':self.tdo}
 
-class DigilentReadTDOPrimitive(TMSConst, TDIConst, TDOOne,
-                               Level1Primitive, Executable):
+class DigilentReadTDOPrimitive(Level1Primitive, Executable):
+    _TMS, _TDI, _TDO = CONSTANT, CONSTANT, ONE
     _function_name = 'read_tdo'
     _driver_function_name = 'read_tdo_bits'
     def _get_args(self):
         return [self.count], {'TMS': self.tms, 'TDI': self.tdi}
 
-class LIESTDIHighPrimitive(TMSConst, TDIOne, TDOOne,
-                           Level1Primitive, Executable):
+class LIESTDIHighPrimitive(Level1Primitive, Executable):
     _function_name = 'lies_lies'
     _driver_function_name = 'lies_lies'
+    _TMS, _TDI, _TDO = CONSTANT, ONE, ONE
     def _get_args(self):
         return [], {}
 
