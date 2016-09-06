@@ -289,7 +289,7 @@ class Primitive(object):
         }
 
     def signature(self):
-        return self, self._group_type
+        return type(self), self._group_type
 
     @property
     def _group_type(self):
