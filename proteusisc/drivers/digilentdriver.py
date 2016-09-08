@@ -15,7 +15,8 @@ from proteusisc.jtagUtils import blen2Blen, buff2Blen,\
     build_byte_align_buff
 from proteusisc.cabledriver import CableDriver
 from proteusisc.primitive import Level1Primitive,\
-    Executable, NOCARE, ZERO, ONE, CONSTANT, ARBITRARY
+    Executable, NOCARE, ZERO, ONE, CONSTANT, ARBITRARY,\
+    ConstantBitarray, NoCareBitarray
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGControlError, JTAGNotEnabledError
 
@@ -84,28 +85,73 @@ class DigilentWriteTMSPrimitive(Level1Primitive, Executable):
     _driver_function_name = 'write_tms_bits'
     _TMS, _TDI, _TDO = ARBITRARY, CONSTANT, CONSTANT
     def _get_args(self):
-        return [self.tms], {'return_tdo':self.tdo, 'TDI': self.tdi}
+        if isinstance(self.tdo, ConstantBitarray):
+            tdo = self.tdo._val
+        elif isinstance(self.tdo, NoCareBitarray):
+            tdo = False
+        else:
+            raise ValueError("TDO can not be %s. CompilerError."%type(self.tdo).__name__)
+        if isinstance(self.tdi, ConstantBitarray):
+            tdi = self.tdi._val
+        elif isinstance(self.tdi, NoCareBitarray):
+            tdi = False
+        else:
+            raise ValueError("TDI can not be %s. CompilerError."%type(self.tdi).__name__)
+
+        return [self.tms], {'return_tdo':tdo, 'TDI': tdi}
 
 class DigilentWriteTDIPrimitive(Level1Primitive, Executable):
     _function_name = 'write_tdi'
     _driver_function_name = 'write_tdi_bits'
     _TMS, _TDI, _TDO = CONSTANT, ARBITRARY, CONSTANT
     def _get_args(self):
-        return [self.tdi], {'return_tdo':self.tdo, 'TMS': self.tms}
+        if isinstance(self.tdo, ConstantBitarray):
+            tdo = self.tdo._val
+        elif isinstance(self.tdo, NoCareBitarray):
+            tdo = False
+        else:
+            raise ValueError("TDO can not be %s. CompilerError."%type(self.tdo).__name__)
+        if isinstance(self.tms, ConstantBitarray):
+            tms = self.tms._val
+        elif isinstance(self.tms, NoCareBitarray):
+            tms = False
+        else:
+            raise ValueError("TMS can not be %s. CompilerError."%type(self.tms).__name__)
+
+        return [self.tdi], {'return_tdo':tdo, 'TMS': tms}
 
 class DigilentWriteTMSTDIPrimitive(Level1Primitive, Executable):
     _function_name = 'write_tms_tdi'
     _driver_function_name = 'write_tms_tdi_bits'
     _TMS, _TDI, _TDO = ARBITRARY, ARBITRARY, CONSTANT
     def _get_args(self):
-        return [self.tms, self.tdi], {'return_tdo':self.tdo}
+        if isinstance(self.tdo, ConstantBitarray):
+            tdo = self.tdo._val
+        elif isinstance(self.tdo, NoCareBitarray):
+            tdo = False
+
+        return [self.tms, self.tdi], {'return_tdo':tdo}
 
 class DigilentReadTDOPrimitive(Level1Primitive, Executable):
     _TMS, _TDI, _TDO = CONSTANT, CONSTANT, ONE
     _function_name = 'read_tdo'
     _driver_function_name = 'read_tdo_bits'
     def _get_args(self):
-        return [self.count], {'TMS': self.tms, 'TDI': self.tdi}
+        if isinstance(self.tms, ConstantBitarray):
+            tms = self.tms._val
+        elif isinstance(self.tms, NoCareBitarray):
+            tms = False
+        else:
+            raise ValueError("TMS can not be %s. CompilerError."%type(self.tms).__name__)
+        if isinstance(self.tdi, ConstantBitarray):
+            tdi = self.tdi._val
+        elif isinstance(self.tdi, NoCareBitarray):
+            tdi = False
+        else:
+            raise ValueError("TDI can not be %s. CompilerError."%type(self.tdi).__name__)
+
+
+        return [self.count], {'TMS': tms, 'TDI': tdi}
 
 class LIESTDIHighPrimitive(Level1Primitive, Executable):
     _function_name = 'lies_lies'
@@ -198,7 +244,6 @@ class DigilentAdeptController(CableDriver):
         else:
             raise JTAGEnableFailedError("Error enabling JTAG. Error code: %s." %status_code)
 
-
     def jtag_disable(self):
         """
         Disables JTAG output on the controller. JTAG operations executed
@@ -223,6 +268,7 @@ class DigilentAdeptController(CableDriver):
         elif status_code == 3:
             raise JTAGControlError("Error Code %s"%status_code)
 
+        self.close_handle()
 
     def write_tms_bits(self, data, return_tdo=False, TDI=False):
         """
@@ -313,8 +359,10 @@ class DigilentAdeptController(CableDriver):
         tms_bits = bitarray(('1' if TMS else '0')*len(buff))
         if self._scanchain:
             self._scanchain._tap_transition_driver_trigger(tms_bits)
+
         self._handle.bulkWrite(self._cmdout_interface,
                                _BMSG_WRITE_TDI +\
+                               bytes([return_tdo, TMS]) +\
                                b"".join([bytes([(len(buff)>>(8*i))&0xff]) for
                                          i in range(4)]))
         res = self._handle.bulkRead(self._cmdin_interface, 2)

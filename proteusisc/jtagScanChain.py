@@ -84,10 +84,7 @@ class JTAGScanChain(object):
 
     def queue_command(self, prim):
         self._command_queue.append(prim)
-        res = None
-        if isinstance(prim, DataRW):
-            res = prim.get_promise()
-        return res
+        return prim.get_promise()
 
     def get_prim(self, name):
         res = self._chain_primitives.get(name)
@@ -117,7 +114,7 @@ class JTAGScanChain(object):
         self._command_queue.flush()
 
     def jtag_disable(self):
-        self.flush()
+        #self.flush()
         self._sm.reset()
         self._command_queue.reset()
         self._controller.jtag_disable()

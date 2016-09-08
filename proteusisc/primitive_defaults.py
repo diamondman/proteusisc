@@ -1,10 +1,12 @@
+import time
 from bitarray import bitarray
 
 from .frame import Frame, FrameSequence
 from .primitive import Level3Primitive, Level2Primitive, DeviceTarget,\
     Executable, DataRW, ExpandRequiresTAP, ZERO, ONE, ARBITRARY, \
     CONSTANT, NOCARE,\
-    ConstantBitarray
+    ConstantBitarray, NoCareBitarray
+from .promise import TDOPromise
 from .errors import ProteusISCError
 
 #RunInstruction
@@ -20,6 +22,7 @@ class RunInstruction(Level3Primitive, DeviceTarget):
     def __init__(self, insname, execute=True,
                  loop=0, delay=0, *args, **kwargs):
         super(RunInstruction, self).__init__(*args, **kwargs)
+        self.bitcount = self.dev._desc._ir_length
         self.insname = insname
         self.execute = execute
         self.delay = delay
@@ -84,7 +87,7 @@ class RunInstruction(Level3Primitive, DeviceTarget):
             dev=dev, read=False,
             insname="BYPASS",
             execute=self.execute,
-            data=None if self.data == None else bitarray(),
+            data=None if self.data == None else NoCareBitarray(1),
             _synthetic=True)
         assert self._group_type == tmp._group_type
         return tmp
@@ -106,25 +109,33 @@ class RWDevDR(Level2Primitive, DeviceTarget):
             if len(self.data) > self.bitcount:
                 raise ValueError("TOO MUCH DATA for IR")
             else:
-                self.data = bitarray('0'*(self.bitcount-len(self.data)))\
-                            +self.data
+                self.data = ConstantBitarray(
+                    False,
+                    (self.bitcount-len(self.data)))+\
+                self.data
 
     @classmethod
     def expand_frame(cls, frame, sm):
         sm.state = "EXIT1DR"
         chain = frame._chain
-        data = bitarray()
+        data = NoCareBitarray(0)
+        promises = []#p._promise for p in frame if p._promise]
         for p in reversed(frame):
+            if p._promise:
+                promise = TDOPromise(chain,
+                                     p._promise._bitstart + len(data),
+                                     p._promise._bitlength)
+                promises.append(promise)
             if p.data:
                 data += p.data[::-1]
             else:
-                data += bitarray('0'*p.bitcount)
+                data += ConstantBitarray(False, p.bitcount)
         return FrameSequence(chain,
             Frame.from_prim(chain,
                 chain.get_prim('rw_dr')
                             (read=frame._valid_prim.read,
                              data=data[::-1], _chain=chain,
-                             _promise=frame._valid_prim._promise))
+                             _promise=promises))
             )
 
 class RWDevIR(Level2Primitive, DeviceTarget):
@@ -137,25 +148,34 @@ class RWDevIR(Level2Primitive, DeviceTarget):
             if len(self.data) > self.bitcount:
                 raise ValueError("TOO MUCH DATA for IR")
             else:
-                self.data = bitarray('0'*(self.bitcount-len(self.data)))\
-                            +self.data
+                self.data = ConstantBitarray(
+                    False,
+                    (self.bitcount-len(self.data)))+\
+                self.data
 
     @classmethod
     def expand_frame(cls, frame, sm):
         sm.state = "EXIT1IR"
         chain = frame._chain
-        data = bitarray()
+        data = NoCareBitarray(0)
+        promises = []
         for p in reversed(frame):
+            if p._promise:
+                promise = TDOPromise(chain,
+                                     p._promise._bitstart + len(data),
+                                     p._promise._bitlength)
+                promises.append(promise)
             if p.data:
                 data += p.data[::-1]
             else:
-                data += bitarray('1'*p.bitcount)
+                data += ConstantBitarray(True, p.bitcount)
+
         return FrameSequence(chain,
             Frame.from_prim(chain,
                 chain.get_prim('rw_ir')
                             (read=frame._valid_prim.read,
                              data=data[::-1], _chain=chain,
-                             _promise=frame._valid_prim._promise))
+                             _promise=promises))
             )
 
         return seq
@@ -208,16 +228,32 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
         data = self.data
         res = []
 
+        if self._promise:
+            if isinstance(self._promise, list):
+                other_promises = self._promise[:-1]
+                last_promise = self._promise[-1]
+            else:
+                other_promises = []
+                last_promise = self._promise
+
         if len(data)>1:
             reqef = (
                 ZERO, #TMS
-                ONE if all(data[:-1]) else (ZERO if not any(data[:-1])
-                                            else ARBITRARY), #TDI
+                #ONE if all(data[:-1]) else (ZERO if not any(data[:-1])
+                #                            else ARBITRARY), #TDI
+                NOCARE if isinstance(data, NoCareBitarray) else
+                    (ONE if data._val else ZERO)
+                        if isinstance(data, ConstantBitarray) else
+                    ARBITRARY, #TDI
                 ONE if self.read else NOCARE #TDO
             )
+            pro = None
+            if self._promise:
+                pro = TDOPromise(chain, 0, 0)
+                last_promise._addsub(pro)
             write_data = self._chain.get_fitted_lv1_prim(reqef)
             res.append(write_data(tms=False, tdi=data[:-1],
-                                  tdo=self.read or None))
+                                  tdo=self.read or None, _promise=pro))
 
         reqef = (
             ONE, #TMS
@@ -225,9 +261,14 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
             ONE if self.read else NOCARE #TDO
         )
         print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
+
+        pro = None
+        if self._promise:
+            pro = TDOPromise(chain, 0, 0)
+            last_promise._addsub(pro)
         write_last = self._chain.get_fitted_lv1_prim(reqef)
         res.append(write_last(tms=True, tdi=data[-1],
-                              tdo=self.read or None))
+                              tdo=self.read or None, _promise=pro))
 
         return res
 
@@ -259,7 +300,7 @@ class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
 
 class Sleep(Level2Primitive, Executable):
     _function_name = 'sleep'
-    _driver_function_name = 'sleep'
+    #_driver_function_name = 'sleep'
     def __init__(self, *args, delay, **kwargs):
         super(Sleep, self).__init__(*args, **kwargs)
         self.delay = delay
@@ -273,5 +314,7 @@ class Sleep(Level2Primitive, Executable):
     def expand(self, chain, sm):
         return None
 
+    def execute(self):
+        time.sleep(self.delay/1000)
 
 ############### END LV2 Primatimes (No Dev) ################

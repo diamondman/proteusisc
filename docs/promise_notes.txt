@@ -1,0 +1,11 @@
+To allow the primitive compiler to combine primitives across requested reads from TDO, reads must return an object that acts as an IOU to the value read. These IOU objects will be referred to as 'promises'.
+
+After the associateed command queue is flushed, a Promise will hold the corresponding data that was read back from the scan chain. Before a flush, the Promise will hold no value, but trying to read the value will trigger a flush and then return the retrieved data. This way, a promise always holds a value when read.
+
+A Promise must be able to maintain knowledge about what bits should be read from primitives even as those primitives are grouped or split during the compiling process.
+
+Important cases are:
+* A primitive (prim0) with a promise (pro0) is compiled down into one new primitive (prim1). The promise pro0 must look for data from the new primitive (prim1) and keep track of which bits it should return.
+* A promise's (pro0) associated primitive (prim0) is combined with another primitive (prim1) that also has an associated promise (pro1). Both promises must remember what data thet should fetch from the combined primitive upon execution.
+* A promise's (pro0) associated primitive (prim0) is combined with another primitive (prim1) that has no promise. The promises must remember what data it should fetch from the combined primitive upon execution.
+* A primitive (prim0) with associated promise (pro0) must be split into two or more sub primitives (prim1+). The promise must be able to collect the correct bits from the multiple resulting primitives upon execution.

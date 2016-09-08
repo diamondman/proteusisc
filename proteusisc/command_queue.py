@@ -250,6 +250,14 @@ class CommandQueue(collections.MutableSequence):
             self.queue = flattened_prims
 
 
+    def flush(self):
+        self.stages = []
+        self.stagenames = []
+        self._compile(debug=True, stages=self.stages, stagenames=self.stagenames)
+        print("ABOUT TO EXEC", self.queue)
+        self._chain._controller.execute(self.queue)
+        self.queue = []
+
 def mergePrims(chain, inseq):
     if isinstance(inseq, FrameSequence):
         merged_prims = FrameSequence(chain)

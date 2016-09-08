@@ -158,9 +158,17 @@ class ConstantBitarray(collections.Sequence):
     def __len__(self):
         return self._length
     def __getitem__(self, index):
-        if index < self._length and index >= 0:
-            return self._val
-        raise IndexError("ConstantBitarray index out of range")
+        if isinstance(index, slice):
+            indices = index.indices(len(self))
+            return ConstantBitarray(self._val, len(range(*indices)))
+
+        if isinstance(index, int):
+            if (index < self._length and index >= 0) or\
+               (self._length and index == -1):
+                return self._val
+            raise IndexError("%s index out of range"%type(self))
+        raise TypeError("%s indices must be integers or slices, not %s"%
+                        (type(self), type(index)))
     def __repr__(self):
         return "<Const: %s (%s)>"%(self._val, self._length)
     def __add__(self, other):
@@ -198,9 +206,18 @@ class NoCareBitarray(collections.Sequence):
     def __len__(self):
         return self._length
     def __getitem__(self, index):
-        if index < self._length and index >= 0:
-            return False
-        raise IndexError("NoCareBitarray index out of range")
+        if isinstance(index, slice):
+            indices = index.indices(len(self))
+            return NoCareBitarray(len(range(*indices)))
+
+        if isinstance(index, int):
+
+            if (index < self._length and index >= 0) or\
+               (self._length and index == -1):
+                return False
+            raise IndexError("%s index out of range"%type(self))
+        raise TypeError("%s indices must be integers or slices, not %s"%
+                        (type(self), type(index)))
     def __repr__(self):
         return "<NC: (%s)>"%(self._length)
     def __add__(self, other):
@@ -267,8 +284,7 @@ class Primitive(object):
     def snapshot(self):
         return {
             'valid':True,
-            'promise': self.get_promise() if isinstance(self, DataRW)
-                       else None,
+            'promise': self.get_promise(),
             'dev':self.dev.chain_index \
                 if isinstance(self, DeviceTarget) else "CHAIN",
             'name':(getattr(self, '_function_name', None) or \
@@ -295,6 +311,9 @@ class Primitive(object):
     def _group_type(self):
         return 0
 
+    def get_promise(self):
+        return None
+
 
 class Executable(Primitive):
     def execute(self):
@@ -313,7 +332,7 @@ class DataRW(Primitive):
 
     def get_promise(self):
         if self._promise is None and self.read:
-            self._promise = TDOPromise(self._chain)
+            self._promise = TDOPromise(self._chain, 0, self.bitcount)
         return self._promise
 
 class DeviceTarget(DataRW):
@@ -355,11 +374,12 @@ class Level1Primitive(Primitive):
     def get_effect(cls):
         return (cls._TMS, cls._TDI, cls._TDO)
     def __init__(self, count=None, tms=None, tdi=None, tdo=None,
-                 *args, reqef, **kwargs):
+                 _promise=None, *args, reqef, **kwargs):
         super(Level1Primitive, self).__init__(*args, **kwargs)
         _tms, _tdi, _tdo = tms, tdi, tdo
 
         self.reqef = reqef
+        self._promise = _promise
 
         if isinstance(_tms, collections.Iterable):
             count = count or len(_tms)
@@ -369,7 +389,6 @@ class Level1Primitive(Primitive):
             count = count or len(_tdo)
         if count is None:
             count = 1
-            #raise ValueError("Length not specified or inferable")
 
         if _tms is None:
             _tms = NoCareBitarray(count)
@@ -392,6 +411,8 @@ class Level1Primitive(Primitive):
             raise ValueError("TDO is the wrong length")
 
         self.count, self.tms, self.tdi, self.tdo = count, _tms, _tdi, _tdo
+
+        #if self._promise and not any(self.tdo):
         print(type(self).get_effect())
 
     _COST_PRIM = 20
@@ -464,10 +485,10 @@ class Level1Primitive(Primitive):
 
         reqef = tuple(map(operator.add, self.reqef, target.reqef))
 
-        newcount = self.count+target.count
-        newtms = self.tms+target.tms
-        newtdi = self.tdi+target.tdi
-        newtdo = self.tdo+target.tdo
+        newcount = target.count+self.count
+        newtms = target.tms+self.tms
+        newtdi = target.tdi+self.tdi
+        newtdo = target.tdo+self.tdo
 
         print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),
               "CONBINED",'\033[0m')
@@ -480,6 +501,7 @@ class Level1Primitive(Primitive):
                                 tms=newtms, tdi=newtdi,
                                 tdo=newtdo, reqef=reqef,
                                 _chain=self._chain)
+            print(tmp_prim.score, tmp_prim)
             if tmp_prim.score < best_score:
                 best_prim = tmp_prim
                 best_score = tmp_prim.score
@@ -489,3 +511,6 @@ class Level1Primitive(Primitive):
 
     def expand(self, chain, sm):
         return None
+
+    def get_promise(self):
+        return self._promise

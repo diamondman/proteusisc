@@ -46,9 +46,6 @@ def strip_inner_whitespace(l):
     ranges = [(m.start(0), m.end(0)) for m in re.finditer('[^\w] +[^\w]|[\w] +[^\w]|[^\w] +[\w]',l)][::-1]
     #print(ranges, "=>")
 
-    #import ipdb
-    #ipdb.set_trace()
-
     for s, e in ranges:
         l = l[:s+1] + (" " if (l[s].isalnum() and l[e-1].isalnum()) else "") + l[e-1:]
     #print(l)

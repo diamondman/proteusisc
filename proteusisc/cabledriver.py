@@ -33,17 +33,23 @@ class CableDriver(object):
 
     def execute(self, commands):
         for p in commands:
-            #print("  Executing", p)
-            func = getattr(self, p._driver_function_name, None)
-            args, kwargs = p._get_args()
-            if not func:
-                raise Exception("Registered function %s not found on class %s"%
-                                (p._driver_function_name, p.__class__))
-            if not getattr(self, 'mock', False):
-                res = func(*args, **kwargs) #TODO pass in stuff
-                if res:
-                    #print("RES", res)
-                    self._scanchain._command_queue._return_queue.append(res)
+            print("  Executing", p)
+
+            if not hasattr(p, '_driver_function_name'):
+                p.execute()
+            else:
+                func = getattr(self, p._driver_function_name, None)
+                if not func:
+                    raise Exception("Registered function %s not found on class %s"%
+                                    (p._driver_function_name, p.__class__))
+
+                args, kwargs = p._get_args()
+                if not getattr(self, 'mock', False):
+                    res = func(*args, **kwargs) #TODO pass in stuff
+                    if res:
+                        print("RES", res)
+                    #    #TODO This is the old way of doing it. Make work with promises
+                    #    self._scanchain._command_queue._return_queue.append(res)
 
     def sleep(self, delay):
         #TODO Make this work for more advanced controllers!
@@ -66,7 +72,3 @@ class CableDriver(object):
 
     def jtag_disable(self):
         pass
-
-    #def __del__(self):
-    #    if self._jtagon:
-    #        self.jtag_disable()
