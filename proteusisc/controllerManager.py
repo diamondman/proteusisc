@@ -33,23 +33,27 @@ if not driver_count:
             'This is likely why the drivers could not be loaded.'+\
               '\033[0m')
 
+def getDriverInstanceForDevice(device):
+    vid_dict = _controllerfilter.get(device.getVendorID())
+    if vid_dict:
+        driver_class = vid_dict.get(device.getProductID(),
+                                    vid_dict.get(None))
+        if driver_class:
+            try:
+                return driver_class(device)
+            except usb1.USBErrorAccess as e:
+                return InaccessibleController(driver_class, device)
+
+
 def getAttachedControllers(cname=None):
     controllers = []
     for device in usbcontext.getDeviceList(skip_on_error=True):
-        vid_dict = _controllerfilter.get(device.getVendorID())
-        if vid_dict:
-            driver_class = vid_dict.get(device.getProductID(),
-                                        vid_dict.get(None))
-            if driver_class:
-                try:
-                    controller = driver_class(device)
-                except usb1.USBErrorAccess as e:
-                    controller = InaccessibleController(driver_class,
-                                                        device)
-                controllers.append(controller)
-            else:
-                print("No Driver Found for %04x:%04x"%\
-                      (device.getVendorID(), device.getProductID()))
+        controller = getDriverInstanceForDevice(device)
+        if controller:
+            controllers.append(controller)
+        #else:
+        #    print("No Driver Found for %04x:%04x"%\
+        #          (device.getVendorID(), device.getProductID()))
 
     if not cname:
         return controllers

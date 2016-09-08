@@ -5,13 +5,17 @@ import time
 from bitarray import bitarray
 from flask import Flask, escape, render_template
 
-from proteusisc.controllerManager import _controllerfilter
+from proteusisc.controllerManager import getDriverInstanceForDevice
 from proteusisc.jtagScanChain import JTAGScanChain
-from proteusisc.test_utils import FakeDev
+from proteusisc.test_utils import FakeUSBDev, FakeDevHandle,\
+    MockPhysicalJTAGDevice
 
-#drvr = _controllerfilter[0x03FD][0x0008]
-drvr = _controllerfilter[0x1443][None]
-c = drvr(FakeDev())
+ctrl = FakeDevHandle(MockPhysicalJTAGDevice(),
+                     MockPhysicalJTAGDevice(),
+                     MockPhysicalJTAGDevice())
+usbdev = FakeUSBDev(ctrl)
+c = getDriverInstanceForDevice(usbdev)
+print(c)
 chain = JTAGScanChain(c)
 
 devid = bitarray('11110110110101001100000010010011')
@@ -20,46 +24,62 @@ d1 = chain.initialize_device_from_id(chain, devid)
 d2 = chain.initialize_device_from_id(chain, devid)
 #d3 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
-chain._devices = [d0, d1, d2]#, d3]
+chain._devices = [d0]#, d1, d2]#, d3]
 
-a = d0.run_instruction("ISC_ENABLE", read=True, data=bitarray(bin(7)[2:].zfill(8)))
-b = d0.run_instruction("ISC_ENABLE", read=False, execute=False, data=bitarray(bin(7)[2:].zfill(14)))#loop=8, delay=0.01)
-#for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
-#    d0.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=0.01)
-#d1.run_instruction("ISC_ENABLE", read=False, delay=0.01)
-#d1.run_instruction("ISC_ENABLE", read=False, execute=False, data=bitarray(), delay=0.01)
-#d1.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
-#for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
-#    d2.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=.01)
-#d0.run_instruction("ISC_DISABLE", loop=8, delay=0.01)
-#d0.run_instruction("ISC_PROGRAM", read=False, data=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
-#chain.transition_tap("TLR")
-#d0.rw_dev_dr(data=bitarray("1001"))
-#d2.rw_dev_dr(data=bitarray("1001"))
-#chain.rw_reg(data=bitarray('11001010'))
-chain.sleep(delay=1)
-chain.sleep(delay=2)
-chain.sleep(delay=1)
-chain.sleep(delay=2)
-chain.sleep(delay=1)
+def addprims():
+    #d0.run_instruction("BYPASS", delay=0.01)
+    #a = d0.run_instruction("ISC_ENABLE", read=True, data=bitarray(bin(7)[2:].zfill(8)))
+    #b = d1.run_instruction("ISC_ENABLE", read=True, data=bitarray(bin(7)[2:].zfill(14)))#loop=8, delay=0.01)
+    #for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
+    #    d0.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=0.01)
+    #d1.run_instruction("ISC_ENABLE", read=False, delay=0.01)
+    #d1.run_instruction("ISC_ENABLE", read=False, execute=False, data=bitarray(), delay=0.01)
+    #d1.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
+    #for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
+    #    d2.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=.01)
+    #d0.run_instruction("ISC_DISABLE", loop=8, delay=0.01)
+    #d0.run_instruction("ISC_PROGRAM", read=False, data=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
+    #chain.transition_tap("TLR")
+    chain.transition_tap("SHIFTIR")
+    chain.sleep(delay=1)
+    #chain.rw_ir(data=bitarray('1001010'))
+    chain.rw_reg(data=bitarray('10'))
+    #chain.transition_tap("RTI")
+
+    #d0.rw_dev_dr(data=bitarray("1001"))
+    #d2.rw_dev_dr(data=bitarray("1001"))
+    #chain.rw_reg(data=bitarray('11001010'))
+    #chain.sleep(delay=1)
+    #chain.sleep(delay=2)
+    #chain.sleep(delay=1)
+    #chain.sleep(delay=2)
+    #chain.sleep(delay=1)
 
 app = Flask(__name__)
 
 @app.route('/')
 def report():
-    t = time.time()
-    stages = []
-    stagenames = []
+    #t = time.time()
+    #stages = []
+    #stagenames = []
 
-    chain._command_queue._compile(debug=True, stages=stages,
-                                  stagenames=stagenames)
+    #chain._command_queue._compile(debug=True, stages=stages,
+    #                              stagenames=stagenames)
 
-    print(time.time()-t)
+    #print(time.time()-t)
 
-    return render_template("layout.html", stages=stages,
-                           stagenames=stagenames,
+    return render_template("layout.html",
+                           stages=chain._command_queue.stages,
+                           stagenames=chain._command_queue.stagenames,
                            dev_count=len(chain._devices))
 
 if __name__ == "__main__":
-    app.run(debug=True)
-    #chain._command_queue._compile()
+    try:
+        chain.jtag_enable()
+        addprims()
+        chain.flush()
+        chain.jtag_disable()
+        print("DONE")
+        app.run(debug=True, use_reloader=False)
+    finally:
+        chain.jtag_disable()
