@@ -29,8 +29,8 @@ chain._devices = [d0, d1, d2]#, d3]
 def addprims():
     #d0.run_instruction("BYPASS", delay=0.01)
     #a = d0.run_instruction("ISC_ENABLE", read=True, data=bitarray(bin(7)[2:].zfill(8)))
-    #b = d0.run_instruction("ISC_ENABLE", read=True, data=bitarray('11001010'*171+'111'))#loop=8, delay=0.01)
-    d0.rw_dev_ir(data=bitarray('11101000'))
+    b = d1.run_instruction("ISC_ENABLE", read=True, data=bitarray('11001010'*171+'111'))#loop=8, delay=0.01)
+    #d0.rw_dev_ir(data=bitarray('11101000'))
     #for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
     #    d0.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=0.01)
     #d1.run_instruction("ISC_ENABLE", read=False, delay=0.01)
@@ -45,7 +45,7 @@ def addprims():
     #chain.sleep(delay=1)
     #chain.rw_ir(data=bitarray('1001010'))
     #chain.rw_reg(data=bitarray('10'))
-    chain.transition_tap("RTI")
+    #chain.transition_tap("RTI")
 
     #d0.rw_dev_dr(data=bitarray("1001"))
     #d2.rw_dev_dr(data=bitarray("1001"))
@@ -80,6 +80,10 @@ if __name__ == "__main__":
         addprims()
         chain.flush()
         chain.jtag_disable()
+        print()
+        for dev in ctrl.devices:
+            print(dev.name)
+            print("   ",dev.event_history)
         print("DONE")
         app.run(debug=True, use_reloader=False)
     finally:

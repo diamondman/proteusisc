@@ -137,9 +137,11 @@ class FakeDevHandle(object):
             + readcount)
 
     def _write_to_dev_chain(self, tms, tdi):
+        #oldstate = self.devices[0].tap.state
         for dev in self.devices:
             tdi = dev.shift(tms, tdi)
-        #print()
+        #print("State %s => %s; Reading %s"%
+        #    (oldstate,self.devices[0].tap.state,tdi))
         return tdi
 
     def _initialize_advanced_return(self, bitcount, read_tdo,
@@ -188,7 +190,6 @@ class FakeDevHandle(object):
         bits = bitarray()
         bits.frombytes(data[::-1])
         tms = bits[(8*len(data)) - (bitcount):]
-        print(tms)
         tdo = []
         for tmsbit in reversed(tms):
             tdo.append(self._write_to_dev_chain(tmsbit, tdi))
@@ -265,7 +266,7 @@ class ShiftRegister(object):
 class MockPhysicalJTAGDevice(object):
     def __init__(self, irlen=8, name=None):
         self.name = name
-        self.ran_instructions = []
+        self.event_history = []
         self.irlen = irlen
         self.IR = ShiftRegister(irlen)
         self._reg_BYPASS = ShiftRegister(1)
@@ -332,7 +333,7 @@ class MockPhysicalJTAGDevice(object):
 
     def shift(self, tms, tdi):
         res = None
-        oldstate = self.tap.state
+        #oldstate = self.tap.state
         if self.DR and self.tap.state=="SHIFTDR":
             res = self.DR.shift(tdi)
         if self.tap.state=="SHIFTIR":
@@ -351,13 +352,24 @@ class MockPhysicalJTAGDevice(object):
 
     def _TLR(self):
         self.DR = ShiftRegister(32, self.idcode)
-    def _CAPTUREDR(self):
-        pass
+        self.event_history.append("RESET")
+    def _RTI(self):
+        self.event_history.append("RTI")
+    def _UPDATEDR(self):
+        drval = self.DR.dumpData().to01()
+        print(self.name, "** Updated DR: %s"%(drval))
+        self.event_history.append(("DR", drval))
     def _CAPTUREIR(self):
         self.IR = self.calc_status_register()
     def _UPDATEIR(self):
-        print(self.name, "Loaded Ins: %s"%(self.IR.dumpData()))
-        self.ran_instructions.append(self.IR)
+        irval = self.IR.dumpData().to01()
+        insname = self.inscode_to_ins[irval]
+        regname = self._instruction_register_map[insname]
+        reglen = self._registers_to_size[regname]
+        self.DR = ShiftRegister(reglen)
+        print("** %s Updated IR: %s(%s); DR set to %s"%
+              (self.name, irval, insname, regname))
+        self.event_history.append(("IR", irval))
 
 if __name__ == "__main__":
     d = MockPhysicalJTAGDevice(7)
