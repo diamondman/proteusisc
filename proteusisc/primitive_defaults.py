@@ -180,6 +180,14 @@ class RWDevIR(Level2Primitive, DeviceTarget):
 
         return seq
 
+    def get_placeholder_for_dev(self, dev):
+        tmp = RWDevIR(dev=dev, _chain=self._chain,
+                      read=False, _synthetic=True,
+                      data=ConstantBitarray(True, dev._desc._ir_length))
+
+        assert self._group_type == tmp._group_type
+        return tmp
+
 
 ################# END LV2 Primatimes (Dev) #################
 
@@ -252,7 +260,7 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
                 pro = TDOPromise(chain, 0, 0)
                 last_promise._addsub(pro)
             write_data = self._chain.get_fitted_lv1_prim(reqef)
-            res.append(write_data(tms=False, tdi=data[:-1],
+            res.append(write_data(tms=False, tdi=data[1:],
                                   tdo=self.read or None, _promise=pro))
 
         reqef = (
@@ -267,7 +275,7 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
             pro = TDOPromise(chain, 0, 0)
             last_promise._addsub(pro)
         write_last = self._chain.get_fitted_lv1_prim(reqef)
-        res.append(write_last(tms=True, tdi=data[-1],
+        res.append(write_last(tms=True, tdi=data[0],
                               tdo=self.read or None, _promise=pro))
 
         return res

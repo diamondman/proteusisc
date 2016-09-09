@@ -259,8 +259,13 @@ class ShiftRegister(object):
     def clear(self, val=False):
         self._data = deque((val for i in range(size)), self.size)
 
+    def dumpData(self):
+        return bitarray(self._data)
+
 class MockPhysicalJTAGDevice(object):
-    def __init__(self, irlen=8):
+    def __init__(self, irlen=8, name=None):
+        self.name = name
+        self.ran_instructions = []
         self.irlen = irlen
         self.IR = ShiftRegister(irlen)
         self._reg_BYPASS = ShiftRegister(1)
@@ -337,7 +342,8 @@ class MockPhysicalJTAGDevice(object):
         func = getattr(self, "_"+self.tap.state, None)
         if func:
             func()
-        #print("State %s => %s; Reading %s"% (oldstate,self.tap.state,res))
+        #print("%s State %s => %s; Reading %s"%
+        #(self.name,oldstate,self.tap.state,res))
         return res
 
     def calc_status_register(self):
@@ -349,6 +355,9 @@ class MockPhysicalJTAGDevice(object):
         pass
     def _CAPTUREIR(self):
         self.IR = self.calc_status_register()
+    def _UPDATEIR(self):
+        print(self.name, "Loaded Ins: %s"%(self.IR.dumpData()))
+        self.ran_instructions.append(self.IR)
 
 if __name__ == "__main__":
     d = MockPhysicalJTAGDevice(7)

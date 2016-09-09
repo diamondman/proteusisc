@@ -10,9 +10,9 @@ from proteusisc.jtagScanChain import JTAGScanChain
 from proteusisc.test_utils import FakeUSBDev, FakeDevHandle,\
     MockPhysicalJTAGDevice
 
-ctrl = FakeDevHandle(MockPhysicalJTAGDevice(),
-                     MockPhysicalJTAGDevice(),
-                     MockPhysicalJTAGDevice())
+ctrl = FakeDevHandle(MockPhysicalJTAGDevice(name="D0"),
+                     MockPhysicalJTAGDevice(name="D1"),
+                     MockPhysicalJTAGDevice(name="D2"))
 usbdev = FakeUSBDev(ctrl)
 c = getDriverInstanceForDevice(usbdev)
 print(c)
@@ -24,12 +24,13 @@ d1 = chain.initialize_device_from_id(chain, devid)
 d2 = chain.initialize_device_from_id(chain, devid)
 #d3 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
-chain._devices = [d0]#, d1, d2]#, d3]
+chain._devices = [d0, d1, d2]#, d3]
 
 def addprims():
     #d0.run_instruction("BYPASS", delay=0.01)
     #a = d0.run_instruction("ISC_ENABLE", read=True, data=bitarray(bin(7)[2:].zfill(8)))
-    #b = d1.run_instruction("ISC_ENABLE", read=True, data=bitarray(bin(7)[2:].zfill(14)))#loop=8, delay=0.01)
+    #b = d0.run_instruction("ISC_ENABLE", read=True, data=bitarray('11001010'*171+'111'))#loop=8, delay=0.01)
+    d0.rw_dev_ir(data=bitarray('11101000'))
     #for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
     #    d0.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=0.01)
     #d1.run_instruction("ISC_ENABLE", read=False, delay=0.01)
@@ -40,11 +41,11 @@ def addprims():
     #d0.run_instruction("ISC_DISABLE", loop=8, delay=0.01)
     #d0.run_instruction("ISC_PROGRAM", read=False, data=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
     #chain.transition_tap("TLR")
-    chain.transition_tap("SHIFTIR")
-    chain.sleep(delay=1)
+    #chain.transition_tap("SHIFTIR")
+    #chain.sleep(delay=1)
     #chain.rw_ir(data=bitarray('1001010'))
-    chain.rw_reg(data=bitarray('10'))
-    #chain.transition_tap("RTI")
+    #chain.rw_reg(data=bitarray('10'))
+    chain.transition_tap("RTI")
 
     #d0.rw_dev_dr(data=bitarray("1001"))
     #d2.rw_dev_dr(data=bitarray("1001"))
