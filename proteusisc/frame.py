@@ -128,8 +128,8 @@ class FrameSequence(collections.MutableSequence):
             else:
                 for p in init_prims_lists[0]:
                     self._frames.append(Frame(self._chain, p))
-                    for ps in init_prims_lists[1:]:
-                        self.addstream(ps)
+                for ps in init_prims_lists[1:]:
+                    self.addstream(ps)
 
     #Needleman–Wunsch algorithm
     def _lcs(self, prims):
