@@ -315,7 +315,7 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
 
             reqef = (
                 ONE, #TMS
-                ONE if data[-1] else ZERO, #TDI
+                ONE if data[0] else ZERO, #TDI
                 ONE if self.read else NOCARE #TDO
             )
             print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
@@ -349,9 +349,18 @@ class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
         data = sm.calc_transition_to_state(self.state)
         sm.state = self.state
 
-        reqef = (ONE if all(data) else
-                 (ZERO if not any(data) else ARBITRARY),
-                 NOCARE, NOCARE)
+        if all(data):
+            data = ConstantBitarray(True, len(data))
+        elif not any(data):
+            data = ConstantBitarray(False, len(data))
+
+        reqef = (
+            NOCARE if isinstance(data, NoCareBitarray) else
+                (ONE if data._val else ZERO)
+                    if isinstance(data, ConstantBitarray) else
+                ARBITRARY, #TMS
+            NOCARE, NOCARE #TDI, TDO
+        )
         print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
         best_prim = self._chain.get_fitted_lv1_prim(reqef)
 
