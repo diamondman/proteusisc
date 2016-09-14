@@ -195,11 +195,15 @@ class CommandQueue(collections.MutableSequence):
             sm = JTAGStateMachine(self._chain._sm.state)
             expanded_prims = []
             for p in flattened_prims:
+                oldstate = sm.state
                 tmp = p.expand(self._chain, sm) if not \
-                      isinstance(p, ExpandRequiresTAP) else None
+                      isinstance(p, ExpandRequiresTAP) else \
+                      p.apply_tap_effect(sm)
                 if tmp:
+                    tmp[0].oldstate = oldstate
                     expanded_prims += tmp
                 else:
+                    p.oldstate = oldstate
                     expanded_prims.append(p)
             flattened_prims = expanded_prims
 

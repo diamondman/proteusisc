@@ -355,11 +355,14 @@ class MockPhysicalJTAGDevice(object):
         self.event_history.append("RESET")
     def _RTI(self):
         self.event_history.append("RTI")
+    def _CAPTUREDR(self):
+        self.event_history.append("CAPTUREDR")
     def _UPDATEDR(self):
         drval = self.DR.dumpData().to01()
         print(self.name, "** Updated DR: %s"%(drval))
         self.event_history.append(("DR", drval))
     def _CAPTUREIR(self):
+        self.event_history.append("CAPTUREIR")
         self.IR = self.calc_status_register()
     def _UPDATEIR(self):
         irval = self.IR.dumpData().to01()

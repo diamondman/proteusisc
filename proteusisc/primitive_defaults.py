@@ -19,8 +19,8 @@ class RunInstruction(Level3Primitive, DeviceTarget):
     _function_name = 'run_instruction'
     name = "INS_PRIM"
 
-    def __init__(self, insname, execute=True,
-                 loop=0, delay=0, *args, **kwargs):
+    def __init__(self, insname, *args, execute=True,
+                 loop=0, delay=0, **kwargs):
         super(RunInstruction, self).__init__(*args, **kwargs)
         self.bitcount = self.dev._desc._ir_length
         self.insname = insname
@@ -119,24 +119,14 @@ class RWDevDR(Level2Primitive, DeviceTarget):
         sm.state = "EXIT1DR"
         chain = frame._chain
         data = NoCareBitarray(0)
-        promises = []#p._promise for p in frame if p._promise]
-        for p in reversed(frame):
-            if p._promise:
-                promise = TDOPromise(chain,
-                                     p._promise._bitstart + len(data),
-                                     p._promise._bitlength)
-                promises.append(promise)
-            if p.data:
-                data += p.data[::-1]
-            else:
-                data += ConstantBitarray(False, p.bitcount)
-        return FrameSequence(chain,
-            Frame.from_prim(chain,
-                chain.get_prim('rw_dr')
-                            (read=frame._valid_prim.read,
-                             data=data[::-1], _chain=chain,
-                             _promise=promises))
-            )
+        rw_dr = chain.get_prim('rw_dr')
+        pframes = []
+        for i, p in enumerate(reversed(frame)):
+            newprim = rw_dr(read=p.read, data=p.data,
+                            _chain=chain, _promise=p._promise,
+                            lastbit=i+1 is len(frame))
+            pframes.append(Frame.from_prim(chain, newprim))
+        return FrameSequence(chain, *pframes)
 
 class RWDevIR(Level2Primitive, DeviceTarget):
     _function_name = 'rw_dev_ir'
@@ -157,28 +147,16 @@ class RWDevIR(Level2Primitive, DeviceTarget):
     def expand_frame(cls, frame, sm):
         sm.state = "EXIT1IR"
         chain = frame._chain
-        data = NoCareBitarray(0)
-        promises = []
-        for p in reversed(frame):
-            if p._promise:
-                promise = TDOPromise(chain,
-                                     p._promise._bitstart + len(data),
-                                     p._promise._bitlength)
-                promises.append(promise)
-            if p.data:
-                data += p.data[::-1]
-            else:
-                data += ConstantBitarray(True, p.bitcount)
 
-        return FrameSequence(chain,
-            Frame.from_prim(chain,
-                chain.get_prim('rw_ir')
-                            (read=frame._valid_prim.read,
-                             data=data[::-1], _chain=chain,
-                             _promise=promises))
-            )
-
-        return seq
+        rw_ir = chain.get_prim('rw_ir')
+        pframes = []
+        for i, p in enumerate(reversed(frame)):
+            data = p.data or ConstantBitarray(True, p.bitcount)
+            newprim = rw_ir(read=p.read, data=data,
+                            _chain=chain, _promise=p._promise,
+                            lastbit=i+1 is len(frame))
+            pframes.append(Frame.from_prim(chain, newprim))
+        return FrameSequence(chain, *pframes)
 
     def get_placeholder_for_dev(self, dev):
         tmp = RWDevIR(dev=dev, _chain=self._chain,
@@ -195,32 +173,91 @@ class RWDevIR(Level2Primitive, DeviceTarget):
 
 class RWDR(Level2Primitive, DataRW):
     _function_name = 'rw_dr'
+    def __init__(self, *args, lastbit=True, **kwargs):
+        super(RWDR, self).__init__(*args, **kwargs)
+        self.lastbit = lastbit
+
     def merge(self, target):
+        if isinstance(target, RWDR) and not self.lastbit and \
+           target.read is self.read:
+            data = NoCareBitarray(0)
+            promises = []
+            for p in (target, self):
+                if p._promise:
+                    promise = TDOPromise(chain,
+                                         p._promise._bitstart + len(data),
+                                         p._promise._bitlength)
+                    promises.append(promise)
+                data += p.data
+
+            return RWDR(data=data, read=self.read,
+                        _promise=promises if promises else None,
+                        _chain=self._chain, lastbit=target.lastbit)
         return None
 
     def expand(self, chain, sm):
-        sm.state = "EXIT1DR"
-        return [
-            chain.get_prim('transition_tap')('SHIFTDR',  _chain=chain),
-            chain.get_prim('rw_reg')(read=self.read, data=self.data,
-                                     _promise=self._promise, _chain=chain)
-        ]
+        prims = []
+        if sm.state != "SHIFTDR":
+            prims.append(chain.get_prim('transition_tap')
+                         ('SHIFTDR',  _chain=chain))
+            sm.state = "SHIFTDR"
+        if self.lastbit:
+            sm.state = "EXIT1DR"
+
+        prims.append(
+            chain.get_prim('rw_reg')(data=self.data, read=self.read,
+                                _promise=self._promise, _chain=chain,
+                                lastbit=self.lastbit))
+
+        return prims
 
 class RWIR(Level2Primitive, DataRW):
     _function_name = 'rw_ir'
+    def __init__(self, *args, lastbit=True, **kwargs):
+        super(RWIR, self).__init__(*args, **kwargs)
+        self.lastbit = lastbit
+
     def merge(self, target):
+        if isinstance(target, RWIR) and not self.lastbit and \
+           target.read is self.read:
+            data = NoCareBitarray(0)
+            promises = []
+            for p in (target, self):
+                if p._promise:
+                    promise = TDOPromise(self._chain,
+                                         p._promise._bitstart + len(data),
+                                         p._promise._bitlength)
+                    promises.append(promise)
+                data += p.data
+
+            return RWIR(data=data, read=self.read,
+                        _promise=promises if promises else None,
+                        _chain=self._chain, lastbit=target.lastbit)
         return None
 
     def expand(self, chain, sm):
-        sm.state = "EXIT1IR"
-        return [
-            chain.get_prim('transition_tap')('SHIFTIR', _chain=chain,),
+        prims = []
+
+        if sm.state != "SHIFTIR":
+            prims.append(chain.get_prim('transition_tap')
+                         ('SHIFTIR', _chain=chain))
+            sm.state = "SHIFTIR"
+            prims[0].oldstate = sm.state
+        if self.lastbit:
+            sm.state = "EXIT1IR"
+
+        prims.append(
             chain.get_prim('rw_reg')(read=self.read, data=self.data,
-                                     _promise=self._promise, _chain=chain)
-        ]
+                                     _promise=self._promise, _chain=chain,
+                                     lastbit=self.lastbit))
+
+        return prims
 
 class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
     _function_name = 'rw_reg'
+    def __init__(self, *args, lastbit=True, **kwargs):
+        super(RWReg, self).__init__(*args, **kwargs)
+        self.lastbit = lastbit
 
     def merge(self, target):
         return None
@@ -231,52 +268,65 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
                                   "to be SHIFTIR or SHIFTDR. This "
                                   "is caused by not proceeding RWReg "
                                   "with a tap transition.")
-        sm.transition_bit(True)
-
         data = self.data
         res = []
 
-        if self._promise:
-            if isinstance(self._promise, list):
-                other_promises = self._promise[:-1]
-                last_promise = self._promise[-1]
-            else:
-                other_promises = []
-                last_promise = self._promise
-
-        if len(data)>1:
+        if not self.lastbit:
             reqef = (
                 ZERO, #TMS
-                #ONE if all(data[:-1]) else (ZERO if not any(data[:-1])
-                #                            else ARBITRARY), #TDI
                 NOCARE if isinstance(data, NoCareBitarray) else
                     (ONE if data._val else ZERO)
                         if isinstance(data, ConstantBitarray) else
                     ARBITRARY, #TDI
                 ONE if self.read else NOCARE #TDO
             )
+            write_data = self._chain.get_fitted_lv1_prim(reqef)
+            res.append(write_data(tms=False, tdi=data,
+                                  tdo=self.read or None,
+                                  _promise=self._promise))
+        else:
+            sm.transition_bit(True)
+            if self._promise:
+                if isinstance(self._promise, list):
+                    other_promises = self._promise[:-1]
+                    last_promise = self._promise[-1]
+                else:
+                    other_promises = []
+                    last_promise = self._promise
+
+            if len(data)>1:
+                reqef = (
+                    ZERO, #TMS
+                    #ONE if all(data[:-1]) else (ZERO if not any(data[:-1])
+                    #                            else ARBITRARY), #TDI
+                    NOCARE if isinstance(data, NoCareBitarray) else
+                        (ONE if data._val else ZERO)
+                            if isinstance(data, ConstantBitarray) else
+                        ARBITRARY, #TDI
+                    ONE if self.read else NOCARE #TDO
+                )
+                pro = None
+                if self._promise:
+                    pro = TDOPromise(chain, 0, 0)
+                    last_promise._addsub(pro)
+                write_data = self._chain.get_fitted_lv1_prim(reqef)
+                res.append(write_data(tms=False, tdi=data[1:],
+                                      tdo=self.read or None, _promise=pro))
+
+            reqef = (
+                ONE, #TMS
+                ONE if data[-1] else ZERO, #TDI
+                ONE if self.read else NOCARE #TDO
+            )
+            print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
+
             pro = None
             if self._promise:
                 pro = TDOPromise(chain, 0, 0)
                 last_promise._addsub(pro)
-            write_data = self._chain.get_fitted_lv1_prim(reqef)
-            res.append(write_data(tms=False, tdi=data[1:],
+            write_last = self._chain.get_fitted_lv1_prim(reqef)
+            res.append(write_last(tms=True, tdi=data[0],
                                   tdo=self.read or None, _promise=pro))
-
-        reqef = (
-            ONE, #TMS
-            ONE if data[-1] else ZERO, #TDI
-            ONE if self.read else NOCARE #TDO
-        )
-        print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
-
-        pro = None
-        if self._promise:
-            pro = TDOPromise(chain, 0, 0)
-            last_promise._addsub(pro)
-        write_last = self._chain.get_fitted_lv1_prim(reqef)
-        res.append(write_last(tms=True, tdi=data[0],
-                              tdo=self.read or None, _promise=pro))
 
         return res
 
@@ -291,6 +341,9 @@ class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
             if self.state == target.state:
                 return self
         return None
+
+    def apply_tap_effect(self, sm):
+        sm.state = self.state
 
     def expand(self, chain, sm):
         data = sm.calc_transition_to_state(self.state)

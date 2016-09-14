@@ -79,6 +79,9 @@ class JTAGScanChain(object):
                                 "already exists on scanchain"%\
                                 (prim, prim._function_name))
 
+    def __repr__(self):
+        return "<JTAGScanChain>"
+
     def snapshot_queue(self):
         return self._command_queue.snapshot()
 

@@ -251,6 +251,7 @@ class NoCareBitarray(collections.Sequence):
 
 class Primitive(object):
     _layer = None
+    _id = 0
     def __init__(self, *args, _chain, _synthetic=False, **kwargs):
         if args or kwargs:
             print(type(self))
@@ -261,6 +262,8 @@ class Primitive(object):
         super(Primitive, self).__init__()
         self._synthetic = _synthetic
         self._chain = _chain
+        self.pid = Primitive._id
+        Primitive._id += 1
 
     def __repr__(self):
         n = getattr(self, '_function_name', None) or \
@@ -299,7 +302,7 @@ class Primitive(object):
                 for attr in vars(self)
                 if attr[0] != '_' and
                 attr not in ["name", "dev", "required_effect"] and
-                getattr(self, attr) is not None and
+                #getattr(self, attr) is not None and
                 not isinstance(getattr(self, attr), types.FunctionType)
             },
         }
@@ -323,8 +326,8 @@ class ExpandRequiresTAP(Primitive):
     pass
 
 class DataRW(Primitive):
-    def __init__(self, data=None, read=False, _promise=None,
-                 *args, **kwargs):
+    def __init__(self, *args, data=None, read=False, _promise=None,
+                 **kwargs):
         super(DataRW, self).__init__(*args, **kwargs)
         self.data = data
         self.read = read
@@ -373,8 +376,8 @@ class Level1Primitive(Primitive):
     @classmethod
     def get_effect(cls):
         return (cls._TMS, cls._TDI, cls._TDO)
-    def __init__(self, count=None, tms=None, tdi=None, tdo=None,
-                 _promise=None, *args, reqef, **kwargs):
+    def __init__(self, *args, count=None, tms=None, tdi=None, tdo=None,
+                 _promise=None, reqef, **kwargs):
         super(Level1Primitive, self).__init__(*args, **kwargs)
         _tms, _tdi, _tdo = tms, tdi, tdo
 
