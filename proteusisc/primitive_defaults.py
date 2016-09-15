@@ -6,7 +6,7 @@ from .primitive import Level3Primitive, Level2Primitive, DeviceTarget,\
     Executable, DataRW, ExpandRequiresTAP, ZERO, ONE, ARBITRARY, \
     CONSTANT, NOCARE,\
     ConstantBitarray, NoCareBitarray
-from .promise import TDOPromise
+from .promise import TDOPromise, TDOPromiseCollection
 from .errors import ProteusISCError
 
 #RunInstruction
@@ -181,13 +181,11 @@ class RWDR(Level2Primitive, DataRW):
         if isinstance(target, RWDR) and not self.lastbit and \
            target.read is self.read:
             data = NoCareBitarray(0)
-            promises = []
+            promises = TDOPromiseCollection(self._chain,
+                                    len(self.data)+len(target.data))
             for p in (target, self):
                 if p._promise:
-                    promise = TDOPromise(chain,
-                                         p._promise._bitstart + len(data),
-                                         p._promise._bitlength)
-                    promises.append(promise)
+                    promises.add(p._promise, len(data))
                 data += p.data
 
             return RWDR(data=data, read=self.read,
@@ -221,13 +219,11 @@ class RWIR(Level2Primitive, DataRW):
         if isinstance(target, RWIR) and not self.lastbit and \
            target.read is self.read:
             data = NoCareBitarray(0)
-            promises = []
+            promises = TDOPromiseCollection(self._chain,
+                                len(self.data)+len(target.data))
             for p in (target, self):
                 if p._promise:
-                    promise = TDOPromise(self._chain,
-                                         p._promise._bitstart + len(data),
-                                         p._promise._bitlength)
-                    promises.append(promise)
+                    promises.add(p._promise, len(data))
                 data += p.data
 
             return RWIR(data=data, read=self.read,
@@ -287,31 +283,23 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
         else:
             sm.transition_bit(True)
             if self._promise:
-                if isinstance(self._promise, list):
-                    other_promises = self._promise[:-1]
-                    last_promise = self._promise[-1]
-                else:
-                    other_promises = []
-                    last_promise = self._promise
+                rest, tail = self._promise.split_to_subpromises()
+            else:
+                rest, tail = None, None
 
             if len(data)>1:
                 reqef = (
                     ZERO, #TMS
-                    #ONE if all(data[:-1]) else (ZERO if not any(data[:-1])
-                    #                            else ARBITRARY), #TDI
                     NOCARE if isinstance(data, NoCareBitarray) else
                         (ONE if data._val else ZERO)
                             if isinstance(data, ConstantBitarray) else
                         ARBITRARY, #TDI
                     ONE if self.read else NOCARE #TDO
                 )
-                pro = None
-                if self._promise:
-                    pro = TDOPromise(chain, 0, 0)
-                    last_promise._addsub(pro)
                 write_data = self._chain.get_fitted_lv1_prim(reqef)
                 res.append(write_data(tms=False, tdi=data[1:],
-                                      tdo=self.read or None, _promise=pro))
+                                      tdo=self.read or None,
+                                      _promise=rest))
 
             reqef = (
                 ONE, #TMS
@@ -319,14 +307,9 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
                 ONE if self.read else NOCARE #TDO
             )
             print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
-
-            pro = None
-            if self._promise:
-                pro = TDOPromise(chain, 0, 0)
-                last_promise._addsub(pro)
             write_last = self._chain.get_fitted_lv1_prim(reqef)
             res.append(write_last(tms=True, tdi=data[0],
-                                  tdo=self.read or None, _promise=pro))
+                                  tdo=self.read or None, _promise=tail))
 
         return res
 

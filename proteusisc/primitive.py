@@ -3,7 +3,7 @@ import types
 import operator
 import collections
 
-from proteusisc.promise import TDOPromise
+from proteusisc.promise import TDOPromise, TDOPromiseCollection
 
 class Requirement(object):
     """Represents the ability of a ISC Controller to transmit data on a
@@ -486,9 +486,21 @@ class Level1Primitive(Primitive):
         print(('  \033[95m%s %s %s REQEF\033[94m'%tuple(target.reqef)),
               target,'\033[0m')
 
+        newcount = target.count+self.count
+
+        if not self._promise and not target._promise:
+            promise = None
+        elif self._promise and not target._promise:
+            promise = self._promise
+        elif not self._promise and target._promise:
+            promise = target._promise
+        else:
+            promise = TDOPromiseCollection(self._chain, newcount)
+            promise.add(self._promise, 0)
+            promise.add(target._promise, self.count)
+
         reqef = tuple(map(operator.add, self.reqef, target.reqef))
 
-        newcount = target.count+self.count
         newtms = target.tms+self.tms
         newtdi = target.tdi+self.tdi
         newtdo = target.tdo+self.tdo
@@ -503,7 +515,7 @@ class Level1Primitive(Primitive):
             tmp_prim = prim_cls(count=newcount,
                                 tms=newtms, tdi=newtdi,
                                 tdo=newtdo, reqef=reqef,
-                                _chain=self._chain)
+                                _chain=self._chain, _promise=promise)
             print(tmp_prim.score, tmp_prim)
             if tmp_prim.score < best_score:
                 best_prim = tmp_prim

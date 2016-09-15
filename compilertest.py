@@ -29,9 +29,10 @@ chain._devices = [d0, d1, d2]#, d3]
 def addprims():
     #d0.run_instruction("BYPASS", delay=0.01)
     #a = d1.run_instruction("IDCODE", read=True, data=bitarray('1111111111111100'*2))#data=bitarray(bin(7)[2:].zfill(8)))
-    #a2 = d1.run_instruction("IDCODE", read=True, data=bitarray('1101010101010101'*2))#data=bitarray(bin(7)[2:].zfill(8)))
+    a2 = d1.run_instruction("IDCODE", read=True, data=bitarray('1101010101010101'*2))#data=bitarray(bin(7)[2:].zfill(8)))
     #b = d2.run_instruction("IDCODE", read=True, data=bitarray('0000000000000001'*2))#data=bitarray('11001010'*171+'111'))#loop=8, delay=0.01)
     b2 = d2.run_instruction("IDCODE", read=True, data=bitarray('1100101000110101'*2))#data=bitarray('11001010'*171+'111'))#loop=8, delay=0.01)
+    c2 = d0.run_instruction("IDCODE", read=True, data=bitarray('1100101000110101'*2))#data=bitarray('11001010'*171+'111'))#loop=8, delay=0.01)
     #d0.rw_dev_ir(data=bitarray('11101000'))
     #for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
     #    d0.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=0.01)
