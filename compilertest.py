@@ -25,6 +25,7 @@ d2 = chain.initialize_device_from_id(chain, devid)
 #d3 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
 chain._devices = [d0, d1, d2]#, d3]
+a2=None
 
 def addprims():
     #d0.run_instruction("BYPASS", delay=0.01)
@@ -80,10 +81,18 @@ def report():
 if __name__ == "__main__":
     try:
         chain.jtag_enable()
-        addprims()
-        chain.flush()
+        #addprims()
+        a = d0.run_instruction("IDCODE", read=True,
+                                data=bitarray('1100101000110101'*2))
+        b = d1.run_instruction("IDCODE", read=True,
+                                data=bitarray('1101010101010101'*2))
+        c = d2.run_instruction("IDCODE", read=True,
+                                data=bitarray('1111111111111011'*2))
+        #chain.flush()
+        print("A", a())
+        print("B", b())
+        print("C", c())
         chain.jtag_disable()
-
     finally:
         #chain.jtag_disable()
         print("DONE")
@@ -91,5 +100,4 @@ if __name__ == "__main__":
         for dev in ctrl.devices:
             print(dev.name)
             print("   ",dev.event_history)
-
         app.run(debug=True, use_reloader=False)

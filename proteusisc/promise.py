@@ -1,10 +1,11 @@
 class TDOPromise(object):
     count = 0
-    def __init__(self, chain, bitstart, bitlength):
+    def __init__(self, chain, bitstart, bitlength, *, _parent=None):
         self.sn = TDOPromise.count
         TDOPromise.count += 1
         self._chain = chain
         self._value = None
+        self._parent = _parent
         self._components = []
         self._bitstart = bitstart
         self._bitlength = bitlength
@@ -23,20 +24,38 @@ class TDOPromise(object):
     def _bitend(self):
         return self._bitstart + self._bitlength
 
-    def _addsub(self, subpromise):
-        self._components.append(subpromise)
+    def _addsub(self, subpromise, offset):
+        self._components.append((subpromise, offset))
 
     def split_to_subpromises(self):
         if self._bitlength is 1:
             return None, self
 
-        rest = TDOPromise(self._chain, self._bitstart, self._bitlength-1)
-        tail = TDOPromise(self._chain, 0, 1)
-                          #self._bitstart+self._bitlength-1, 1)
+        rest = TDOPromise(self._chain, self._bitstart, self._bitlength-1,
+                          _parent=self)
+        tail = TDOPromise(self._chain, 0, 1, _parent=self)
         self._components = []
-        self._addsub(rest)
-        self._addsub(tail)
+        self._addsub(rest, 0)
+        self._addsub(tail, self._bitlength-1)
         return rest, tail
+
+    def _fulfill(self, bits):
+        if self._allsubsfulfilled():
+            if not self._components:
+                self._value = bits
+            else:
+                self._value = self._components[0][0]._value
+                for sub, offset in self._components[1:]:
+                    self._value += sub._value
+            if self._parent is not None:
+                parent = self._parent
+                parent._fulfill(bits[parent._bitstart:parent._bitend])
+
+    def _allsubsfulfilled(self):
+        for sub, offset in self._components:
+            if sub._value is None:
+                return False
+        return True
 
 class TDOPromiseCollection(object):
     def __init__(self, chain, bitlength):
@@ -53,9 +72,11 @@ class TDOPromiseCollection(object):
             if bitoffset is 0:
                 newpromise = promise
             else:
-                newpromise = TDOPromise(self._chain,
+                newpromise = TDOPromise(promise._chain,
                                         promise._bitstart + bitoffset,
-                                        promise._bitlength)
+                                        promise._bitlength,
+                                        _parent=promise)
+                promise._addsub(newpromise, 0)
             self._promises.append(newpromise)
         elif isinstance(promise, TDOPromiseCollection):
             for p in promise._promises:
@@ -86,3 +107,7 @@ class TDOPromiseCollection(object):
 
     def __bool__(self):
         return bool(self._promises)
+
+    def _fulfill(self, bits):
+        for promise in reversed(self._promises):
+            promise._fulfill(bits[promise._bitstart:promise._bitend])

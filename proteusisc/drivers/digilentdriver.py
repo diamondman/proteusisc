@@ -300,7 +300,6 @@ class DigilentAdeptController(CableDriver):
         if self._scanchain:
             self._scanchain._tap_transition_driver_trigger(data)
 
-
         self._handle.bulkWrite(self._cmdout_interface,
                                _BMSG_WRITE_TMS +\
                                bytes([return_tdo, TDI]) +\
@@ -322,7 +321,6 @@ class DigilentAdeptController(CableDriver):
             for byte_ in tdo_bytes:
                 tdo_bits.extend(bin(byte_)[2:].zfill(8))
             tdo_bits = tdo_bits[len(tdo_bits)-len(data):]
-
 
         self._get_adv_trans_stats(0x0B, return_tdo)
 

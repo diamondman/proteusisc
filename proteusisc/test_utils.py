@@ -177,7 +177,9 @@ class FakeDevHandle(object):
         for i in range(bitcount):
             tdo.append(self._write_to_dev_chain(tms[i], tdi[i]))
         if read_tdo:
-            self._blk_read_buffer2.append(bitarray(tdo))
+            tdo_bits = bitarray(tdo[::-1])
+            tdo_bytes = tdo_bits.tobytes()
+            self._blk_read_buffer2.append(tdo_bytes[::-1])
 
     def _handle_blk_WRITE_TMS(self, params):
         doreturn = bool(params[0])
@@ -194,7 +196,9 @@ class FakeDevHandle(object):
         for tmsbit in reversed(tms):
             tdo.append(self._write_to_dev_chain(tmsbit, tdi))
         if read_tdo:
-            self._blk_read_buffer2.append(bitarray(tdo))
+            tdo_bits = bitarray(tdo[::-1])
+            tdo_bytes = tdo_bits.tobytes()
+            self._blk_read_buffer2.append(tdo_bytes[::-1])
 
     def _handle_blk_READ_TDO(self, params):
         tms = params[0]
@@ -207,7 +211,9 @@ class FakeDevHandle(object):
         self._adv_req_bitcount = bitcount
         self._adv_req_read_tdo = True
         self._blk_read_buffer2.append(b'\x01\x00')
-        self._blk_read_buffer2.append(bitarray(tdo))
+        tdo_bits = bitarray(tdo[::-1])
+        tdo_bytes = tdo_bits.tobytes()
+        self._blk_read_buffer2.append(tdo_bytes[::-1])
 
     def _handle_blk_WRITE_TDI(self, params):
         doreturn = bool(params[0])
@@ -225,8 +231,9 @@ class FakeDevHandle(object):
         for tdibit in reversed(tdi):
             tdo.append(self._write_to_dev_chain(tms, tdibit))
         if read_tdo:
-            self._blk_read_buffer2.append(bitarray(tdo))
-
+            tdo_bits = bitarray(tdo[::-1])
+            tdo_bytes = tdo_bits.tobytes()
+            self._blk_read_buffer2.append(tdo_bytes[::-1])
 
 class FakeUSBDev(object):
     def __init__(self, mockPhysicalController):
@@ -348,7 +355,13 @@ class MockPhysicalJTAGDevice(object):
         return res
 
     def calc_status_register(self):
-        return ShiftRegister(self.irlen)
+        if self.name == "D0":
+            return ShiftRegister(self.irlen, bitarray('11111100'))
+        if self.name == "D1":
+            return ShiftRegister(self.irlen, bitarray('11111101'))
+        if self.name == "D2":
+            return ShiftRegister(self.irlen, bitarray('11111110'))
+        return ShiftRegister(self.irlen, bitarray('11111011'))
 
     def _TLR(self):
         self.DR = ShiftRegister(32, self.idcode)
@@ -373,19 +386,3 @@ class MockPhysicalJTAGDevice(object):
         print("** %s Updated IR: %s(%s); DR set to %s"%
               (self.name, irval, insname, regname))
         self.event_history.append(("IR", irval))
-
-if __name__ == "__main__":
-    d = MockPhysicalJTAGDevice(7)
-    print(d)
-    for b in bitarray('111110100'):
-        d.shift(b, False)
-    print('code', d.idcode)
-    idcode = bitarray(
-        reversed([
-            d.shift(b, False)
-            for b in [*([False]*31), True]
-        ])
-    )
-
-    print(d.tap.state)
-    print(idcode)

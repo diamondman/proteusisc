@@ -44,12 +44,9 @@ class CableDriver(object):
                                     (p._driver_function_name, p.__class__))
 
                 args, kwargs = p._get_args()
-                if not getattr(self, 'mock', False):
-                    res = func(*args, **kwargs) #TODO pass in stuff
-                    if res:
-                        print("RES", res)
-                    #    #TODO This is the old way of doing it. Make work with promises
-                    #    self._scanchain._command_queue._return_queue.append(res)
+                res = func(*args, **kwargs) #TODO pass in stuff
+                if res and p._promise:
+                    p._promise._fulfill(res)
 
     def sleep(self, delay):
         #TODO Make this work for more advanced controllers!

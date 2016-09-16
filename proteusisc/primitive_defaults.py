@@ -184,8 +184,7 @@ class RWDR(Level2Primitive, DataRW):
             promises = TDOPromiseCollection(self._chain,
                                     len(self.data)+len(target.data))
             for p in (target, self):
-                if p._promise:
-                    promises.add(p._promise, len(data))
+                promises.add(p._promise, len(data))
                 data += p.data
 
             return RWDR(data=data, read=self.read,
@@ -222,8 +221,7 @@ class RWIR(Level2Primitive, DataRW):
             promises = TDOPromiseCollection(self._chain,
                                 len(self.data)+len(target.data))
             for p in (target, self):
-                if p._promise:
-                    promises.add(p._promise, len(data))
+                promises.add(p._promise, len(data))
                 data += p.data
 
             return RWIR(data=data, read=self.read,
