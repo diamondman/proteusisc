@@ -42,15 +42,28 @@ def report():
 if __name__ == "__main__":
     a, b, c, = None, None, None
     try:
-        chain.init_chain()
+        #chain.init_chain()
+        #d0, d1, d2 = chain._devices
         chain.jtag_enable()
-        chain.transition_tap("SHIFTIR");
+        #addprims()
+        #a = chain.rw_dr(bitcount=32, read=True)
+        #chain.transition_tap("TLR")
+        #d0.rw_dev_dr(data=bitarray("1001"))
+        #chain.rw_reg(data=bitarray('11001010'))
+        #chain.sleep(delay=1)
+
+        #chain.transition_tap("SHIFTIR");
+        #chain.flush()
+        #a = chain.rw_reg(data=ConstantBitarray(False, 8), read=True, lastbit=False)
+        #b = chain.rw_reg(data=ConstantBitarray(False, 8), read=False, lastbit=False)
+        #c = chain.rw_reg(data=ConstantBitarray(False, 8), read=True)
+        #, bitcount=8)#7, lastbit=False)
+        #chain.transition_tap("TLR");
+        a = d0.rw_dev_ir(bitcount=8, read=True)
+        #b = d1.rw_dev_ir(bitcount=8, read=True)
+        c = d2.rw_dev_ir(bitcount=8, read=True)
         #a = d0.run_instruction("IDCODE", read=True,
-        #                        data=bitarray('1100101000110101'*2))
-        #b = d1.run_instruction("IDCODE", read=True,
-        #                        data=bitarray('1101010101010101'*2))
-        #c = d2.run_instruction("IDCODE", read=True,
-        #                        data=bitarray('1111111111111011'*2))
+        #                       data=bitarray('1100101000110101'*2))
 
         t = time.time()
         if not any((a, b, c)):

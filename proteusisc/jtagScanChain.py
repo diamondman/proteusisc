@@ -102,12 +102,12 @@ class JTAGScanChain(object):
 
             self.jtag_enable()
             while True:
-                idcode_str = self.read_dr(32)
-                if idcode_str in NULL_ID_CODES: break
-                dev = self.initialize_device_from_id(self, idcode_str)
+                idcode = self.rw_dr(bitcount=32, read=True)()
+                if idcode in NULL_ID_CODES: break
+                dev = self.initialize_device_from_id(self, idcode)
+                print(dev)
                 self._devices.append(dev)
 
-            self.flush()
             self.jtag_disable()
 
             #The chain comes out last first. Reverse it to get order.

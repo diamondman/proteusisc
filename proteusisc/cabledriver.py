@@ -1,5 +1,3 @@
-import time
-
 class InaccessibleController(object):
     def __init__(self, driver_class, dev):
         self._driver = driver_class
@@ -44,15 +42,10 @@ class CableDriver(object):
                                     (p._driver_function_name, p.__class__))
 
                 args, kwargs = p._get_args()
-                res = func(*args, **kwargs) #TODO pass in stuff
+                res = func(*args, **kwargs)
                 if res and p._promise:
+                    print("RAW DATA", res)
                     p._promise._fulfill(res)
-
-    def sleep(self, delay):
-        #TODO Make this work for more advanced controllers!
-        if not self._jtagon:
-            raise JTAGNotEnabledError()
-        time.sleep(delay)
 
     @property
     def _handle(self):
