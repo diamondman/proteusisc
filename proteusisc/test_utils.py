@@ -177,7 +177,7 @@ class FakeDevHandle(object):
         for i in range(bitcount):
             tdo.append(self._write_to_dev_chain(tms[i], tdi[i]))
         if read_tdo:
-            tdo_bits = bitarray(tdo[::-1])
+            tdo_bits = bitarray(([False]*(8-(len(tdo)%8)))+tdo[::-1])
             tdo_bytes = tdo_bits.tobytes()
             self._blk_read_buffer2.append(tdo_bytes[::-1])
 
@@ -196,7 +196,9 @@ class FakeDevHandle(object):
         for tmsbit in reversed(tms):
             tdo.append(self._write_to_dev_chain(tmsbit, tdi))
         if read_tdo:
-            tdo_bits = bitarray(tdo[::-1])
+            #import ipdb
+            #ipdb.set_trace()
+            tdo_bits = bitarray(([False]*(8-(len(tdo)%8)))+tdo[::-1])
             tdo_bytes = tdo_bits.tobytes()
             self._blk_read_buffer2.append(tdo_bytes[::-1])
 
@@ -211,7 +213,7 @@ class FakeDevHandle(object):
         self._adv_req_bitcount = bitcount
         self._adv_req_read_tdo = True
         self._blk_read_buffer2.append(b'\x01\x00')
-        tdo_bits = bitarray(tdo[::-1])
+        tdo_bits = bitarray(([False]*(8-(len(tdo)%8)))+tdo[::-1])
         tdo_bytes = tdo_bits.tobytes()
         self._blk_read_buffer2.append(tdo_bytes[::-1])
 
@@ -231,7 +233,7 @@ class FakeDevHandle(object):
         for tdibit in reversed(tdi):
             tdo.append(self._write_to_dev_chain(tms, tdibit))
         if read_tdo:
-            tdo_bits = bitarray(tdo[::-1])
+            tdo_bits = bitarray(([False]*(8-(len(tdo)%8)))+tdo[::-1])
             tdo_bytes = tdo_bits.tobytes()
             self._blk_read_buffer2.append(tdo_bytes[::-1])
 
@@ -339,7 +341,7 @@ class MockPhysicalJTAGDevice(object):
         self.inscode_to_ins = {v:k for k,v in self._instructions.items()}
 
     def shift(self, tms, tdi):
-        res = None
+        res = False
         #oldstate = self.tap.state
         if self.DR and self.tap.state=="SHIFTDR":
             res = self.DR.shift(tdi)
