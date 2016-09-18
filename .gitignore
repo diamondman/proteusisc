@@ -6,3 +6,4 @@ build
 dist/
 proteusisc.egg-info/
 MANIFEST
+.cache/

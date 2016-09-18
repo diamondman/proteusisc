@@ -246,28 +246,103 @@ class FakeUSBDev(object):
         return type(self.ctrl_handle).USB_PROD_ID
 
 class ShiftRegister(object):
+    """An emulator for a hardware shift register.
+
+    https://en.wikipedia.org/wiki/Shift_register
+
+    Many transfer protocols operate by sending data serially down a
+    wire and into a fixed width shift register. After a number of bits
+    has been received into the shift register, the data may be
+    operated on as bytes, or whatever alignment the data has.  A shift
+    register emulator is required to emulate hardware that receives
+    data over a serial protocol, such as JTAG.
+
+    Note that shifting data into a shift register by definition shift
+    data out the other side of the register.
+
+          |LEFT MOST BIT              RIGHT MOST BIT|
+          __________________________________________
+    IN => [][][][][][][][][][][][][][][][][][][][][] => OUT
+          __________________________________________
+
+    Attributes:
+        size: An integer bitwidth of the register.
+        initval: An boolean or bitarray to initialize the register's bits
+
+    """
+
     def __init__(self, size, initval=False):
-        self.size = size
+        self._size = size
         if isinstance(initval, Iterable):
             if size is not len(initval):
-                raise ValueError("Mismatched size and lenth of start val")
+                raise ValueError("Mismatched size and length of initval")
             self._data = deque((b for b in initval), size)
         else:
             self._data = deque((initval for i in range(size)), size)
+
+    @property
+    def size(self):
+        """Get the width of the shift register"""
+        return self._size
 
     def __repr__(self):
         return "<ShiftRegister(%s)>"%self.size
 
     def shift(self, val):
+        """Perform a single bitshift on the shift register
+
+        Shifting a bit into the left of a shift register causes a bit
+        to shift out of the right.
+
+        Each shift on a shift register outputs the right most
+        bit. Collecting these bits and adding them to an array will
+        result in an array containing the reverse bit order as the
+        register
+
+             REG             SHIFT OUT ARRAY
+             1100            []
+        0 => 0110 => 0       [0]
+        0 => 0011 => 0       [0, 0]
+        0 => 0001 => 1       [0, 0, 1]
+        0 => 0000 => 1       [0, 0, 1, 1]
+
+        Args:
+            val: A boolean value being shifted into the register.
+
+        Returns:
+            The boolean value shifted out of the right side of
+            shift register.
+
+        Usage:
+            >>> from proteusisc.test_util import ShiftRegister
+            >>> from bitarray import bitarray
+            >>> sr = ShiftRegister(8, bitarray('11001010'))
+            >>> ba = bitarray()
+            >>> for i in range(8)
+            ...     ba.append(sr.shift(False))
+            >>> assert ba == bitarray('01010011')
+        """
         res = self._data.pop()
         self._data.appendleft(val)
         #print("%s >> REG >> %s", (val, res))
         return res
 
     def clear(self, val=False):
-        self._data = deque((val for i in range(size)), self.size)
+        """Clear the shift register to a constant value.
+
+        Args:
+            val: A Boolean that all bits of the register will be set to.
+        """
+        self._data = deque((val for i in range(self.size)), self.size)
 
     def dumpData(self):
+        """Reads out the data stored in the shift register
+
+        Returns:
+            A bitarray of all the data in the shiftregister.
+
+            [True, False] => bitarray("10")
+        """
         return bitarray(self._data)
 
 class MockPhysicalJTAGDevice(object):
@@ -280,7 +355,7 @@ class MockPhysicalJTAGDevice(object):
         self.DR = None
         self.tap = JTAGStateMachine()
 
-        self.idcode = bitarray('00000110110101001000000010010011')
+        self._idcode = bitarray('00000110110101001000000010010011')
 
         self._instruction_register_map = {
             'BULKPROG': 'DATAREG',
@@ -339,6 +414,20 @@ class MockPhysicalJTAGDevice(object):
 
         self.inscode_to_ins = {v:k for k,v in self._instructions.items()}
 
+    @property
+    def tapstate(self):
+        return self.tap.state
+
+    @property
+    def idcode(self):
+        return self._idcode.copy()
+
+    def clearhistory(self):
+        self.event_history = []
+
+    def eventoccurred(self, event):
+        return event in self.event_history
+
     def shift(self, tms, tdi):
         res = False
         #oldstate = self.tap.state
@@ -365,7 +454,7 @@ class MockPhysicalJTAGDevice(object):
         return ShiftRegister(self.irlen, bitarray('11111011'))
 
     def _TLR(self):
-        self.DR = ShiftRegister(32, self.idcode)
+        self.DR = ShiftRegister(32, self._idcode)
         self.event_history.append("RESET")
     def _RTI(self):
         self.event_history.append("RTI")
@@ -373,8 +462,9 @@ class MockPhysicalJTAGDevice(object):
         self.event_history.append("CAPTUREDR")
     def _UPDATEDR(self):
         drval = self.DR.dumpData().to01()
-        print(self.name, "** Updated DR: %s"%(drval))
-        self.event_history.append(("DR", drval))
+        #print(self.name, "** Updated DR: %s"%(drval))
+        self.event_history.append("UPDATEDR")
+        self.event_history.append(drval)
     def _CAPTUREIR(self):
         self.event_history.append("CAPTUREIR")
         self.IR = self.calc_status_register()
@@ -384,6 +474,7 @@ class MockPhysicalJTAGDevice(object):
         regname = self._instruction_register_map[insname]
         reglen = self._registers_to_size[regname]
         self.DR = ShiftRegister(reglen)
-        print("** %s Updated IR: %s(%s); DR set to %s"%
-              (self.name, irval, insname, regname))
-        self.event_history.append(("IR", irval))
+        #print("** %s Updated IR: %s(%s); DR set to %s"%
+        #      (self.name, irval, insname, regname))
+        self.event_history.append("UPDATEIR")
+        self.event_history.append(irval)
