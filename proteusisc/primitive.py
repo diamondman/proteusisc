@@ -326,11 +326,14 @@ class ExpandRequiresTAP(Primitive):
     pass
 
 class DataRW(Primitive):
-    def __init__(self, *args, data=None, read=False, _promise=None,
-                 **kwargs):
+    def __init__(self, *args, data=None, bitcount=None, read=False,
+                 _promise=None, **kwargs):
         super(DataRW, self).__init__(*args, **kwargs)
         self.data = data
+        self.bitcount = bitcount
         self.read = read
+        #If promise must be used during init, please read the comment
+        #in Level1Primitive.merge where the new promise is calculated.
         self._promise = _promise
 
     def get_promise(self):
@@ -488,17 +491,6 @@ class Level1Primitive(Primitive):
 
         newcount = target.count+self.count
 
-        if not self._promise and not target._promise:
-            promise = None
-        elif self._promise and not target._promise:
-            promise = self._promise
-        elif not self._promise and target._promise:
-            promise = target._promise
-        else:
-            promise = TDOPromiseCollection(self._chain, newcount)
-            promise.add(self._promise, 0)
-            promise.add(target._promise, self.count)
-
         reqef = tuple(map(operator.add, self.reqef, target.reqef))
 
         newtms = target.tms+self.tms
@@ -515,13 +507,29 @@ class Level1Primitive(Primitive):
             tmp_prim = prim_cls(count=newcount,
                                 tms=newtms, tdi=newtdi,
                                 tdo=newtdo, reqef=reqef,
-                                _chain=self._chain, _promise=promise)
+                                _chain=self._chain)#, _promise=promise)
             print(tmp_prim.score, tmp_prim)
             if tmp_prim.score < best_score:
                 best_prim = tmp_prim
                 best_score = tmp_prim.score
         print("PICKED", best_prim, "\n")
 
+        if best_prim:
+            if not self._promise and not target._promise:
+                promise = None
+            elif self._promise and not target._promise:
+                promise = self._promise.makesubatoffset(target.count)
+            elif not self._promise and target._promise:
+                promise = target._promise
+            else:
+                promise = TDOPromiseCollection(self._chain, newcount)
+                promise.add(target._promise, 0)
+                promise.add(self._promise, target.count)
+
+            #This is a bit of a hack. It is difficult to undo
+            #subpromises. If primitives later use the promise
+            #during init, this must change
+            best_prim._promise = promise
         return best_prim
 
     def expand(self, chain, sm):

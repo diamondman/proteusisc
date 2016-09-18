@@ -196,8 +196,6 @@ class FakeDevHandle(object):
         for tmsbit in reversed(tms):
             tdo.append(self._write_to_dev_chain(tmsbit, tdi))
         if read_tdo:
-            #import ipdb
-            #ipdb.set_trace()
             tdo_bits = bitarray(([False]*(8-(len(tdo)%8)))+tdo[::-1])
             tdo_bytes = tdo_bits.tobytes()
             self._blk_read_buffer2.append(tdo_bytes[::-1])
@@ -283,6 +281,7 @@ class MockPhysicalJTAGDevice(object):
         self.tap = JTAGStateMachine()
 
         self.idcode = bitarray('00000110110101001000000010010011')
+
         self._instruction_register_map = {
             'BULKPROG': 'DATAREG',
             'BYPASS': 'BYPASS',

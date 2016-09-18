@@ -63,7 +63,9 @@ class JTAGDeviceBase(object):
 
     @property
     def chain_index(self):
-        return self._chain._devices.index(self) if self._chain else -1
+        if self._chain and self in self._chain._devices:
+            return self._chain._devices.index(self)
+        return -1
 
     def __repr__(self):
         devnum = self.chain_index

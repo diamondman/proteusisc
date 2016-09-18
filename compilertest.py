@@ -9,10 +9,12 @@ from proteusisc.controllerManager import getDriverInstanceForDevice
 from proteusisc.jtagScanChain import JTAGScanChain
 from proteusisc.test_utils import FakeUSBDev, FakeDevHandle,\
     MockPhysicalJTAGDevice
+from proteusisc.primitive import ConstantBitarray
 
 ctrl = FakeDevHandle(MockPhysicalJTAGDevice(name="D0"),
                      MockPhysicalJTAGDevice(name="D1"),
-                     MockPhysicalJTAGDevice(name="D2"))
+                     MockPhysicalJTAGDevice(name="D2")
+)
 usbdev = FakeUSBDev(ctrl)
 c = getDriverInstanceForDevice(usbdev)
 print(c)
@@ -25,79 +27,49 @@ d2 = chain.initialize_device_from_id(chain, devid)
 #d3 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
 chain._devices = [d0, d1, d2]#, d3]
-a2=None
-
-def addprims():
-    #d0.run_instruction("BYPASS", delay=0.01)
-    #a = d1.run_instruction("IDCODE", read=True, data=bitarray('1111111111111100'*2))#data=bitarray(bin(7)[2:].zfill(8)))
-    a2 = d1.run_instruction("IDCODE", read=True, data=bitarray('1101010101010101'*2))#data=bitarray(bin(7)[2:].zfill(8)))
-    #b = d2.run_instruction("IDCODE", read=True, data=bitarray('0000000000000001'*2))#data=bitarray('11001010'*171+'111'))#loop=8, delay=0.01)
-    b2 = d2.run_instruction("IDCODE", read=True, data=bitarray('1100101000110101'*2))#data=bitarray('11001010'*171+'111'))#loop=8, delay=0.01)
-    c2 = d0.run_instruction("IDCODE", read=True, data=bitarray('1100101000110101'*2))#data=bitarray('11001010'*171+'111'))#loop=8, delay=0.01)
-    #d0.rw_dev_ir(data=bitarray('11101000'))
-    #for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(2)):
-    #    d0.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=0.01)
-    #d1.run_instruction("ISC_ENABLE", read=False, delay=0.01)
-    #d1.run_instruction("ISC_ENABLE", read=False, execute=False, data=bitarray(), delay=0.01)
-    #d1.run_instruction("ISC_ENABLE", read=False, loop=8, delay=0.01)
-    #for r in (bitarray(bin(i)[2:].zfill(8)) for i in range(4,6)):
-    #    d2.run_instruction("ISC_PROGRAM", read=False, data=r, loop=8, delay=.01)
-    #d0.run_instruction("ISC_DISABLE", loop=8, delay=0.01)
-    #d0.run_instruction("ISC_PROGRAM", read=False, data=bitarray(bin(7)[2:].zfill(8)), loop=8, delay=0.01)
-    #chain.transition_tap("TLR")
-    #chain.transition_tap("SHIFTIR")
-    #chain.sleep(delay=1)
-    #chain.rw_ir(data=bitarray('1001010'))
-    #chain.rw_reg(data=bitarray('10'))
-    #chain.transition_tap("RTI")
-
-    #d0.rw_dev_dr(data=bitarray("1001"))
-    #d2.rw_dev_dr(data=bitarray("1001"))
-    #chain.rw_reg(data=bitarray('11001010'))
-    #chain.sleep(delay=1)
-    #chain.sleep(delay=2)
-    #chain.sleep(delay=1)
-    #chain.sleep(delay=2)
-    #chain.sleep(delay=1)
 
 app = Flask(__name__)
 
 @app.route('/')
 def report():
-    #t = time.time()
-    #stages = []
-    #stagenames = []
-
-    #chain._command_queue._compile(debug=True, stages=stages,
-    #                              stagenames=stagenames)
-
-    #print(time.time()-t)
-
+    if not chain._command_queue.stages:
+        return "CHECK THAT FLUSH IS NOT DOUBLE CALLED"
     return render_template("layout.html",
                            stages=chain._command_queue.stages,
                            stagenames=chain._command_queue.stagenames,
                            dev_count=len(chain._devices))
 
 if __name__ == "__main__":
+    a, b, c, = None, None, None
     try:
+        chain.init_chain()
         chain.jtag_enable()
-        #addprims()
-        a = d0.run_instruction("IDCODE", read=True,
-                                data=bitarray('1100101000110101'*2))
-        b = d1.run_instruction("IDCODE", read=True,
-                                data=bitarray('1101010101010101'*2))
-        c = d2.run_instruction("IDCODE", read=True,
-                                data=bitarray('1111111111111011'*2))
-        #chain.flush()
-        print("A", a())
-        print("B", b())
-        print("C", c())
-        chain.jtag_disable()
+        chain.transition_tap("SHIFTIR");
+        #a = d0.run_instruction("IDCODE", read=True,
+        #                        data=bitarray('1100101000110101'*2))
+        #b = d1.run_instruction("IDCODE", read=True,
+        #                        data=bitarray('1101010101010101'*2))
+        #c = d2.run_instruction("IDCODE", read=True,
+        #                        data=bitarray('1111111111111011'*2))
+
+        t = time.time()
+        if not any((a, b, c)):
+            print("NO PROMISES")
+            chain.flush()
+        if a:
+            print("A", a(), a)
+        if b:
+            print("B", b(), b)
+        if c:
+            print("C", c(), c)
+        print("\n\nSTUFF")
+        print("TIME SPEND", time.time()-t)
+
     finally:
-        #chain.jtag_disable()
+        chain.jtag_disable()
         print("DONE")
         print("\n\nDEV STATUS")
         for dev in ctrl.devices:
             print(dev.name)
             print("   ",dev.event_history)
-        app.run(debug=True, use_reloader=False)
+        app.run(debug=False, use_reloader=False)

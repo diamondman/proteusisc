@@ -176,6 +176,10 @@ class RWDR(Level2Primitive, DataRW):
     def __init__(self, *args, lastbit=True, **kwargs):
         super(RWDR, self).__init__(*args, **kwargs)
         self.lastbit = lastbit
+        if self.data and not self.bitcount:
+            self.bitcount = len(self.data)
+        if not self.data and self.bitcount:
+            self.data = NoCareBitarray(self.bitcount)
 
     def merge(self, target):
         if isinstance(target, RWDR) and not self.lastbit and \
@@ -213,6 +217,10 @@ class RWIR(Level2Primitive, DataRW):
     def __init__(self, *args, lastbit=True, **kwargs):
         super(RWIR, self).__init__(*args, **kwargs)
         self.lastbit = lastbit
+        if self.data and not self.bitcount:
+            self.bitcount = len(self.data)
+        if not self.data and self.bitcount:
+            self.data = ConstantBitarray(True, self.bitcount)
 
     def merge(self, target):
         if isinstance(target, RWIR) and not self.lastbit and \
@@ -252,6 +260,10 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
     def __init__(self, *args, lastbit=True, **kwargs):
         super(RWReg, self).__init__(*args, **kwargs)
         self.lastbit = lastbit
+        if self.data and not self.bitcount:
+            self.bitcount = len(self.data)
+        if not self.data and self.bitcount:
+            self.data = NoCareBitarray(self.bitcount)
 
     def merge(self, target):
         return None

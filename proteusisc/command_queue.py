@@ -40,18 +40,9 @@ class CommandQueue(collections.MutableSequence):
         elem._chain = self._chain
         super(CommandQueue, self).append(elem)
 
-    def _compile(self, debug=False, stages=None, stagenames=None,
-                 dryrun=False):
-        if len(self) == 0:
-            return "No commands in Queue."
-
-        ###################### INITIAL PRIMS! ######################
-
-        if debug:
-            stages.append([self._chain.snapshot_queue()])
-            stagenames.append("Input Stream")
-
-        ############### GROUPING BY EXEC BOUNDARIES!################
+    def _compile_device_specific_prims(self, debug=False,
+                                       stages=None, stagenames=None):
+                ############### GROUPING BY EXEC BOUNDARIES!################
 
         fences = []
         fence = [self[0]]
@@ -97,7 +88,7 @@ class CommandQueue(collections.MutableSequence):
                               "target device")
 
         ############## ALIGN SEQUENCES AND PAD FRAMES ##############
-
+        #FIRST DEV REQUIRED LINE
         grouped_fences = [
             FrameSequence(self._chain, *fence).finalize()
             for f_i, fence in enumerate(split_fences)
@@ -179,7 +170,33 @@ class CommandQueue(collections.MutableSequence):
             stages.append([[p.snapshot() for p in flattened_prims]])
             stagenames.append("Converting format to single stream.")
 
-        del ingested_chain
+        #del ingested_chain
+        return flattened_prims
+
+
+    def _compile(self, debug=False, stages=None, stagenames=None,
+                 dryrun=False):
+        if len(self) == 0:
+            return "No commands in Queue."
+
+        ###################### INITIAL PRIMS! ######################
+
+        if debug:
+            stages.append([self._chain.snapshot_queue()])
+            stagenames.append("Input Stream")
+
+        #Sanitize input stream and render down to lv2 dev agnostic prims
+        any_dev_prims = False
+        for prim in self:
+            if isinstance(prim, DeviceTarget):
+                any_dev_prims = True
+                break
+        if any_dev_prims:
+            flattened_prims = self._compile_device_specific_prims(
+                debug=debug, stages=stages, stagenames=stagenames
+            )
+        else:
+            flattened_prims = self
 
         ######### Flatten out remaining macros Primitives #########
         while (not all((isinstance(p, (ExpandRequiresTAP,Executable))
