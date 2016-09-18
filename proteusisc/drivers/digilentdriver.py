@@ -318,9 +318,8 @@ class DigilentAdeptController(CableDriver):
             tdo_bytes = self._handle.bulkRead(self._datin_interface,
                                         buff2Blen(data))[::-1]
             tdo_bits = bitarray()
-            for byte_ in tdo_bytes:
-                tdo_bits.extend(bin(byte_)[2:].zfill(8))
-            tdo_bits = tdo_bits[len(tdo_bits)-len(data):]
+            tdo_bits.frombytes(tdo_bytes)
+            tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(data):]
 
         self._get_adv_trans_stats(0x0B, return_tdo)
 
@@ -376,8 +375,8 @@ class DigilentAdeptController(CableDriver):
             tdo_bytes = self._handle.bulkRead(self._datin_interface,
                                               buff2Blen(buff))[::-1]
             tdo_bits = bitarray()
-            for byte_ in tdo_bytes:
-                tdo_bits.extend(bin(byte_)[2:].zfill(8))
+            tdo_bits.frombytes(tdo_bytes)
+            tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(buff):]
 
         self._get_adv_trans_stats(0x08, return_tdo)
 
@@ -434,8 +433,8 @@ class DigilentAdeptController(CableDriver):
             tdo_bytes = self._handle.bulkRead(self._datin_interface,
                                               buff2Blen(data))[::-1]
             tdo_bits = bitarray()
-            for byte_ in tdo_bytes:
-                tdo_bits.extend(bin(byte_)[2:].zfill(8))
+            tdo_bits.frombytes(tdo_bytes)
+            tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(tmsdata):]
 
         self._get_adv_trans_stats(0x0A, return_tdo)
 
@@ -487,9 +486,8 @@ class DigilentAdeptController(CableDriver):
         tdo_bytes = self._handle.bulkRead(self._datin_interface,
                                           blen2Blen(count))[::-1]
         tdo_bits = bitarray()
-        for byte_ in tdo_bytes:
-            tdo_bits.extend(bin(byte_)[2:].zfill(8))
-
+        tdo_bits.frombytes(tdo_bytes)
+        tdo_bits = tdo_bits[(8*len(tdo_bytes)) - count:]
         #GET BACK STATS
         self._get_adv_trans_stats(0x09, True)
 
