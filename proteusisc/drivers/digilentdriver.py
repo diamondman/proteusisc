@@ -14,9 +14,9 @@ from bitarray import bitarray
 from proteusisc.jtagUtils import blen2Blen, buff2Blen,\
     build_byte_align_buff
 from proteusisc.cabledriver import CableDriver
-from proteusisc.primitive import Level1Primitive,\
-    Executable, NOCARE, ZERO, ONE, CONSTANT, ARBITRARY,\
-    ConstantBitarray, NoCareBitarray
+from proteusisc.primitive import Level1Primitive, Executable
+from proteusisc.bittypes import ConstantBitarray, NoCareBitarray
+from proteusisc.contracts import NOCARE, ZERO, ONE, CONSTANT, ARBITRARY
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGControlError, JTAGNotEnabledError
 

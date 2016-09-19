@@ -3,9 +3,9 @@ from bitarray import bitarray
 
 from .frame import Frame, FrameSequence
 from .primitive import Level3Primitive, Level2Primitive, DeviceTarget,\
-    Executable, DataRW, ExpandRequiresTAP, ZERO, ONE, ARBITRARY, \
-    CONSTANT, NOCARE,\
-    ConstantBitarray, NoCareBitarray
+    Executable, DataRW, ExpandRequiresTAP
+from .bittypes import ConstantBitarray, NoCareBitarray
+from .contracts import ZERO, ONE, ARBITRARY, CONSTANT, NOCARE
 from .promise import TDOPromise, TDOPromiseCollection
 from .errors import ProteusISCError
 

@@ -15,8 +15,8 @@ import numbers
 
 from proteusisc.cabledriver import CableDriver
 from proteusisc.primitive import Level1Primitive,\
-    Level2Primitive, Level3Primitive, Executable,\
-    NOCARE, ZERO, ONE, CONSTANT, ARBITRARY
+    Level2Primitive, Level3Primitive, Executable
+from proteusisc.contracts import NOCARE, ZERO, ONE, CONSTANT, ARBITRARY
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGNotEnabledError
 
