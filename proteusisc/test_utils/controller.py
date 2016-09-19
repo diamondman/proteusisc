@@ -39,6 +39,10 @@ class FakeDevHandle(object):
         self._lastcmd = None
         self._adv_req_enabled = False
 
+    @property
+    def jtagon(self):
+        return self._jtag_on
+
     def close(self):
         pass
 
@@ -80,6 +84,9 @@ class FakeDevHandle(object):
 
     def bulkWrite(self, endpoint, data, timeout=0):
         if not self._adv_req_enabled:
+            if len(data) < 4:
+                raise Exception("Too short message. Min 4 bytes")
+
             length, cat, req, params = data[0], data[1], data[2], data[4:]
             if req & 0x80 is 0x80:
                 self._report_advanced_metrics()
@@ -90,7 +97,10 @@ class FakeDevHandle(object):
                                     (length, len(data)-1))
 
                 self._lastcmd = (cat, req)
-                name, length_req = self.BLK_HANDLERS[(cat, req)]
+                name, length_req = self.BLK_HANDLERS.get((cat, req),
+                                                         (None, None))
+                #if name is None:
+                #    #TODO MAKE RESPOND WITH STALL
                 if length is not length_req:
                     raise Exception("Wrong Length for instruction. "
                                     "Would Hang")

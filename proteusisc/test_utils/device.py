@@ -104,8 +104,9 @@ class ShiftRegister(object):
         return bitarray(self._data)
 
 class MockPhysicalJTAGDevice(object):
-    def __init__(self, irlen=8, name=None):
+    def __init__(self, irlen=8, name=None, status=None):
         self.name = name
+        self._custom_status = status
         self.event_history = []
         self.irlen = irlen
         self.IR = ShiftRegister(irlen)
@@ -200,12 +201,8 @@ class MockPhysicalJTAGDevice(object):
         return res
 
     def calc_status_register(self):
-        if self.name == "D0":
-            return ShiftRegister(self.irlen, bitarray('11111100'))
-        if self.name == "D1":
-            return ShiftRegister(self.irlen, bitarray('11111101'))
-        if self.name == "D2":
-            return ShiftRegister(self.irlen, bitarray('11111110'))
+        if self._custom_status:
+            return self._custom_status
         return ShiftRegister(self.irlen, bitarray('11111011'))
 
     def _TLR(self):

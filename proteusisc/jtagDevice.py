@@ -1,6 +1,4 @@
 import struct
-import time
-import sys
 
 from bitarray import bitarray
 
