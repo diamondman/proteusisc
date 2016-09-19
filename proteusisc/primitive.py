@@ -6,7 +6,9 @@ import collections
 from proteusisc.promise import TDOPromise, TDOPromiseCollection
 
 class Requirement(object):
-    """Represents the ability of a ISC Controller to transmit data on a
+    """Electrical requirement of a signal, or a controller message's capabilitys/limitations to control a signal.
+
+    Represents the ability of a ISC Controller to transmit data on a
     signal (wire). A LV1 primitives have different levels of
     expressiveness per signal.  For each signal, a primitive be able
     tos end one of the following 4 values during the primitive's
@@ -47,18 +49,34 @@ class Requirement(object):
 
     @property
     def A(self):
+        "Bitname for 'Arbitrary' in original equation derivation."
         return self.arbitrary
     @property
     def B(self):
+        "Bitname for 'Constant' in original equation derivation."
         return self.constant
     @property
     def C(self):
+        "Bitname for 'Single' in original equation derivation."
         return self.single
     @property
     def D(self):
+        "Bitname for 'Value' in original equation derivation."
         return self.value
     @property
     def isnocare(self):
+        """Checks if this requirement has no preference.
+
+        The bits in a requirement have a precedence:
+            Arbitrary>Constant>Single
+
+        Value only matters for if the set bit with the highest
+        precedence is Constant or Single.
+
+        A Requirement is NoCare when none of the precedence bits are
+        set. The Value bit does not effect this calculation.
+
+        """
         return not self.arbitrary and not self.constant \
             and not self.single
 
@@ -104,6 +122,17 @@ class Requirement(object):
                     )])
 
     def __repr__(self):
+        """Return a character code and bit states of the Requirement.
+
+        Character code is:
+            A for Arbitrary
+            C for Constant
+            F for False Single
+            T for True Single
+            - for NoCare
+
+        The bits are Arbitrary, Constant, Single, and Value in that order.
+        """
         if self.arbitrary:
             l = 'A'
         elif self.constant:
@@ -118,8 +147,7 @@ class Requirement(object):
                         )]))[2:].zfill(4) +")"
 
     def __add__(self, other):
-        """
-        Combines two Requirements.
+        """Combines two Requirements.
 
         Assumes both Requirements are being used as feature requests.
         Adding two Requirements being used as feature lists for a
@@ -151,6 +179,30 @@ CONSTANTONE =  Requirement(False, True,  False, True)
 ARBITRARY =    Requirement(True,  False, False, False)
 
 class ConstantBitarray(collections.Sequence):
+    """A bitarray type where all bits are the same value.
+
+    The bitarray class is already more efficient at storing a sequence
+    of boolean values than an array, but all bits having the same
+    value is a common enough case to optimize for.
+
+    The most immediate obvious is a lower memory footprint, as only
+    one boolean value is stored. But there are more important benefits.
+
+    Splitting or reversing a constant bitarray, or combining two
+    constant bitarrays (that have the same value) is trivial.
+
+    Checking if any or all bits are set is trivial (A normal bitarray
+    has to scan every bit every time such a check is done).
+
+    A constant bitarray shows intent. By simply checking the type of
+    the bitarray, we can know if sending the data in the bitarray down
+    a wire requires arbitrary control of the signal value for every
+    bit, of if we can get away with a simplier constant value.
+
+    Args:
+        val: A boolean that will be the value for each bit in the array.
+        length: An integer specifying how many bits are in the array.
+    """
     def __init__(self, val, length):
         self._val = bool(val)
         self._length = length
@@ -172,6 +224,14 @@ class ConstantBitarray(collections.Sequence):
     def __repr__(self):
         return "<Const: %s (%s)>"%(self._val, self._length)
     def __add__(self, other):
+        """Handles combining different bitarray types.
+
+        There are special rules for combining each type of bitarray:
+        bitarray, ConstantBitarray, and NoCareBitArray. For example,
+        two NoCareBitarrays combine into a bigger NoCareBit array,
+        while combining two ConstantBitArrays depends on if the two
+        array's constant value are the same.
+        """
         if isinstance(other, ConstantBitarray):
             if self._val == other._val:
                 return ConstantBitarray(self._val,
@@ -189,6 +249,14 @@ class ConstantBitarray(collections.Sequence):
         return NotImplemented
 
     def count(self, val=True):
+        """Get the number of bits in the array with the specified value.
+
+        Args:
+            val: A boolean value to check against the array's value.
+
+        Returns:
+            An integer of the number of bits in the array equal to val.
+        """
         if val == self._val:
             return self._length
         return 0
@@ -200,6 +268,42 @@ class ConstantBitarray(collections.Sequence):
         return self._val
 
 class NoCareBitarray(collections.Sequence):
+    """A bitarray type with no preference on its bit values.
+
+    https://en.wikipedia.org/wiki/Don%27t-care_term
+
+    When writing data to certain fields, sometimes the value of the
+    field simply does not matter. In programming, we often fill 0 or
+    Null for these values because the cost of any of these filler
+    values are the same. If such an no care parameter were set to 0,
+    but setting it to 1 would somehow let the computer run the program
+    faster, it would be a clear win.
+
+    But the computer can not tell that the 0 put as a place holder is
+    JUST a placeholder.
+
+    In this project, parameters passed over a serial datastream are
+    often represented with the type bitarray.bitarray. To allow
+    optimizing the sending of data, the NoCareBitarray explicitly
+    stands in for a sequence of bits where the value does not matter,
+    so that as it is combined with other bits, a more efficient (by
+    some metric) sequence of bits can be produced than if strict
+    adherence to a placeholder value were held.
+
+    Like ConstantBitarrays, NoCareBitarrays have a small memory
+    footprint, and are efficiently combined, sliced, and checked for
+    values.
+
+    A nocare bitarray shows intent. By simply checking the type of the
+    bitarray, we can know if sending the data in the bitarray down a
+    wire requires have any requirements at all, or if the bits are
+    free to be optimized aggressively without danger of losing useful
+    data.
+
+    Args:
+        length: An integer specifying how many bits are in the array.
+
+    """
     def __init__(self, length):
         self._length = length
 
@@ -221,6 +325,14 @@ class NoCareBitarray(collections.Sequence):
     def __repr__(self):
         return "<NC: (%s)>"%(self._length)
     def __add__(self, other):
+        """Handles combining different bitarray types.
+
+        There are special rules for combining each type of bitarray:
+        bitarray, ConstantBitarray, and NoCareBitArray. For example,
+        two NoCareBitarrays combine into a bigger NoCareBit array,
+        while combining two ConstantBitArrays depends on if the two
+        array's constant value are the same.
+        """
         if isinstance(other, NoCareBitarray):
             return NoCareBitarray(self._length+other._length)
         if isinstance(other, ConstantBitarray):
@@ -240,6 +352,14 @@ class NoCareBitarray(collections.Sequence):
         return NotImplemented
 
     def count(self, val=True):
+        """Get the number of bits in the array with the specified value.
+
+        Args:
+            val: A boolean value to check against the array's value.
+
+        Returns:
+            An integer of the number of bits in the array equal to val.
+        """
         return 0
 
     def any(self):
