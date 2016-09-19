@@ -53,7 +53,7 @@ class JTAGStateMachine(object):
         if start == end:
             return path
         if start not in cls.states:
-            return None
+            return None # pragma: no cover
         shortest = None
         for node in cls.states[start]:
             if node not in path:
@@ -87,4 +87,5 @@ class JTAGStateMachine(object):
         self._statestr = "_PRE5"
 
     def __repr__(self):
-        return "<%s (State: %s)>"%(self.__class__.__name__, self.state)
+        return "<%s (State: %s)>"%\
+            (self.__class__.__name__, self.state) # pragma: no cover

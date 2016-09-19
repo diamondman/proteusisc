@@ -3,7 +3,6 @@ import struct
 from bitarray import bitarray
 
 from .jtagDeviceDescription import JTAGDeviceDescription
-from .jtagUtils import pstatus
 
 class JTAGDeviceBase(object):
     def gen_prim_adder(self, cls_):

@@ -44,7 +44,7 @@ class ShiftRegister(object):
         return self._size
 
     def __repr__(self):
-        return "<ShiftRegister(%s)>"%self.size
+        return "<ShiftRegister(%s)>"%self.size # pragma: no cover
 
     def shift(self, val):
         """Perform a single bitshift on the shift register
@@ -201,9 +201,9 @@ class MockPhysicalJTAGDevice(object):
         return res
 
     def calc_status_register(self):
-        if self._custom_status:
-            return self._custom_status
-        return ShiftRegister(self.irlen, bitarray('11111011'))
+        data = self._custom_status if self._custom_status\
+               else bitarray('11111011')
+        return ShiftRegister(self.irlen, data)
 
     def _TLR(self):
         self.DR = ShiftRegister(32, self._idcode)

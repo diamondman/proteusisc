@@ -206,9 +206,6 @@ class FrameSequence(collections.MutableSequence):
     def __getitem__(self, index):
         return self._frames.__getitem__(index)
 
-    def insert(self, index, val):
-        self._frames.insert(index, val)
-
     def snapshot(self):
         tracks = [[] for i in range(len(self._chain._devices))]
         for frame in self:

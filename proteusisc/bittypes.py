@@ -45,7 +45,8 @@ class ConstantBitarray(collections.Sequence):
         raise TypeError("%s indices must be integers or slices, not %s"%
                         (type(self), type(index)))
     def __repr__(self):
-        return "<Const: %s (%s)>"%(self._val, self._length)
+        return "<Const: %s (%s)>"%\
+            (self._val, self._length)# pragma: no cover
     def __add__(self, other):
         """Handles combining different bitarray types.
 
@@ -153,7 +154,7 @@ class NoCareBitarray(collections.Sequence):
         raise TypeError("%s indices must be integers or slices, not %s"%
                         (type(self), type(index)))
     def __repr__(self):
-        return "<NC: (%s)>"%(self._length)
+        return "<NC: (%s)>"%(self._length) # pragma: no cover
     def __add__(self, other):
         """Handles combining different bitarray types.
 

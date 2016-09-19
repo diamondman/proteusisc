@@ -29,6 +29,7 @@ class Primitive(object):
             type(self).__name__
         parts = []
         if isinstance(self, DeviceTarget):
+            # pylint: disable=no-member
             parts.append("D:%s"%self.dev.chain_index)
         for v in vars(self):
             if v not in {"dev", "_promise", "_synthetic"}:
@@ -43,6 +44,7 @@ class Primitive(object):
         return "<%s(%s)>" % (n, "; ".join(parts))
 
     def snapshot(self):
+        # pylint: disable=no-member
         return {
             'valid':True,
             'promise': self.get_promise(),
@@ -78,7 +80,7 @@ class Primitive(object):
 
 class Executable(Primitive):
     def execute(self):
-        raise NotImplemented()
+        raise NotImplementedError()
 
 class ExpandRequiresTAP(Primitive):
     pass

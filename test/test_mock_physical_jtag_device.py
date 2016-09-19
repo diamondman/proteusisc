@@ -9,7 +9,7 @@ def test_initialize_correct_defaults():
     assert dev.name == "D0"
 
 def test_shift():
-    dev = MockPhysicalJTAGDevice(name="D0")
+    dev = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111101'))
     #MOVE TO SHIFTDR. Prepare to read idcode.
     for tms in reversed(bitarray('001011111')):
         dev.shift(tms, False)

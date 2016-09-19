@@ -278,6 +278,7 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
         res = []
 
         if not self.lastbit:
+            # pylint: disable=no-member
             reqef = (
                 ZERO, #TMS
                 NOCARE if isinstance(data, NoCareBitarray) else
@@ -298,6 +299,7 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
                 rest, tail = None, None
 
             if len(data)>1:
+                # pylint: disable=no-member
                 reqef = (
                     ZERO, #TMS
                     NOCARE if isinstance(data, NoCareBitarray) else

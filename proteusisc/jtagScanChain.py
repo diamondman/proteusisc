@@ -14,7 +14,7 @@ from .jtagDevice import JTAGDevice
 from .command_queue import CommandQueue
 from .cabledriver import InaccessibleController
 from .errors import DevicePermissionDeniedError, JTAGAlreadyEnabledError
-from .jtagUtils import NULL_ID_CODES, pstatus
+from .jtagUtils import NULL_ID_CODES
 
 class JTAGScanChain(object):
     def gen_prim_adder(self, cls_):
@@ -64,7 +64,7 @@ class JTAGScanChain(object):
         for prim in self._controller._primitives:
             if not issubclass(prim, Primitive):
                 raise Exception("Registered Controller Prim has "
-                                "unknown type. (%s)"%primitive)
+                                "unknown type. (%s)"%prim)
             if issubclass(prim, DeviceTarget):
                 self._device_primitives[prim._function_name] = prim
             else:
@@ -102,6 +102,7 @@ class JTAGScanChain(object):
 
             self.jtag_enable()
             while True:
+                # pylint: disable=no-member
                 idcode = self.rw_dr(bitcount=32, read=True)()
                 if idcode in NULL_ID_CODES: break
                 dev = self.initialize_device_from_id(self, idcode)

@@ -55,45 +55,57 @@ manufacturer_lookup = {
 }
 
 def bitfieldify(buff, count):
+    """Extract a bitarray out of a bytes array.
+
+    Some hardware devices read from the LSB to the MSB, but the bit types available prefer to put pad bits on the LSB side, completely changing the data.
+
+    This function takes in bytes and the number of bits to extract
+    starting from the LSB, and produces a bitarray of those bits.
+
+    """
     databits = bitarray()
-    for byte_ in buff:
-        databits.extend(bin(ord(byte_))[2:].zfill(8))
-    lendiff = len(databits)-count
-    if count:
-        databits = databits[lendiff:]
-    return databits
+    databits.frombytes(buff)
+    return databits[len(databits)-count:]
 
 def blen2Blen(bcount):
-    """
-    Convert a number of bits into the minimum number of bytes to store
-    those bits.
+    """Convert bit length to minimum byte length to store those bits.
+
+    Args:
+        bcount: An integer count of the number of bits.
+
+    Returns:
+        An Integer value of the minimum number of bytes needed to
+        store the bits
+
     """
     return int(math.ceil(bcount/8.0))
 
-def buff2Blen(buff):
-    """
-    Shorthand to get the number of bytes required to store a bitarray.
-    """
-    return blen2Blen(len(buff))
+def buff2Blen(bits):
+    """Convert bitrray length to minimum byte length to store those bits.
 
-def build_byte_align_buff(buff):
-    bitmod = len(buff)%8
+    Args:
+        bits: A bitarray or similar.
+
+    Returns:
+        An Integer value of the minimum number of bytes needed to
+        store the bits
+
+    """
+    return blen2Blen(len(bits))
+
+def build_byte_align_buff(bits):
+    """Pad the left side of a bitarray with 0s to align its length with byte boundaries.
+
+    Args:
+        bits: A bitarray to be padded and aligned.
+
+    Returns:
+        A newly aligned bitarray.
+    """
+    bitmod = len(bits)%8
     if bitmod == 0:
         rdiff = bitarray()
     else:
         rdiff = bitarray(8-bitmod)
         rdiff.setall(False)
-    return rdiff+buff
-
-def pstatus(resflags):
-    #print(resflags.__repr__()))
-    #if len(resflags)>1:
-    #    resflags = resflags[0]
-    if not resflags&bitarray('11000011'):
-        print(resflags, bitarray('11000011'))
-        print(resflags&bitarray('11000011'))
-        print()
-    print("STATUS: "+("" if (resflags&bitarray('11000011')==bitarray('00000001')) 
-                      else "INVALID_STATUS ")+\
-        ("ISCDIS " if resflags[-6] else "")+("ISCEN " if resflags[-5] else "")+\
-        ("SECURE " if resflags[-4] else "")+("DONE " if resflags[-3] else ""))
+    return rdiff+bits

@@ -41,6 +41,7 @@ def getDriverInstanceForDevice(device):
         if driver_class:
             try:
                 return driver_class(device)
+            # pylint: disable=no-member
             except usb1.USBErrorAccess as e:
                 return InaccessibleController(driver_class, device)
 

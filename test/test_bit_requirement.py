@@ -92,3 +92,15 @@ def test_requirement_addition():
     assert res.isarbitrary
     res = ARBITRARY + ZERO
     assert res.isarbitrary
+
+def test_requirement_copy():
+    for cap in [NOCARE, ARBITRARY, CONSTANT, ZERO, ONE]:
+        tmp = cap.copy()
+        assert (tmp.A, tmp.B, tmp.C, tmp.D) == \
+            (cap.A, cap.B, cap.C, cap.D)
+
+def test_requirement_score():
+    assert ONE.score > NOCARE.score
+    assert ONE.score == ZERO.score
+    assert CONSTANT.score > ZERO.score
+    assert ARBITRARY.score > CONSTANT.score
