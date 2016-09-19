@@ -72,6 +72,52 @@ class Requirement(object):
         """
         return not self.arbitrary and not self.constant \
             and not self.single
+    @property
+    def isarbitrary(self):
+        """Checks the 'arbitrary' attribute by precedence.
+
+        Can mean two things based on how this Requirement is being used:
+        As a Data Requirement:
+            Does this requirement specify the need to control the
+            value asserted to a data line for every clock cycle
+
+        As a Capability:
+            Does this Capability guarantee the ability to assert an
+            arbitrary value to a data line for eachclock cycles.
+
+        """
+        return self.arbitrary
+    @property
+    def isconstant(self):
+        """Checks the 'constant' attribute by precedence.
+
+        Can mean two things based on how this Requirement is being used:
+        As a Data Requirement:
+            Does this requirement specify the need for a constant
+            value to be asserted to a data line for 1 or more clock
+            cycles
+
+        As a Capability:
+            Does this Capability guarantee the ability to assert a
+            constant (configurable) value to a data line for one or
+            more clock cycles, no more and no less.
+        """
+        return not self.arbitrary and self.constant
+    @property
+    def issingle(self):
+        """Checks the 'single' attribute by precedence.
+
+        Not used by requirements, only needed when the Requirement is
+        used as a capability.
+
+        True if the capability allows asserting a single value (0 or 1
+        not configurable) to a data line for one or more clock
+        cycles. Similar to 'constant' but represents EITHER the
+        ability to assert a 1 OR an ability to assert a 0, not the
+        ability to configure which.
+
+        """
+        return not self.arbitrary and not self.constant and self.single
 
     def satisfies(self, other):
         """Check if the capabilities of a primitive are enough to satisfy a requirement.

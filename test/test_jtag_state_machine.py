@@ -8,6 +8,9 @@ def test_initialize_correct_defaults():
     sm = JTAGStateMachine()
     assert sm.state == "_PRE5"
 
+    sm = JTAGStateMachine(state="TLR")
+    assert sm.state == "TLR"
+
 def test_set_state():
     sm = JTAGStateMachine()
     sm.state = "RTI"
