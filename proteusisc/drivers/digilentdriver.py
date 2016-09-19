@@ -229,7 +229,7 @@ class DigilentAdeptController(CableDriver):
             >>> from bitarray import bitarray
             >>> c = getAttachedControllers()[0]
             >>> c.jtag_enable()
-            >>> c.write_tms_bits(bitarray("111110100"), return_tdo=True)
+            >>> c.write_tms_bits(bitarray("001011111"), return_tdo=True)
             >>> c.jtag_disable()
         """
         h_ = self._handle
@@ -254,7 +254,7 @@ class DigilentAdeptController(CableDriver):
             >>> from bitarray import bitarray
             >>> c = getAttachedControllers()[0]
             >>> c.jtag_enable()
-            >>> c.write_tms_bits(bitarray("111110100"), return_tdo=True)
+            >>> c.write_tms_bits(bitarray("001011111"), return_tdo=True)
             >>> c.jtag_disable()
         """
 
@@ -292,7 +292,7 @@ class DigilentAdeptController(CableDriver):
             >>> from bitarray import bitarray
             >>> c = getAttachedControllers()[0]
             >>> c.jtag_enable()
-            >>> c.write_tms_bits(bitarray("111110100"), return_tdo=True)
+            >>> c.write_tms_bits(bitarray("001011111"), return_tdo=True)
             >>> c.jtag_disable()
         """
         if not self._jtagon:
