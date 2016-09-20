@@ -1,4 +1,39 @@
 class TDOPromise(object):
+    """Placeholder/Container for a value that isn't available immediately.
+
+    When a primitive is created and asked to return a value, a promise
+    is returned instead of the requested value. This delayed
+    satisfaction of return values allows for more aggressive
+    optimizations of the primitive stream.
+
+    Promises track a return value from a primitive. As the primitive
+    is modified, split, and joined with other primitives during the
+    compilation process, the ultimate source of the data to fulfill
+    the promise changes. The promise tracks the data about the
+    transformation of its original primitives and can piece the
+    appropriate bits together to form its value.
+
+    A promise's value can be returned by calling the promise:
+        res = mypromise()
+
+    If a promise does not yet have a value, it will automatically
+    trigger a flush operation on the associated JTAGScanChain, which
+    will compile and execute all pending primitives and distribute the
+    resulting data to the promises.
+
+    Reading the value of any promise from the currently unexecuted set
+    of primitives will automatically run all pending primitives, and
+    fulfill all their promises.
+
+    Manually flushing the scan chain will automatically fulfill all
+    pending promises.
+
+
+    Args:
+        chain: A JTAGScanChain associated with this promise's primitie.
+        bitstart: An integer offset used for selecting which bits of the original primitive the promise is selecting.
+        bitlength: An integer count of how many bits of the original primitive should be selected by this promise.
+    """
     count = 0
     def __init__(self, chain, bitstart, bitlength, *, _parent=None):
         self.sn = TDOPromise.count
@@ -42,6 +77,28 @@ class TDOPromise(object):
         self._components.append((subpromise, offset))
 
     def split_to_subpromises(self):
+        """Split a promise into two promises. A tail bit, and the 'rest'.
+
+        A common operation in JTAG is reading/writing to a
+        register. During the operation, the TMS pin must be low, but
+        during the writing of the last bit, the TMS pin must be
+        high. Requiring all reads or writes to have full arbitrary
+        control over the TMS pin is unrealistic.
+
+        Splitting a promise into two sub promises is a way to mitigate
+        this issue. The final read bit is its own subpromise that can
+        be associated with a different primitive than the 'rest' of
+        the subpromise.
+
+        Returns:
+            Two TDOPromise instances: the 'Rest' and the 'Tail'.
+            The 'Rest' is the first chunk of the original promise.
+            The 'Tail' is a single bit sub promise for the final bit
+              in the operation
+
+            If the 'Rest' would have a length of 0, None is returned
+
+        """
         if self._bitlength is 1:
             return None, self
 
@@ -66,12 +123,33 @@ class TDOPromise(object):
                 self._parent._fulfill(None)
 
     def _allsubsfulfilled(self):
+        """Check if every subpromise has been fulfilles
+
+        Returns:
+            A boolean describing if all subpromises have been fulfilled
+        """
         for sub, offset in self._components:
             if sub._value is None:
                 return False
         return True
 
     def makesubatoffset(self, bitoffset):
+        """Create a copy of this promise with an offset, and use it as this promise's child.
+
+        If this promise's primitive is being merged with another
+        primitive, a new subpromise may be required to keep track of
+        the new offset of data coming from the new primitive.
+
+        Args:
+            bitoffset: An integer offset of the data in the new primitive.
+
+        Returns:
+            A TDOPromise registered with this promise, and with the
+            correct offset.
+
+        """
+        if bitoffset is 0:
+            return self
         newpromise = TDOPromise(self._chain,
                                 self._bitstart + bitoffset,
                                 self._bitlength,
@@ -81,6 +159,13 @@ class TDOPromise(object):
 
 
 class TDOPromiseCollection(object):
+    """A collection of TDOPromises for primitives with multiple promises to fulfill can easily apply promise operations to all of them.
+
+    Args:
+        chain: A JTAGScanChain associated with this promise's primitie.
+        bitlength: An integer count of how many bits of the original primitive should be selected by this promise.
+
+    """
     def __init__(self, chain, bitlength):
         self._bitlength = bitlength
         self._promises = []
@@ -102,6 +187,21 @@ class TDOPromiseCollection(object):
                 self.add(p, bitoffset)
 
     def split_to_subpromises(self):
+        """Split a promise into two promises. A tail bit, and the 'rest'.
+
+        Same operation as the one on TDOPromise, except this works
+        with a collection of promises and splits the appropriate one.
+
+        Returns:
+            The 'Rest' and the 'Tail'.
+            The 'Rest' is TDOPromiseCollection containing the first
+              chunk of the original TDOPromiseCollection.
+            The 'Tail' is a single bit sub promise for the final bit
+              in the operation
+
+            If the 'Rest' would have a length of 0, None is returned
+
+        """
         if self._bitlength in (0,1):
             return None, self
         if len(self._promises) is 0:
@@ -130,6 +230,22 @@ class TDOPromiseCollection(object):
             promise._fulfill(bits)
 
     def makesubatoffset(self, bitoffset):
+        """Create a copy of this PromiseCollection with an offset applied to each contained promise and register each with their parent.
+
+        If this promise's primitive is being merged with another
+        primitive, a new subpromise may be required to keep track of
+        the new offset of data coming from the new primitive.
+
+        Args:
+            bitoffset: An integer offset of the data in the new primitive.
+
+        Returns:
+            A new TDOPromiseCollection registered with this promise
+            collection, and with the correct offset.
+
+        """
+        if bitoffset is 0:
+            return self
         newpromise = TDOPromiseCollection(self._chain, self._bitlength)
         for promise in self._promises:
             newpromise.add(promise, bitoffset)
