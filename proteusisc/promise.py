@@ -19,7 +19,20 @@ class TDOPromise(object):
     def __repr__(self):
         return "<P %s; bit %s; len %s; parent: %s>" %\
             (self.sn, self._bitstart, self._bitlength,
-             self._parent.sn if self._parent else "NONE")
+             self._parent.sn if self._parent else "NONE")\
+             #pragma: no cover
+
+    @property
+    def bitstart(self):
+        return self._bitstart
+
+    @property
+    def bitlength(self):
+        return self._bitlength
+
+    @property
+    def bitend(self):
+        return self._bitend
 
     @property
     def _bitend(self):
@@ -71,8 +84,8 @@ class TDOPromiseCollection(object):
     def __init__(self, chain, bitlength):
         self._bitlength = bitlength
         self._promises = []
-        self.sn = TDOPromise.count
         self._chain = chain
+        self.sn = TDOPromise.count
         TDOPromise.count += 1
 
     def add(self, promise, bitoffset):
@@ -107,7 +120,7 @@ class TDOPromiseCollection(object):
             return self, None
 
     def __repr__(self):
-        return "<PC %s; %s>" % (self.sn, self._promises)
+        return "<PC %s; %s>" % (self.sn, self._promises) #pragma: no cover
 
     def __bool__(self):
         return bool(self._promises)
