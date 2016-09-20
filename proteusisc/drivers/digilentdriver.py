@@ -202,7 +202,7 @@ class DigilentAdeptController(CableDriver):
              self.productName,
              self.name,
              self.serialNumber,
-             self.firmwareVersion)
+             self.firmwareVersion) # pragma: no cover
 
 
     def _get_adv_trans_stats(self, cmd, return_tdo=False):

@@ -4,6 +4,8 @@ from bitarray import bitarray
 from proteusisc.jtagUtils import bitfieldify, blen2Blen, buff2Blen,\
     build_byte_align_buff
 
+from proteusisc.utils import memoized
+
 def test_util_blen2Blen():
     assert blen2Blen(0) == 0
     assert blen2Blen(7) == 1
@@ -28,3 +30,21 @@ def test_util_build_byte_align_buff():
 
 def test_util_bitfieldify():
     assert bitfieldify(b'\x01\xFF', 9) == bitarray('1'*9)
+
+def test_util_memoized():
+    def some_func(num):
+        return num*num
+
+    @memoized
+    def some_memoized_func(num):
+        return num*num
+
+    for _ in range(2):
+        for i in range(10):
+            assert some_memoized_func(i) == some_func(i)
+
+    #Check memoized does not fail with non hashable inputs
+    @memoized
+    def unit_function(data):
+        return data
+    assert unit_function([1,2,3]) == [1,2,3]
