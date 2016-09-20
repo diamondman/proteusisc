@@ -113,6 +113,11 @@ class RWDevDR(Level2Primitive, DeviceTarget):
                     False,
                     (self.bitcount-len(self.data)))+\
                 self.data
+        if not self.data:
+            self.data = ConstantBitarray(False, self.bitcount)
+
+    def merge(self, target):
+        return None
 
     @classmethod
     def expand_frame(cls, frame, sm):
@@ -142,6 +147,11 @@ class RWDevIR(Level2Primitive, DeviceTarget):
                     False,
                     (self.bitcount-len(self.data)))+\
                 self.data
+        if not self.data:
+            self.data = ConstantBitarray(True, self.bitcount)
+
+    def merge(self, target):
+        return None
 
     @classmethod
     def expand_frame(cls, frame, sm):
@@ -202,13 +212,15 @@ class RWDR(Level2Primitive, DataRW):
             prims.append(chain.get_prim('transition_tap')
                          ('SHIFTDR',  _chain=chain))
             sm.state = "SHIFTDR"
-        if self.lastbit:
-            sm.state = "EXIT1DR"
 
         prims.append(
             chain.get_prim('rw_reg')(data=self.data, read=self.read,
                                 _promise=self._promise, _chain=chain,
                                 lastbit=self.lastbit))
+        if self.lastbit:
+            prims.append(chain.get_prim('transition_tap')
+                         ('UPDATEDR',  _chain=chain))
+            sm.state = "UPDATEDR"
 
         return prims
 
@@ -245,13 +257,15 @@ class RWIR(Level2Primitive, DataRW):
                          ('SHIFTIR', _chain=chain))
             sm.state = "SHIFTIR"
             prims[0].oldstate = sm.state
-        if self.lastbit:
-            sm.state = "EXIT1IR"
 
         prims.append(
             chain.get_prim('rw_reg')(read=self.read, data=self.data,
                                      _promise=self._promise, _chain=chain,
                                      lastbit=self.lastbit))
+        if self.lastbit:
+            prims.append(chain.get_prim('transition_tap')
+                         ('UPDATEIR',  _chain=chain))
+            sm.state = "UPDATEIR"
 
         return prims
 

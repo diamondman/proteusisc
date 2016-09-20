@@ -119,16 +119,6 @@ class Level3Primitive(Primitive):
 class Level2Primitive(Primitive):
     _layer = 2
     def merge(self, target):
-        if type(self) == type(target):
-            kwargs = {'_chain': self._chain}
-            if isinstance(self, DeviceTarget) and self.dev is target.dev:
-                kwargs['dev'] = self.dev
-            if isinstance(self, DataRW) and  self.read and \
-               not self.data and not target.read:
-                kwargs['read'] = True
-                kwargs['data'] = target.data
-                kwargs['_promise'] = self._promise
-            return type(self)(**kwargs)
         return None
 
 class Level1Primitive(Primitive):

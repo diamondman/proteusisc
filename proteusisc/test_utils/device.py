@@ -104,7 +104,7 @@ class ShiftRegister(object):
         return bitarray(self._data)
 
 class MockPhysicalJTAGDevice(object):
-    def __init__(self, irlen=8, name=None, status=None):
+    def __init__(self, irlen=8, name=None, status=None, idcode=None):
         self.name = name
         self._custom_status = status
         self.event_history = []
@@ -114,7 +114,8 @@ class MockPhysicalJTAGDevice(object):
         self.DR = None
         self.tap = JTAGStateMachine()
 
-        self._idcode = bitarray('00000110110101001000000010010011')
+        self._idcode = idcode or \
+                       bitarray('00000110110101001000000010010011')
 
         self._instruction_register_map = {
             'BULKPROG': 'DATAREG',

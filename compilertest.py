@@ -11,9 +11,10 @@ from proteusisc.test_utils import FakeUSBDev, FakeDevHandle,\
     MockPhysicalJTAGDevice
 from proteusisc.primitive import ConstantBitarray
 
-ctrl = FakeDevHandle(MockPhysicalJTAGDevice(name="D0"),
-                     MockPhysicalJTAGDevice(name="D1"),
-                     MockPhysicalJTAGDevice(name="D2")
+ctrl = FakeDevHandle(
+    MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100')),
+    MockPhysicalJTAGDevice(name="D1", status=bitarray('11111101')),
+    MockPhysicalJTAGDevice(name="D2", status=bitarray('11111110'))
 )
 usbdev = FakeUSBDev(ctrl)
 c = getDriverInstanceForDevice(usbdev)
@@ -58,12 +59,29 @@ if __name__ == "__main__":
         #b = chain.rw_reg(data=ConstantBitarray(False, 8), read=False, lastbit=False)
         #c = chain.rw_reg(data=ConstantBitarray(False, 8), read=True)
         #, bitcount=8)#7, lastbit=False)
-        #chain.transition_tap("TLR");
-        a = d0.rw_dev_ir(bitcount=8, read=True)
+        #chain.transition_tap("SHIFTIR");
+        #chain.flush()
+        #c = chain.rw_reg(data=ConstantBitarray(True, 8), read=True, lastbit=False)
+        #b = chain.rw_reg(data=ConstantBitarray(True, 8), read=True, lastbit=False)
+        #a = chain.rw_reg(data=ConstantBitarray(True, 8), read=True, lastbit=True)
+
+
+        a = d0.rw_dev_dr(regname="DEVICE_ID", read=True)
+        b = d1.rw_dev_dr(regname="DEVICE_ID", read=True)
+        c = d2.rw_dev_dr(regname="DEVICE_ID", read=True)
+        #a = d0.rw_dev_ir(bitcount=8, read=True)
         #b = d1.rw_dev_ir(bitcount=8, read=True)
-        c = d2.rw_dev_ir(bitcount=8, read=True)
+        #c = d0.rw_dev_ir(bitcount=8, read=True)
         #a = d0.run_instruction("IDCODE", read=True,
         #                       data=bitarray('1100101000110101'*2))
+        #c = d2.run_instruction("IDCODE", read=True,
+        #                       data=bitarray('1100101000110101'*2))
+
+        #c = chain.rw_ir(data=ConstantBitarray(True, 8), read=True, lastbit=False)
+        #b = chain.rw_ir(data=ConstantBitarray(True, 8), read=True, lastbit=False)
+        #a = chain.rw_ir(data=ConstantBitarray(True, 8), read=True)
+
+        #chain.flush()
 
         t = time.time()
         if not any((a, b, c)):
