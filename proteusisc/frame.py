@@ -20,7 +20,7 @@ class Frame(collections.MutableSequence):
                 raise ValueError("None is not a valid prom. "
                                  "Maybe you called add(*frame) "
                                  "for a frame that has non device "
-                                 "specific prims.")
+                                 "specific prims.")#pragma: no cover
             elif not self._valid_prim:
                 self._valid_prim = prim
                 #self._prim_type = type(prim)
@@ -74,7 +74,7 @@ class Frame(collections.MutableSequence):
         return self._prims.__getitem__(index)
 
     def __repr__(self):
-        return "<Frame%s>"%self._prims
+        return "<Frame%s>"%self._prims #pragma: no cover
 
     @classmethod
     def from_prim(cls, chain, *prim):

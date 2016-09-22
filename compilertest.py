@@ -41,7 +41,7 @@ def report():
                            dev_count=len(chain._devices))
 
 if __name__ == "__main__":
-    a, b, c, = None, None, None
+    a, a_stat, b, b_stat, c, c_stat = [None]*6
     try:
         #chain.init_chain()
         #d0, d1, d2 = chain._devices
@@ -66,14 +66,13 @@ if __name__ == "__main__":
         #a = chain.rw_reg(data=ConstantBitarray(True, 8), read=True, lastbit=True)
 
 
-        a = d0.rw_dev_dr(regname="DEVICE_ID", read=True)
-        b = d1.rw_dev_dr(regname="DEVICE_ID", read=True)
-        c = d2.rw_dev_dr(regname="DEVICE_ID", read=True)
+        #a = d0.rw_dev_dr(regname="DEVICE_ID", read=True)
+        #b = d1.rw_dev_dr(regname="DEVICE_ID", read=True)
+        #c = d2.rw_dev_dr(regname="DEVICE_ID", read=True)
         #a = d0.rw_dev_ir(bitcount=8, read=True)
         #b = d1.rw_dev_ir(bitcount=8, read=True)
         #c = d0.rw_dev_ir(bitcount=8, read=True)
-        #a = d0.run_instruction("IDCODE", read=True,
-        #                       data=bitarray('1100101000110101'*2))
+        a, a_stat = d0.run_instruction("IDCODE", read=True, read_status=True)
         #c = d2.run_instruction("IDCODE", read=True,
         #                       data=bitarray('1100101000110101'*2))
 
@@ -88,11 +87,17 @@ if __name__ == "__main__":
             print("NO PROMISES")
             chain.flush()
         if a:
-            print("A", a(), a)
+            print("A     ", a(), a)
+        if a_stat:
+            print("A_STAT", a_stat(), a_stat)
         if b:
-            print("B", b(), b)
+            print("B     ", b(), b)
+        if b_stat:
+            print("A_STAT", b_stat(), b_stat)
         if c:
-            print("C", c(), c)
+            print("C     ", c(), c)
+        if c_stat:
+            print("A_STAT", c_stat(), c_stat)
         print("\n\nSTUFF")
         print("TIME SPEND", time.time()-t)
 

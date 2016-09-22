@@ -117,6 +117,19 @@ def test_read_dev_dr_multiple(chain_3dev):
     assert b() == bitarray('01000110110101001000000010010011')
     assert c() == bitarray('10000110110101001000000010010011')
 
+def test_execute_single_instruction_on_1dev_chain(chain_1dev):
+    d0, = chain_1dev._devices
+    a, stat = d0.run_instruction("IDCODE", read=True)
+    assert a() == bitarray('00000110110101001000000010010011')
+    assert stat is None
+
+    a, stat = d0.run_instruction("IDCODE", read_status=True)
+    assert a is None
+    assert stat() == bitarray('11111100')
+
+    a, stat = d0.run_instruction("IDCODE", read=True, read_status=True)
+    assert a() == bitarray('00000110110101001000000010010011')
+    assert stat() == bitarray('11111100')
 
 @pytest.fixture
 def chain_1dev():

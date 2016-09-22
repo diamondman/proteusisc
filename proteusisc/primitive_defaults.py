@@ -19,10 +19,16 @@ class RunInstruction(Level3Primitive, DeviceTarget):
     _function_name = 'run_instruction'
     name = "INS_PRIM"
 
-    def __init__(self, insname, *args, execute=True,
+    def __init__(self, insname, *args, execute=True, read_status=False,
                  loop=0, delay=0, **kwargs):
         super(RunInstruction, self).__init__(*args, **kwargs)
-        self.bitcount = self.dev._desc._ir_length
+        if (self.data or self.read) and not self.bitcount:
+            desc = self.dev._desc
+            regname = desc._instruction_register_map[insname]
+            self.bitcount = desc._registers[regname]
+        if not self.data and self.bitcount:
+            self.data = NoCareBitarray(self.bitcount)
+        self.read_status = read_status
         self.insname = insname
         self.execute = execute
         self.delay = delay
@@ -43,16 +49,17 @@ class RunInstruction(Level3Primitive, DeviceTarget):
                     _chain=chain,
                     data=bitarray(d._desc._instructions[frame[i].insname])
                 ) for i, d in enumerate(devs))))
-        sm.state = "EXIT1IR"
+        sm.state = "UPDATEIR"
 
         if frame._valid_prim.data:
             seq.append(Frame(chain,
                          *(rw_dev_dr(dev=d, data=frame[i].data,
-                                _chain=chain,
+                                _chain=chain, read=frame[i].read,
                                 regname=d._desc._instruction_register_map[frame[i].insname],
+                                _promise=frame[i].get_promise()[0],
                                 _synthetic=frame[i]._synthetic)
                           for i, d in enumerate(devs))))
-            sm.state = "EXIT1DR"
+            sm.state = "UPDATEDR"
 
         if frame._valid_prim.execute:
             seq.append(Frame.from_prim(chain,
@@ -66,14 +73,14 @@ class RunInstruction(Level3Primitive, DeviceTarget):
                       _chain=chain)
             ))
 
-        if any((p.read for p in frame)):
+        if any((p.read_status for p in frame)):
             seq.append(Frame(chain,
-                        *(rw_dev_ir(dev=d, read=frame[i].read,
+                        *(rw_dev_ir(dev=d, read=frame[i].read_status,
                         _synthetic=frame[i]._synthetic,
-                        _promise=frame[i]._promise,
+                        _promise=frame[i].get_promise()[1],
                         _chain=chain)
                           for i, d in enumerate(devs))))
-            sm.state = "EXIT1IR"
+            sm.state = "UPDATEIR"
 
         return seq
 
@@ -94,6 +101,32 @@ class RunInstruction(Level3Primitive, DeviceTarget):
 
     def merge(self, target):
         return None
+
+    def get_promise(self):
+        """Return the special set of promises for run_instruction.
+
+        Run Instruction has to support multiple promises (one for
+        reading data, and one for reading back the status from IR. All
+        other primitives have a single promise, so fitting multiple
+        into this system causes some API consistencies.
+
+        This should be reviewed to see if a more coherent alternative
+        is available.
+
+        """
+        if self._promise is None:
+            promise = []
+            if self.read:
+                promise.append(TDOPromise(self._chain, 0, self.bitcount))
+            else:
+                promise.append(None)
+            if self.read_status:
+                promise.append(TDOPromise(self._chain, 0,
+                                          self.dev._desc._ir_length))
+            else:
+                promise.append(None)
+            self._promise = promise
+        return self._promise
 
 ################# END LV3 Primatimes (Dev) #################
 
@@ -121,7 +154,7 @@ class RWDevDR(Level2Primitive, DeviceTarget):
 
     @classmethod
     def expand_frame(cls, frame, sm):
-        sm.state = "EXIT1DR"
+        sm.state = "UPDATEDR"
         chain = frame._chain
         data = NoCareBitarray(0)
         rw_dr = chain.get_prim('rw_dr')
@@ -155,7 +188,7 @@ class RWDevIR(Level2Primitive, DeviceTarget):
 
     @classmethod
     def expand_frame(cls, frame, sm):
-        sm.state = "EXIT1IR"
+        sm.state = "UPDATEIR"
         chain = frame._chain
 
         rw_ir = chain.get_prim('rw_ir')

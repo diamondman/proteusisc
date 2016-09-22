@@ -226,7 +226,10 @@ class MockPhysicalJTAGDevice(object):
         insname = self.inscode_to_ins[irval]
         regname = self._instruction_register_map[insname]
         reglen = self._registers_to_size[regname]
-        self.DR = ShiftRegister(reglen)
+        if insname == "IDCODE":
+            self.DR = ShiftRegister(32, self._idcode)
+        else:
+            self.DR = ShiftRegister(reglen)
         #print("** %s Updated IR: %s(%s); DR set to %s"%
         #      (self.name, irval, insname, regname))
         self.event_history.append("UPDATEIR")
