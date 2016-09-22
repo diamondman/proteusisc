@@ -47,3 +47,36 @@ def test_shift():
     assert "UPDATEIR" not in dev.event_history
     read_idcode.append(dev.shift(True, True))
     assert "UPDATEIR" in dev.event_history
+
+def test_idcode_ins_loads_id_code():
+    dev = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111101'))
+    #MOVE TO SHIFTDR. Prepare to read idcode.
+    for tms in reversed(bitarray('001011111')):
+        dev.shift(tms, False)
+
+    #READ OUT IDCODE TO CLEAR IT
+    for tms in reversed(bitarray('10000000000000000000000000000000')):
+        dev.shift(tms, False)
+
+    #GO TO SHIFTIR
+    for tms in reversed(bitarray('00111')):
+        dev.shift(tms, False)
+    assert dev.tapstate == "SHIFTIR"
+
+    #SHIFT IN 'IDCODE' instruction (00000001)
+    tmsbits = bitarray('10000000')[::-1]
+    tdibits = bitarray('00000001')[::-1]
+    for bit in range(len(tmsbits)):
+        dev.shift(tmsbits[bit], tdibits[bit])
+
+    #GO TO SHIFTDR
+    for tms in reversed(bitarray('00101')):
+        dev.shift(tms, False)
+
+    #READIDCODE
+    read_idcode = bitarray()
+    real_idcode = dev.idcode
+    for i in range(31):
+        read_idcode.append(dev.shift(False, True))
+    read_idcode.append(dev.shift(True, True))
+    assert read_idcode[::-1] == real_idcode
