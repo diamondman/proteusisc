@@ -32,6 +32,7 @@ class RunInstruction(Level3Primitive, DeviceTarget):
         self.insname = insname
         self.execute = execute
         self.delay = delay
+        self.loop = loop
 
     @classmethod
     def expand_frame(cls, frame, sm):
@@ -62,10 +63,11 @@ class RunInstruction(Level3Primitive, DeviceTarget):
             sm.state = "UPDATEDR"
 
         if frame._valid_prim.execute:
+            loop_val = max((p.loop or 0 for p in frame))
             seq.append(Frame.from_prim(chain,
-                transition_tap( 'TLR', _chain=chain)
+                transition_tap( 'RTI', loop=loop_val, _chain=chain)
             ))
-            sm.state = "TLR"
+            sm.state = "RTI"
 
         if any((p.delay for p in frame)):
             seq.append(Frame.from_prim(chain,
@@ -374,14 +376,26 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
 
 class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
     _function_name = 'transition_tap'
-    def __init__(self, state, *args, **kwargs):
+    def __init__(self, state, *args, loop=None, **kwargs):
         super(TransitionTAP, self).__init__(*args, **kwargs)
         self.state = state
+        self.loop = loop
+        if loop and state not in ("RTI", "TLR", "SHIFTDR", "SHIFTIR"):
+            raise ProteusISCError("Invalid State. Looping the TAP state "
+                                  "is only supported in the SHIFTIR, "
+                                  "SHIFTDR, TLR, or RTI states.")
+
 
     def merge(self, target):
         if isinstance(target, TransitionTAP):
             if self.state == target.state:
-                return self
+                if target.loop and not self.loop:
+                    return target
+                elif target.loop:
+                    return TransitionTAP(self.state,
+                                         self.loop+target.loop)
+                else:
+                    return self
         return None
 
     def apply_tap_effect(self, sm):
@@ -395,6 +409,18 @@ class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
             data = ConstantBitarray(True, len(data))
         elif not any(data):
             data = ConstantBitarray(False, len(data))
+
+        if self.loop:
+            if self.state == "TLR":
+                bit = True
+            elif self.state in ("RTI", "SHIFTDR", "SHIFTIR"):
+                bit = False
+            else:
+                raise ProteusISCError(
+                    "Invalid State. Looping the TAP state "
+                    "is only supported in the SHIFTIR, "
+                    "SHIFTDR, TLR, or RTI states.")
+            data = ConstantBitarray(bit, self.loop) + data
 
         reqef = (
             NOCARE if isinstance(data, NoCareBitarray) else
