@@ -38,19 +38,17 @@ class XPC1TransferPrimitive(Level1Primitive, Executable):
 
 class XilinxPC1Driver(CableDriver):
     _primitives = [XPC1TransferPrimitive]
-    def __init__(self, dev, mock=False):
+    def __init__(self, dev):
         super(XilinxPC1Driver, self).__init__(dev)
-        self.mock = mock
-        if not mock:
-            h = self._dev.open()
+        h = self._dev.open()
 
-            self.serialNumber = '000000000000'
-            self.name = 'PC1_'+self.serialNumber[-4:]
-            self.productId = 0
+        self.serialNumber = '000000000000'
+        self.name = 'PC1_'+self.serialNumber[-4:]
+        self.productId = 0
 
-            self.productName = 'Platform Cable 1'
-            self.firmwareVersion = 0
-            h.close()
+        self.productName = 'Platform Cable 1'
+        self.firmwareVersion = 0
+        h.close()
 
 
     def __repr__(self):
@@ -201,7 +199,10 @@ class XilinxPC1Driver(CableDriver):
             if not bits_ret%8 and not bytes_wanted%2:
                 return ret
 
-            if bytes_wanted != bytes_expected: #Forgot what this does
+            #Controller returns data in pairs of bytes.
+            #If the requested data fits in one byte, thrn
+            #drop the empty byte
+            if bytes_wanted != bytes_expected:
                 ret = ret[1:]
 
             if bits_ret%8:

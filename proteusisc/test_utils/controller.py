@@ -1,10 +1,180 @@
 from bitarray import bitarray
+from itertools import chain
 # pylint: disable=no-name-in-module
 from usb1 import USBErrorPipe, USBErrorOverflow
 
 from ..drivers.digilentdriver import _CMSG_PROD_NAME, _CMSG_USER_NAME,\
     _CMSG_SERIAL_NO, _CMSG_FW_VER, _CMSG_DEV_CAPS, _CMSG_OEM_SEED,\
     _CMSG_PROD_ID, _CMSG_OEM_CHECK
+
+class FakeXPCU1Handle(object):
+    USB_VEND_ID = 0x03FD
+    USB_PROD_ID = 0x0008
+
+    XC_DEVICE_DISABLE = 0x10
+    XC_DEVICE_ENABLE = 0x18
+    XC_REVERSE_WINDEX = 0x20
+    XC_SET_JTAG_SPEED = 0x28
+    XC_WRITE_JTAG_SINGLE = 0x30
+    XC_READ_JTAG_SINGLE = 0x38
+    XC_RET_CONSTANT = 0x40
+    XC_GET_VERSION = 0x50
+    XC_SET_CPLD_UPGRADE = 0x52
+    XC_JTAG_TRANSFER = 0xA6
+
+    def __init__(self, *devices):
+        self.devices = devices
+        self._jtag_on = False
+        self.speed = 0x11
+        self.transfer_bit_count = 0
+        self.doing_transfer = False
+        self._blk_read_buffer = []
+
+    def controlWrite(self, request_type, request, value, index, data,
+                     timeout=0):
+        if request is not 0xB0:
+            raise Exception("Incorrect brequest. Must be 0xB0.")
+        if value < 0 or index < 0:
+            raise Exception("USB controlWrite value and index can "
+                            "not be negative.")
+        valueh = (value>>8) & 0xFF
+        valuel = value & 0xFF
+
+        if value is self.XC_DEVICE_DISABLE:
+            self._jtag_on = False
+        elif value is self.XC_DEVICE_ENABLE:
+            self._jtag_on = True
+        elif value is self.XC_SET_JTAG_SPEED:
+            if index & 0x10 is not 0x10 or index & 0xf > 4:
+                raise Exception("Invalid speed '%02x'"%index)
+            self.speed = index
+        #elif value is self.XC_WRITE_JTAG_SINGLE:
+        #    pass
+        #elif value is self.XC_SET_CPLD_UPGRADE:
+        #    pass
+        elif value is self.XC_JTAG_TRANSFER:
+            self.doing_transfer = True
+            self.transfer_bit_count = ((valueh<<16) | index)+1
+        else:
+            raise USBErrorPipe(-9)
+
+        return len(data)
+
+    def controlRead(self, request_type, request, value, index, length,
+                    timeout=0):
+        if value is self.XC_REVERSE_WINDEX:
+            res = int(bin(index)[2:].zfill(8)[::-1], 2)\
+                  .to_bytes(1, 'little')
+        #elif value is self.XC_READ_JTAG_SINGLE:
+        #    pass
+        elif value is self.XC_RET_CONSTANT:
+            res = b'\xB5\x03'
+        elif value is self.XC_GET_VERSION:
+            if index is 0:
+                res = b'\x04\x04'
+            elif index is 1:
+                res = b'\x12\x34'#LIE
+            elif index is 2:
+                res = b'\x04\x00'
+            else:
+                res = b'\x05\x06'
+        else:
+            raise USBErrorPipe(-9)
+
+        print(res, length)
+        if len(res)>length:
+            raise USBErrorOverflow(-8)
+        return res
+
+    def bulkWrite(self, endpoint, data, timeout=0):
+        if endpoint is not 2:
+            raise Exception("USB bulkWrite wrong endpoint. Must be 2.")
+
+        if len(data)%2 is not 0:
+            raise Exception("Data length must be divieible by 2. "
+                            "Would Hang.")
+        if not self.doing_transfer:
+            raise Exception("Writing bulk data without transfer!")
+
+        expected_data_len = (1 + ((self.transfer_bit_count-1)//4))*2
+        if len(data) is not expected_data_len:
+            raise Exception("Incorrect number of data bytes. Would Hang.")
+        bits = bitarray()
+        bits.frombytes(data)
+        bititer = iter(bits)
+        bgroups = list(zip(bititer, bititer, bititer, bititer))
+        tms = bitarray(chain.from_iterable(reversed(bgroups[0::4])))
+        tdi = bitarray(chain.from_iterable(reversed(bgroups[1::4])))
+        tdo = bitarray(chain.from_iterable(reversed(bgroups[2::4])))
+        tck = bitarray(chain.from_iterable(reversed(bgroups[3::4])))
+        tms.reverse()
+        tdi.reverse()
+        tdo.reverse()
+        tck.reverse()
+        tms = tms[:self.transfer_bit_count]
+        tdi = tdi[:self.transfer_bit_count]
+        tdo = tdo[:self.transfer_bit_count]
+        tck = tck[:self.transfer_bit_count]
+
+        res = []
+        for i in range(self.transfer_bit_count):
+            if tck[i]:
+                resbit = self._write_to_dev_chain(tms[i], tdi[i])
+                if tdo[i]:
+                    res.append(resbit)
+        if res:
+            pad = [] if len(tdo)%16 is 0 else [False]*(16-(len(tdo)%16))
+            readbits = bitarray(pad+res[::-1])
+            self._blk_read_buffer.append(readbits.tobytes())
+
+        self.doing_transfer = False
+
+    def bulkRead(self, endpoint, length, timeout=0):
+        if endpoint is not 6:
+            raise Exception("USB bulkRead wrong endpoint. Must be 6.")
+
+        if self._blk_read_buffer:
+            #print("BEFORE READ******", self._blk_read_buffer)
+            res = self._blk_read_buffer[0]
+            del self._blk_read_buffer[0]
+            #print("AFTER READ******", self._blk_read_buffer)
+            return res
+        raise Exception("Would Hang waiting for something to return")
+
+    @property
+    def jtagon(self):
+        """Check if the controller's JTAG enable bit is set"""
+        return self._jtag_on
+
+    def close(self):
+        """Close the handle.
+
+        This is required for real hardware, but for a simulation that
+        is really just a controller, nothing has to happen. The
+        function is required to comply with the usb1.USBDeviceHandle
+        interface."""
+        pass
+
+    def _write_to_dev_chain(self, tms, tdi):
+        """Simulate electrically asserting a bit to the JTAG output pins.
+
+        Args:
+            tms: A boolean to be asserted to every simulated device's
+             (in the chain) tms bit.
+            tdi: A boolean to be shifted into the first simulated
+             device's tdi pin.
+
+        Returns:
+            The boolean read from the tdo pin of the last device in
+            the scan chain
+
+        """
+        #oldstate = self.devices[0].tap.state
+        for dev in self.devices:
+            tdi = dev.shift(tms, tdi)
+        #print("State %s => %s; Reading %s"%
+        #    (oldstate,self.devices[0].tap.state,tdi))
+        return tdi
 
 class FakeDevHandle(object):
     """Artificial USB Digilent ISC controller that implements the usb1.USBDeviceHandle interface.
