@@ -12,4 +12,8 @@ For additional information on setting up supported jtag controllers, check the d
 
 ## Testing
 
-pytest --cov-report term-missing --cov proteusisc -v
+    pytest --cov-report term-missing --cov proteusisc -v
+
+## Installation while developing
+
+    pip install . -U --no-deps
