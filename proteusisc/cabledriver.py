@@ -56,6 +56,7 @@ class CableDriver(object):
     def close_handle(self):
         if self._dev_handle:
             self._dev_handle.close()
+            self._dev_handle = None
 
     def jtag_enable(self):
         pass
