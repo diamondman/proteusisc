@@ -19,6 +19,7 @@ from proteusisc.primitive import Level1Primitive,\
 from proteusisc.contracts import NOCARE, ZERO, ONE, CONSTANT, ARBITRARY
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGNotEnabledError
+from proteusisc.bittypes import ConstantBitarray
 
 #PROG = 8
 #TCK = 4
@@ -51,7 +52,7 @@ class XilinxPC1Driver(CableDriver):
         h.close()
 
 
-    def __repr__(self):
+    def __repr__(self): #pragma: no cover
         if self.mock:
             return "%s(MOCK)"%self.__class__.__name__
         return "%s(%s; Name: %s; SN: %s; FWver: %04x)"%\
@@ -72,15 +73,15 @@ class XilinxPC1Driver(CableDriver):
         self._jtagon = False
         #self.xpcu_enable_cpld_upgrade_mode(False)
 
-    def transfer_bits(self, count, TMS, TDI, TDO=False):
+    def transfer_bits(self, count, *, TMS=True, TDI=False, TDO=False):
         if not self._jtagon:
             raise JTAGNotEnabledError('JTAG Must be enabled first')
         if isinstance(TMS, (numbers.Number, bool)):
-            TMS = bitarray(count*('1' if TMS else '0'))
+            TMS = ConstantBitarray(bool(TMS), count)
         if isinstance(TDI, (numbers.Number, bool)):
-            TDI = bitarray(count*('1' if TDI else '0'))
-        #if isinstance(TDO, (numbers.Number, bool)):
-        #    TDO = bitarray(count*('1' if TDO else '0'))
+            TDI = ConstantBitarray(bool(TDI), count)
+        if isinstance(TDO, (numbers.Number, bool)):
+            TDO = ConstantBitarray(bool(TDO), count)
         if self._scanchain:
             self._scanchain._tap_transition_driver_trigger(TMS)
 
@@ -88,17 +89,16 @@ class XilinxPC1Driver(CableDriver):
         for i in range(int(math.ceil(count/4.0))):
             _start = max(count-((i+1)*4), 0)
             _end = count-(i*4)
-            outbits.extend(bitarray((4-(_end-_start))*'0')+TMS[_start:_end])
-            outbits.extend(bitarray((4-(_end-_start))*'0')+TDI[_start:_end])
-            outbits.extend(4*('1' if TDO else '0'))
+            tms_extend = bitarray((4-(_end-_start))*'0')+TMS[_start:_end]
+            tdi_extend = bitarray((4-(_end-_start))*'0')+TDI[_start:_end]
+            tdo_extend = bitarray((4-(_end-_start))*'0')+TDO[_start:_end]
+            outbits.extend(tms_extend)
+            outbits.extend(tdi_extend)
+            outbits.extend(tdo_extend)
             outbits.extend('1111')
 
-        tdo_bytes = self.xpcu_GPIO_transfer(count-1, outbits.tobytes())
-        if tdo_bytes:
-            tdo_bytes = tdo_bytes[::-1]
-            tdo_bits = bitarray()
-            for byte_ in tdo_bytes:
-                tdo_bits.extend(bin(byte_)[2:].zfill(8)) #TODO make modern
+        tdo_bits = self.xpcu_GPIO_transfer(count-1, outbits.tobytes())
+        if tdo_bits:
             return tdo_bits
 
     def transfer_bits_single(self, count, TMS, TDI, TDO=False):
@@ -196,22 +196,10 @@ class XilinxPC1Driver(CableDriver):
 
             ret = self._handle.bulkRead(6, bytes_expected, timeout=5000)
 
-            if not bits_ret%8 and not bytes_wanted%2:
-                return ret
-
-            #Controller returns data in pairs of bytes.
-            #If the requested data fits in one byte, thrn
-            #drop the empty byte
-            if bytes_wanted != bytes_expected:
-                ret = ret[1:]
-
-            if bits_ret%8:
-                ret_ba = bitarray()
-                for byte_ in ret:
-                    ret_ba.extend(bin(ord(byte_))[2:].zfill(8))
-                ret_ba = bitarray('0')+ret_ba[:-1]
-                ret = ret_ba.tobytes()
-            return ret
+            tdo_bits = bitarray()
+            tdo_bits.frombytes(ret)
+            tdo_bits = tdo_bits[(8*len(ret))-bits_ret:]
+            return tdo_bits
 
 
 

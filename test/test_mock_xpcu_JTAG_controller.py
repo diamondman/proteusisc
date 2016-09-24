@@ -87,8 +87,7 @@ def test_jtag_transfer_simple_read_tro():
     bits.frombytes(res)
     assert bits == d0._idcode
 
-
-def test_jtag_transfer_simple_complex():
+def test_jtag_transfer_adv():
     d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'))
     h = FakeXPCU1Handle(d0)
     h.controlWrite(0x40, 0xB0, 0x18, 0, b'')

@@ -81,7 +81,6 @@ class FakeXPCU1Handle(object):
         else:
             raise USBErrorPipe(-9)
 
-        print(res, length)
         if len(res)>length:
             raise USBErrorOverflow(-8)
         return res
@@ -92,13 +91,16 @@ class FakeXPCU1Handle(object):
 
         if len(data)%2 is not 0:
             raise Exception("Data length must be divieible by 2. "
-                            "Would Hang.")
+                            "Would Hang. Data: %s; Length: %s"%
+                            (data, len(data)))
         if not self.doing_transfer:
             raise Exception("Writing bulk data without transfer!")
 
         expected_data_len = (1 + ((self.transfer_bit_count-1)//4))*2
         if len(data) is not expected_data_len:
-            raise Exception("Incorrect number of data bytes. Would Hang.")
+            raise Exception("Incorrect number of data bytes. Would Hang. "
+                            "Expected %s; Got %s"%
+                            (expected_data_len, len(data)))
         bits = bitarray()
         bits.frombytes(data)
         bititer = iter(bits)
@@ -123,7 +125,7 @@ class FakeXPCU1Handle(object):
                 if tdo[i]:
                     res.append(resbit)
         if res:
-            pad = [] if len(tdo)%16 is 0 else [False]*(16-(len(tdo)%16))
+            pad = [] if len(res)%16 is 0 else [False]*(16-(len(res)%16))
             readbits = bitarray(pad+res[::-1])
             self._blk_read_buffer.append(readbits.tobytes())
 
@@ -539,7 +541,6 @@ class FakeDevHandle(object):
         bits = bitarray()
         bits.frombytes(data[::-1])
         tdi = bits[(8*len(data)) - (bitcount):]
-        print(tdi)
         tdo = []
         for tdibit in reversed(tdi):
             tdo.append(self._write_to_dev_chain(tms, tdibit))
