@@ -97,7 +97,7 @@ class FakeXPCU1Handle(object):
             raise Exception("Writing bulk data without transfer!")
 
         expected_data_len = (1 + ((self.transfer_bit_count-1)//4))*2
-        if len(data) is not expected_data_len:
+        if len(data) != expected_data_len:
             raise Exception("Incorrect number of data bytes. Would Hang. "
                             "Expected %s; Got %s"%
                             (expected_data_len, len(data)))

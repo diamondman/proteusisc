@@ -35,7 +35,8 @@ class XPC1TransferPrimitive(Level1Primitive, Executable):
     _max_bits = 65536
     _TMS, _TDI, _TDO = ARBITRARY, ARBITRARY, ARBITRARY
     def _get_args(self):
-        return [self.count, self.tms, self.tdi], {'TDO': self.tdo}
+        return [self.count], {"TMS":self.tms, "TDI":self.tdi,
+                              'TDO': self.tdo}
 
 class XilinxPC1Driver(CableDriver):
     _primitives = [XPC1TransferPrimitive]
@@ -53,8 +54,6 @@ class XilinxPC1Driver(CableDriver):
 
 
     def __repr__(self): #pragma: no cover
-        if self.mock:
-            return "%s(MOCK)"%self.__class__.__name__
         return "%s(%s; Name: %s; SN: %s; FWver: %04x)"%\
                                          (self.__class__.__name__,
                                           self.productName,
