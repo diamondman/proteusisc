@@ -80,3 +80,29 @@ def test_idcode_ins_loads_id_code():
         read_idcode.append(dev.shift(False, True))
     read_idcode.append(dev.shift(True, True))
     assert read_idcode[::-1] == real_idcode
+
+def test_captureDR_loads_reg():
+    #Not correctly simulating the device prevented detection of an issue
+    #in the scan chain that caused initialization to loop forever,
+    #constantly redetecting the same device. The fix was to check that
+    #the IDCODE register is updated in the CaptureDR state.
+    dev = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111101'))
+
+    #CHANGE TO SHIFTDR
+    for tms in reversed(bitarray('001011111')):
+        dev.shift(tms, False)
+
+    #READ OUT IDCODE TO CLEAR IT
+    for tms in reversed(bitarray('10000000000000000000000000000000')):
+        dev.shift(tms, False)
+
+    #LOOP BACK AROUND TO SHIFTDR THROUGH CAPTUREDR
+    for tms in reversed(bitarray('0011')):
+        dev.shift(tms, False)
+
+    #READ OUT IDCODE TO CLEAR IT
+    read_idcode = bitarray()
+    real_idcode = dev.idcode
+    for tms in reversed(bitarray('10000000000000000000000000000000')):
+        read_idcode.append(dev.shift(tms, False))
+    assert read_idcode[::-1] == real_idcode

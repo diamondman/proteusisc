@@ -13,7 +13,8 @@ from .primitive_defaults import RWDevDR, RWDevIR
 from .jtagDevice import JTAGDevice
 from .command_queue import CommandQueue
 from .cabledriver import InaccessibleController
-from .errors import DevicePermissionDeniedError, JTAGAlreadyEnabledError
+from .errors import DevicePermissionDeniedError, JTAGAlreadyEnabledError,\
+    JTAGTooManyDevicesError
 from .jtagUtils import NULL_ID_CODES
 
 class JTAGScanChain(object):
@@ -29,7 +30,8 @@ class JTAGScanChain(object):
     def __init__(self, controller,
                  device_initializer=\
                  lambda sc, idcode: JTAGDevice(sc,idcode),
-                 ignore_jtag_enabled=False):
+                 ignore_jtag_enabled=False, debug=False):
+        self._debug = debug
         self._devices = []
         self._hasinit = False
         self._sm = JTAGStateMachine()
@@ -103,11 +105,17 @@ class JTAGScanChain(object):
             self.jtag_enable()
             while True:
                 # pylint: disable=no-member
-                idcode = self.rw_dr(bitcount=32, read=True)()
+                idcode = self.rw_dr(bitcount=32, read=True,
+                                    lastbit=False)()
                 if idcode in NULL_ID_CODES: break
                 dev = self.initialize_device_from_id(self, idcode)
-                print(dev)
+                if self._debug:
+                    print(dev)
                 self._devices.append(dev)
+                if len(self._devices) >= 128:
+                    raise JTAGTooManyDevicesError("This is an arbitrary "
+                        "limit to deal with breaking infinite loops. If "
+                        "you have more devices, please open a bug")
 
             self.jtag_disable()
 
@@ -160,8 +168,9 @@ class JTAGScanChain(object):
 
             if worststyle == 0:
                 possible_prims.append(prim)
-            print(" ",efstyledstr, styles.get(worststyle)+\
-                  prim.__name__+"\033[0m")
+            if self._debug:
+                print(" ",efstyledstr, styles.get(worststyle)+\
+                      prim.__name__+"\033[0m")
 
         if not len(possible_prims):
             raise Exception('Unable to match Primative to lower '
@@ -175,7 +184,8 @@ class JTAGScanChain(object):
             if sum((e.score for e in prim.get_effect())) <\
                sum((e.score for e in best_prim.get_effect())):
                 best_prim = prim
-        print("PICKED", best_prim, "\n")
+        if self._debug:
+            print("PICKED", best_prim, "\n")
         return best_prim
 
     def get_fitted_lv1_prim(self, reqef):

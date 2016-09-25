@@ -101,10 +101,10 @@ class FakeXPCU1Handle(object):
             raise Exception("Incorrect number of data bytes. Would Hang. "
                             "Expected %s; Got %s"%
                             (expected_data_len, len(data)))
-        bits = bitarray()
-        bits.frombytes(data)
-        bititer = iter(bits)
-        bgroups = list(zip(bititer, bititer, bititer, bititer))
+        bitsin = bitarray()
+        bitsin.frombytes(data)
+        bitiniter = iter(bitsin)
+        bgroups = list(zip(bitiniter, bitiniter, bitiniter, bitiniter))
         tms = bitarray(chain.from_iterable(reversed(bgroups[0::4])))
         tdi = bitarray(chain.from_iterable(reversed(bgroups[1::4])))
         tdo = bitarray(chain.from_iterable(reversed(bgroups[2::4])))
@@ -118,16 +118,28 @@ class FakeXPCU1Handle(object):
         tdo = tdo[:self.transfer_bit_count]
         tck = tck[:self.transfer_bit_count]
 
-        res = []
+        res_tmp = []
+        dataout = b''
+
         for i in range(self.transfer_bit_count):
             if tck[i]:
                 resbit = self._write_to_dev_chain(tms[i], tdi[i])
                 if tdo[i]:
-                    res.append(resbit)
-        if res:
-            pad = [] if len(res)%16 is 0 else [False]*(16-(len(res)%16))
-            readbits = bitarray(pad+res[::-1])
-            self._blk_read_buffer.append(readbits.tobytes())
+                    res_tmp = [resbit] + res_tmp
+                    if len(res_tmp) == 32:
+                        tmpbits = bitarray(res_tmp)
+                        dataout += tmpbits.tobytes()[::-1]
+                        res_tmp = []
+
+        if res_tmp:
+            if len(res_tmp) > 16:
+                tmpbits = bitarray(res_tmp + [False]*(32-len(res_tmp)))
+            else:
+                tmpbits = bitarray(res_tmp + [False]*(16-len(res_tmp)))
+            dataout += tmpbits.tobytes()[::-1]
+
+        if dataout:
+            self._blk_read_buffer.append(dataout)
 
         self.doing_transfer = False
 
@@ -319,7 +331,6 @@ class FakeDevHandle(object):
         else:
             raise USBErrorPipe(-9)
 
-        print(res, length)
         if len(res)>length:
             raise USBErrorOverflow(-8)
         return res

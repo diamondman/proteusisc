@@ -16,6 +16,9 @@ class DevicePermissionDeniedError(ProteusISCError):
 class JTAGNotEnabledError(ProteusISCError):
     pass
 
+class JTAGTooManyDevicesError(ProteusISCError):
+    pass
+
 #Unknown if this should be kept around
 class JTAGControlError(ProteusISCError):
     pass

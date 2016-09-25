@@ -113,6 +113,7 @@ class MockPhysicalJTAGDevice(object):
         self._reg_BYPASS = ShiftRegister(1)
         self.DR = None
         self.tap = JTAGStateMachine()
+        self.current_instruction = "IDCODE"
 
         self._idcode = idcode or \
                        bitarray('00000110110101001000000010010011')
@@ -213,6 +214,15 @@ class MockPhysicalJTAGDevice(object):
         self.event_history.append("RTI")
     def _CAPTUREDR(self):
         self.event_history.append("CAPTUREDR")
+
+        if self.current_instruction == "IDCODE":
+            self.DR = ShiftRegister(32, self._idcode)
+        else:
+            regname = self._instruction_register_map[
+                self.current_instruction]
+            reglen = self._registers_to_size[regname]
+            self.DR = ShiftRegister(reglen)
+
     def _UPDATEDR(self):
         drval = self.DR.dumpData().to01()
         #print(self.name, "** Updated DR: %s"%(drval))
@@ -223,13 +233,7 @@ class MockPhysicalJTAGDevice(object):
         self.IR = self.calc_status_register()
     def _UPDATEIR(self):
         irval = self.IR.dumpData().to01()
-        insname = self.inscode_to_ins[irval]
-        regname = self._instruction_register_map[insname]
-        reglen = self._registers_to_size[regname]
-        if insname == "IDCODE":
-            self.DR = ShiftRegister(32, self._idcode)
-        else:
-            self.DR = ShiftRegister(reglen)
+        self.current_instruction = self.inscode_to_ins[irval]
         #print("** %s Updated IR: %s(%s); DR set to %s"%
         #      (self.name, irval, insname, regname))
         self.event_history.append("UPDATEIR")

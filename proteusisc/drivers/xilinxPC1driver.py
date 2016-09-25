@@ -88,17 +88,16 @@ class XilinxPC1Driver(CableDriver):
         for i in range(int(math.ceil(count/4.0))):
             _start = max(count-((i+1)*4), 0)
             _end = count-(i*4)
-            tms_extend = bitarray((4-(_end-_start))*'0')+TMS[_start:_end]
-            tdi_extend = bitarray((4-(_end-_start))*'0')+TDI[_start:_end]
-            tdo_extend = bitarray((4-(_end-_start))*'0')+TDO[_start:_end]
+            pad = bitarray((4-(_end-_start))*'0')
+            tms_extend = pad+TMS[_start:_end]
+            tdi_extend = pad+TDI[_start:_end]
+            tdo_extend = pad+TDO[_start:_end]
             outbits.extend(tms_extend)
             outbits.extend(tdi_extend)
             outbits.extend(tdo_extend)
-            outbits.extend('1111')
+            outbits.extend(pad + bitarray([True]*(4-len(pad))))
 
-        tdo_bits = self.xpcu_GPIO_transfer(count-1, outbits.tobytes())
-        if tdo_bits:
-            return tdo_bits
+        return self.xpcu_GPIO_transfer(count-1, outbits.tobytes())
 
     def transfer_bits_single(self, count, TMS, TDI, TDO=False):
         if not self._jtagon:
@@ -180,6 +179,8 @@ class XilinxPC1Driver(CableDriver):
         return bool(ord(b)&1)
 
     def xpcu_GPIO_transfer(self, bit_count, data):
+        if self._scanchain and self._scanchain._debug:
+            print("***INPUT DATA TO CPXU (%s bits):"%(bit_count+1), " ".join((hex(data)[2:].zfill(2)for data in data)))
         if bit_count < 0:
             raise ValueError()
         bits_ret = bin(sum([((ord(data[i*2+1:i*2+2])>>4) &
@@ -192,14 +193,28 @@ class XilinxPC1Driver(CableDriver):
         if bits_ret:
             bytes_wanted = int(math.ceil(bits_ret/8.0))
             bytes_expected = bytes_wanted +(1 if bytes_wanted%2 else 0)
-
             ret = self._handle.bulkRead(6, bytes_expected, timeout=5000)
 
-            tdo_bits = bitarray()
-            tdo_bits.frombytes(ret)
-            tdo_bits = tdo_bits[(8*len(ret))-bits_ret:]
-            return tdo_bits
+            if self._scanchain and self._scanchain._debug:
+                print("OUTPUT DATA FROM XPCU (retbits: %s)"%bits_ret,
+                      " ".join((hex(data)[2:].zfill(2)for data in ret)))
+            final_group_index = (bits_ret-(bits_ret%32))//8
+            retiter = iter(ret[:final_group_index])
+            fullgroups = [bytes(elem[::-1]) for elem in
+                          zip(retiter, retiter, retiter, retiter)][::-1]
+            other=ret[final_group_index:][::-1]
+            other_bits = bitarray()
+            other_bits.frombytes(other)
+            other_bits = other_bits[:bits_ret-(8*final_group_index)]
 
+            reordered_data = b"".join(fullgroups)
+            raw_bits = bitarray()
+            raw_bits.frombytes(reordered_data)
+            raw_bits = other_bits + raw_bits
+
+            assert len(raw_bits) == bits_ret, "WRONG BIT NUM CALCULATED"
+
+            return raw_bits
 
 
 __filter__ = [((0x03FD, 0x0008),XilinxPC1Driver)]

@@ -79,10 +79,6 @@ def test_read_ir_3_111(chain_3dev):
     b = chain_3dev.rw_ir(bitcount=8, read=True, lastbit=False)
     a = chain_3dev.rw_ir(bitcount=8, read=True)
 
-    #a = d0.rw_dev_ir(bitcount=8, read=True)
-    #b = d1.rw_dev_ir(bitcount=8, read=True)
-    #c = d0.rw_dev_ir(bitcount=8, read=True)
-
     assert a() == bitarray('11111100')
     assert b() == bitarray('11111101')
     assert c() == bitarray('11111110')
