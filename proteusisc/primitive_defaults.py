@@ -367,7 +367,8 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
                 ONE if data[0] else ZERO, #TDI
                 ONE if self.read else NOCARE #TDO
             )
-            print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
+            if self.debug:
+                print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
             write_last = self._chain.get_fitted_lv1_prim(reqef)
             res.append(write_last(tms=True, tdi=data[0],
                                   tdo=self.read or None, _promise=tail))
@@ -429,7 +430,8 @@ class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
                 ARBITRARY, #TMS
             NOCARE, NOCARE #TDI, TDO
         )
-        print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
+        if self.debug:
+            print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
         best_prim = self._chain.get_fitted_lv1_prim(reqef)
 
         return [

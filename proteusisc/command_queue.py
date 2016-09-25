@@ -36,6 +36,12 @@ class CommandQueue(collections.MutableSequence):
     def __getitem__(self, index):
         return self.queue.__getitem__(index)
 
+    @property
+    def debug(self):
+        if self._chain:
+            return self._chain._debug
+        return False
+
     def append(self, elem):
         elem._chain = self._chain
         super(CommandQueue, self).append(elem)
@@ -275,7 +281,8 @@ class CommandQueue(collections.MutableSequence):
         self.stages = []
         self.stagenames = []
         self._compile(debug=True, stages=self.stages, stagenames=self.stagenames)
-        print("ABOUT TO EXEC", self.queue)
+        if self.debug:
+            print("ABOUT TO EXEC", self.queue)
         self._chain._controller.execute(self.queue)
         self.queue = []
 

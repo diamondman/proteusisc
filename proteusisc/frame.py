@@ -86,7 +86,8 @@ class Frame(collections.MutableSequence):
             return cls.expand_frame(self, sm)
         else:
             prims = self._valid_prim.expand(self._chain, sm)
-            print(self, prims)
+            if self.debug:
+                print(self, prims)
             if prims is None: #TODO REMOVE AFTER DEV
                 #Will cause infinite loop in real system
                 return FrameSequence(self._chain, self)
@@ -116,6 +117,13 @@ class Frame(collections.MutableSequence):
             return False
         return all((self[i].mergable(targetf[i])
                     for i in range(len(self))))
+
+    @property
+    def debug(self):
+        if self._chain:
+            return self._chain._debug
+        return False
+
 
 class FrameSequence(collections.MutableSequence):
     def __init__(self, chain, *init_prims_lists):

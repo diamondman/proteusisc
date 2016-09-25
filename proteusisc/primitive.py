@@ -77,6 +77,12 @@ class Primitive(object):
     def get_promise(self):
         return None
 
+    @property
+    def debug(self):
+        if self._chain:
+            return self._chain._debug
+        return False
+
 
 class Executable(Primitive):
     def execute(self):
@@ -169,7 +175,8 @@ class Level1Primitive(Primitive):
         self.count, self.tms, self.tdi, self.tdo = count, _tms, _tdi, _tdo
 
         #if self._promise and not any(self.tdo):
-        print(type(self).get_effect())
+        if self.debug:
+            print(type(self).get_effect())
 
     _COST_PRIM = 20
     _COST_READ_MSG = 10
@@ -189,8 +196,9 @@ class Level1Primitive(Primitive):
         tmssendcount = len(self.tms)*self._TMS.arbitrary
         tdisendcount = len(self.tdi)*self._TDI.arbitrary
 
-        print("Reading",readenabled, "Readnum",readcount,
-              "tmsnum", tmssendcount, "tdinum",tdisendcount)
+        if self.debug:
+            print("Reading",readenabled, "Readnum",readcount,
+                  "tmsnum", tmssendcount, "tdinum",tdisendcount)
 
         SEND_COEFF = (self._COST_PAYLOAD_BIT_GROUP+
                        self._BIT_PAYLOAD_GROUP_SIZE-1)//\
@@ -205,12 +213,13 @@ class Level1Primitive(Primitive):
         writetmscost = tmssendcount*SEND_COEFF
         writetdicost =  tdisendcount*SEND_COEFF
 
-        print("Base cost        ", self._COST_PRIM)
-        print("Read Enable Cost ", readenablecost)
-        print("Read Bit Req Cost", readbitreqcost)
-        print("Read Bit Cost    ", readbitcost)
-        print("Write tms Cost   ", writetmscost)
-        print("Write tdi Cost   ", writetdicost)
+        if self.debug:
+            print("Base cost        ", self._COST_PRIM)
+            print("Read Enable Cost ", readenablecost)
+            print("Read Bit Req Cost", readbitreqcost)
+            print("Read Bit Cost    ", readbitcost)
+            print("Write tms Cost   ", writetmscost)
+            print("Write tdi Cost   ", writetdicost)
 
         return self._COST_PRIM + readenablecost +\
             readbitreqcost + readbitcost + writetmscost + writetdicost
@@ -234,10 +243,11 @@ class Level1Primitive(Primitive):
     def merge(self, target):
         if not isinstance(target, Level1Primitive):
             return None
-        print(('  \033[95m%s %s %s REQEF\033[94m'%tuple(self.reqef)),
-              self,'\033[0m')
-        print(('  \033[95m%s %s %s REQEF\033[94m'%tuple(target.reqef)),
-              target,'\033[0m')
+        if self.debug:
+            print(('  \033[95m%s %s %s REQEF\033[94m'%tuple(self.reqef)),
+                  self,'\033[0m')
+            print(('  \033[95m%s %s %s REQEF\033[94m'%tuple(target.reqef)),
+                  target,'\033[0m')
 
         newcount = target.count+self.count
 
@@ -247,8 +257,9 @@ class Level1Primitive(Primitive):
         newtdi = target.tdi+self.tdi
         newtdo = target.tdo+self.tdo
 
-        print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),
-              "CONBINED",'\033[0m')
+        if self.debug:
+            print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),
+                  "CONBINED",'\033[0m')
 
         possible_prims = self._chain.get_compatible_lv1_prims(reqef)
         best_prim = None
@@ -258,11 +269,14 @@ class Level1Primitive(Primitive):
                                 tms=newtms, tdi=newtdi,
                                 tdo=newtdo, reqef=reqef,
                                 _chain=self._chain)#, _promise=promise)
-            print(tmp_prim.score, tmp_prim)
+
+            if self.debug:
+                print(tmp_prim.score, tmp_prim)
             if tmp_prim.score < best_score:
                 best_prim = tmp_prim
                 best_score = tmp_prim.score
-        print("PICKED", best_prim, "\n")
+        if self.debug:
+            print("PICKED", best_prim, "\n")
 
         if best_prim:
             if not self._promise and not target._promise:
