@@ -9,6 +9,6 @@
     :license: Pending, see LICENSE for more details.
 """
 
-__version__ = '0.0.20'
+__version__ = '0.1.0'
 
 from .controllerManager import getAttachedControllers
