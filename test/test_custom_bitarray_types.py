@@ -253,3 +253,16 @@ def test_constant_count():
     bits = ConstantBitarray(False, 12)
     assert bits.count(val=False) == 12
     assert bits.count(val=True) == 0
+
+def test_constant_eq():
+    assert ConstantBitarray(True, 7) == bitarray('1111111')
+    assert ConstantBitarray(True, 7) != bitarray('111111')
+    assert ConstantBitarray(True, 7) != bitarray('0000000')
+    assert ConstantBitarray(False, 4) == bitarray('0000')
+    assert ConstantBitarray(False, 4) != bitarray('000')
+    assert ConstantBitarray(False, 4) != bitarray('1111')
+
+    assert ConstantBitarray(False, 2) == ConstantBitarray(False, 2)
+    assert ConstantBitarray(True, 2) == ConstantBitarray(True, 2)
+    assert ConstantBitarray(False, 3) != ConstantBitarray(False, 2)
+    assert ConstantBitarray(True, 2) != ConstantBitarray(False, 2)

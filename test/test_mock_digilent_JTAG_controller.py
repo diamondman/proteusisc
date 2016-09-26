@@ -11,7 +11,8 @@ from proteusisc.drivers.digilentdriver import _CMSG_PROD_NAME,\
     _CMSG_USER_NAME, _CMSG_SERIAL_NO, _CMSG_FW_VER, _CMSG_DEV_CAPS,\
     _CMSG_OEM_SEED, _CMSG_PROD_ID, _CMSG_OEM_CHECK,\
     _BMSG_ENABLE_JTAG, _BMSG_DISABLE_JTAG, _BMSG_WRITE_TMS,\
-    _BMSG_WRITE_TMS_TDI, _BMSG_WRITE_TDI, _BMSG_READ_TDO
+    _BMSG_WRITE_TMS_TDI, _BMSG_WRITE_TDI, _BMSG_READ_TDO,\
+    _BMSG_CLOCK_TICK
 def test_fakeusbdev():
     ctrl = FakeDevHandle()
     usbdev = FakeUSBDev(ctrl)
@@ -291,3 +292,23 @@ def test_controller_read_tdo():
     h.bulkWrite(4, bytes([0x03, 0x02, 0x89, 0x00]))
     res = h.bulkRead(2, 6)
     assert res == b'\t\xc0\x20\x00\x00\x00\x20\x00\x00\x00'
+
+def test_controller_clock_tick():
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'))
+    h = FakeDevHandle(d0)
+
+    #ENABLE JTAG
+    h.bulkWrite(1, _BMSG_ENABLE_JTAG)
+    res = h.bulkRead(2, 2)
+    assert res == b'\x01\x00'
+
+    #WRITE TMS to change TAP to SHIFTDR
+    h.bulkWrite(1, _BMSG_CLOCK_TICK + b'\x01\x00\x05\x00\x00\x00')
+    res = h.bulkRead(2, 2)
+    assert res == b'\x01\x00'
+    assert d0.tapstate == "TLR"
+
+    h.bulkWrite(1, _BMSG_CLOCK_TICK + b'\x00\x00\x01\x00\x00\x00')
+    res = h.bulkRead(2, 2)
+    assert res == b'\x01\x00'
+    assert d0.tapstate == "RTI"

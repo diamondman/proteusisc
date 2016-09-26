@@ -31,7 +31,7 @@ class CableDriver(object):
 
     def execute(self, commands):
         for p in commands:
-            if self._scanchain._debug:
+            if self._scanchain and self._scanchain._debug:
                 print("  Executing", p)#pragma: no cover
 
             if not hasattr(p, '_driver_function_name'):
@@ -46,7 +46,7 @@ class CableDriver(object):
                 args, kwargs = p._get_args()
                 res = func(*args, **kwargs)
                 if res and p._promise:
-                    if self._scanchain._debug:#pragma: no cover
+                    if self._scanchain and self._scanchain._debug:#pragma: no cover
                         print("RAW DATA GOING TO PROMISE", res, len(res))
                     p._promise._fulfill(res)
 

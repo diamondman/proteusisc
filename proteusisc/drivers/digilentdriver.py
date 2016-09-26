@@ -153,18 +153,33 @@ class DigilentReadTDOPrimitive(Level1Primitive, Executable):
 
         return [self.count], {'TMS': tms, 'TDI': tdi}
 
-class LIESTDIHighPrimitive(Level1Primitive, Executable):
-    _function_name = 'lies_lies'
-    _driver_function_name = 'lies_lies'
-    _TMS, _TDI, _TDO = CONSTANT, ONE, ONE
+class DigilentClockTickPrimitive(Level1Primitive, Executable):
+    _function_name = 'tick_clock'
+    _driver_function_name = 'tick_clock'
+    _TMS, _TDI, _TDO = CONSTANT, CONSTANT, ZERO
     def _get_args(self):
-        return [], {}
+        if isinstance(self.tms, ConstantBitarray):
+            tms = self.tms._val
+        elif isinstance(self.tms, NoCareBitarray):
+            tms = False
+        else:
+            raise ValueError("TMS can not be %s. CompilerError."%type(self.tms).__name__)
+        if isinstance(self.tdi, ConstantBitarray):
+            tdi = self.tdi._val
+        elif isinstance(self.tdi, NoCareBitarray):
+            tdi = False
+        else:
+            raise ValueError("TDI can not be %s. CompilerError."%type(self.tdi).__name__)
+
+
+        return [self.count], {'TMS': tms, 'TDI': tdi}
+
 
 
 class DigilentAdeptController(CableDriver):
     _primitives = [DigilentWriteTDIPrimitive, DigilentWriteTMSPrimitive,
-                   DigilentWriteTMSTDIPrimitive, DigilentReadTDOPrimitive]
-    #               LIESTDIHighPrimitive]
+                   DigilentWriteTMSTDIPrimitive, DigilentReadTDOPrimitive,
+                   DigilentClockTickPrimitive]
     def __init__(self, dev):
         super(DigilentAdeptController, self).__init__(dev)
         h = self._dev.open()
@@ -469,7 +484,7 @@ class DigilentAdeptController(CableDriver):
         if not self._jtagon:
             raise JTAGNotEnabledError()
         if self._scanchain:
-            bits = bitarray(('1' if TMS else '0')*count)
+            bits = ConstantBitarray(bool(TMS), count)
             self._scanchain._tap_transition_driver_trigger(bits)
 
         #START REQUEST
@@ -494,5 +509,24 @@ class DigilentAdeptController(CableDriver):
         return tdo_bits
 
 
+    def tick_clock(self, count, TMS=False, TDI=False):
+        if not self._jtagon:
+            raise JTAGNotEnabledError()
+        if self._scanchain:
+            bits = ConstantBitarray(bool(TMS), count)
+            self._scanchain._tap_transition_driver_trigger(bits)
+
+        #START REQUEST
+        self._handle.bulkWrite(self._cmdout_interface,
+                               _BMSG_CLOCK_TICK +\
+                               bytes([TMS, TDI]) +\
+                               b"".join([bytes([(count>>(8*i))&0xff])
+                                         for i in range(4)]))
+        res = self._handle.bulkRead(self._cmdin_interface, 2)
+        if res[1] != 0:
+            raise JTAGControlError("Uknown Issue reading TDO bits: %s", res)
+
+        #GET BACK STATS
+        self._get_adv_trans_stats(0x09, True)
 
 __filter__ = [((0x1443, None),DigilentAdeptController)]

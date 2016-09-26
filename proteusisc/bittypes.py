@@ -79,6 +79,18 @@ class ConstantBitarray(collections.Sequence):
                 return bitarray((other, *(self._val,)*self._length))
         return NotImplemented
 
+    def __eq__(self, other):
+        if isinstance(other, ConstantBitarray):
+            return len(self) == len(other) and self._val == other._val
+        if isinstance(other, bitarray):
+            if len(self) != len(other):
+                return False
+            if self._val:
+                return other.all()
+            else:
+                return not other.any()
+        return NotImplemented
+
     def count(self, val=True):
         """Get the number of bits in the array with the specified value.
 

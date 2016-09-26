@@ -560,6 +560,17 @@ class FakeDevHandle(object):
             tdo_bytes = tdo_bits.tobytes()
             self._blk_read_buffer.append(tdo_bytes[::-1])
 
+    def _handle_blk_CLOCK_TICK(self, params):
+        tms = params[0]
+        tdi = params[1]
+        bitcount = sum([b<<(i*8) for i,b in enumerate(params[2:6])])
+        for i in range(bitcount):
+            self._write_to_dev_chain(tms, tdi)
+
+        self._adv_req_read_tdo = False
+        self._adv_req_bitcount = bitcount
+        self._blk_read_buffer.append(b'\x01\x00')
+
 class FakeUSBDev(object):
     """The most basic features required for simulating a usb1.USBDevice.
 
