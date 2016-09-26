@@ -166,7 +166,7 @@ def test_write_tms_bits_primitive():
     #RESET TAP AND TRANS TO SHIFTDR
     prim = DigilentWriteTMSPrimitive(tms=bitarray('001011111'),
                                      reqef=(), _chain=None)
-    c.execute([prim])
+    c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
 
     #READ 32 BITS OF DATA
@@ -175,7 +175,7 @@ def test_write_tms_bits_primitive():
                                      tdo=ConstantBitarray(True,32),
                                      _chain=None, _promise=promise,
                                      reqef=())
-    c.execute([prim])
+    c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
     assert promise() == d0._idcode
 
@@ -193,7 +193,7 @@ def test_write_tdi_bits_primitive():
             tms=ConstantBitarray(bit, 1),
             reqef=(), _chain=None
         )
-        c.execute([prim])
+        c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
 
     #READ 32 BITS OF DATA
@@ -205,7 +205,7 @@ def test_write_tdi_bits_primitive():
         _chain=None, _promise=promise,
         reqef=()
     )
-    c.execute([prim])
+    c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
     assert promise() == d0._idcode
 
@@ -222,7 +222,7 @@ def test_write_tms_tdi_bits_primitive():
         tdi=ConstantBitarray(False, 9),
         reqef=(), _chain=None
     )
-    c.execute([prim])
+    c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
 
     #READ 32 BITS OF DATA
@@ -233,7 +233,7 @@ def test_write_tms_tdi_bits_primitive():
         tdo=ConstantBitarray(True,32),
         _chain=None, _promise=promise,
         reqef=())
-    c.execute([prim])
+    c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
     assert promise() == d0._idcode
 
@@ -250,7 +250,7 @@ def test_read_tdo_primitie():
             tdi=False, tms=bit,
             reqef=(), _chain=None
         )
-        c.execute([prim])
+        c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
 
     #READ 32 BITS OF DATA
@@ -259,7 +259,7 @@ def test_read_tdo_primitie():
         count=32, tdi=False, tms=False,
         _chain=None, _promise=promise,
         reqef=())
-    c.execute([prim])
+    c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
     assert promise() == d0._idcode
 
@@ -276,5 +276,5 @@ def test_clock_tick_primitive():
             tdi=False, tms=bit,
             reqef=(), _chain=None
         )
-        c.execute([prim])
+        c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"

@@ -1,4 +1,12 @@
 class InaccessibleController(object):
+    """A Controller with too strict permissions to communicate to.
+
+    This class is used by getDriverInstanceForDevice to mark a
+    controller as unusable due to permission issues. Instances of this
+    class are useless for anything more than representing that a
+    controller exists.
+
+    """
     def __init__(self, driver_class, dev):
         self._driver = driver_class
         self._dev = dev
@@ -10,7 +18,19 @@ class InaccessibleController(object):
              self._dev.getProductID())
 
 class CableDriver(object):
-    """Abstract class for controller driver."""
+    """Abstract class for ISC controller driver.
+
+    When interfacing with a chip using an ISC (In System
+    Configuration) protocol, an ISC Controller is required to relay
+    messages from the computer (often over USB) to the chip (using the
+    appropriate ISC Protocol, like JTAG).
+
+    Subclasses of CableDriver are named after specific types of
+    Controllers, and include the code necessary to use the
+    Controller. An instance of one of these classes represents a
+    specific controller attached to the computer.
+
+    """
 
     def __init__(self, dev):
         """
@@ -29,7 +49,13 @@ class CableDriver(object):
     def __repr__(self):
         return "<%s>"%self.__class__.__name__
 
-    def execute(self, commands):
+    def _execute_primitives(self, commands):
+        """Run a list of executable primitives on this controller, and distribute the returned data to the associated TDOPromises.
+
+        Args:
+            commands: A list of Executable Primitives to be run in order.
+
+        """
         for p in commands:
             if self._scanchain and self._scanchain._debug:
                 print("  Executing", p)#pragma: no cover
@@ -62,7 +88,7 @@ class CableDriver(object):
             self._dev_handle = None
 
     def jtag_enable(self):
-        pass
+        pass #Oerride if necessary
 
     def jtag_disable(self):
-        pass
+        pass #Oerride if necessary

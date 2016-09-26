@@ -8,13 +8,14 @@ from flask import Flask, escape, render_template
 from proteusisc.controllerManager import getDriverInstanceForDevice
 from proteusisc.jtagScanChain import JTAGScanChain
 from proteusisc.test_utils import FakeUSBDev, FakeDevHandle,\
-    MockPhysicalJTAGDevice
+    MockPhysicalJTAGDevice, FakeXPCU1Handle
 from proteusisc.primitive import ConstantBitarray
 
-ctrl = FakeDevHandle(
+#ctrl = FakeDevHandle(
+ctrl = FakeXPCU1Handle(
     MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100')),
-    MockPhysicalJTAGDevice(name="D1", status=bitarray('11111101')),
-    MockPhysicalJTAGDevice(name="D2", status=bitarray('11111110'))
+#    MockPhysicalJTAGDevice(name="D1", status=bitarray('11111101')),
+#    MockPhysicalJTAGDevice(name="D2", status=bitarray('11111110'))
 )
 usbdev = FakeUSBDev(ctrl)
 c = getDriverInstanceForDevice(usbdev)
@@ -23,11 +24,11 @@ chain = JTAGScanChain(c)
 
 devid = bitarray('11110110110101001100000010010011')
 d0 = chain.initialize_device_from_id(chain, devid)
-d1 = chain.initialize_device_from_id(chain, devid)
-d2 = chain.initialize_device_from_id(chain, devid)
+#d1 = chain.initialize_device_from_id(chain, devid)
+#d2 = chain.initialize_device_from_id(chain, devid)
 #d3 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
-chain._devices = [d0, d1, d2]#, d3]
+chain._devices = [d0]#, d1, d2]#, d3]
 
 app = Flask(__name__)
 
@@ -46,45 +47,23 @@ if __name__ == "__main__":
         #chain.init_chain()
         #d0, d1, d2 = chain._devices
         chain.jtag_enable()
-        #addprims()
-        #a = chain.rw_dr(bitcount=32, read=True)
-        #chain.transition_tap("TLR")
-        #d0.rw_dev_dr(data=bitarray("1001"))
-        #chain.rw_reg(data=bitarray('11001010'))
-        #chain.sleep(delay=1)
+        #a, a_stat = d0.run_instruction("IDCODE", read=True)
+        #assert a() == bitarray('00000110110101001000000010010011')
+        #assert a_stat is None
 
-        #chain.transition_tap("SHIFTIR");
-        #chain.flush()
-        #a = chain.rw_reg(data=ConstantBitarray(False, 8), read=True, lastbit=False)
-        #b = chain.rw_reg(data=ConstantBitarray(False, 8), read=False, lastbit=False)
-        #c = chain.rw_reg(data=ConstantBitarray(False, 8), read=True)
-        #, bitcount=8)#7, lastbit=False)
-        #chain.transition_tap("SHIFTIR");
-        #chain.flush()
-        #c = chain.rw_reg(data=ConstantBitarray(True, 8), read=True, lastbit=False)
-        #b = chain.rw_reg(data=ConstantBitarray(True, 8), read=True, lastbit=False)
-        #a = chain.rw_reg(data=ConstantBitarray(True, 8), read=True, lastbit=True)
+        b, b_stat = d0.run_instruction("IDCODE", read_status=True)
+        assert b is None
+        assert b_stat() == bitarray('11111100')
 
+        c, c_stat = d0.run_instruction("IDCODE", read=True, read_status=True)
+        assert c() == bitarray('00000110110101001000000010010011')
+        assert c_stat() == bitarray('11111100')
 
-        #a = d0.rw_dev_dr(regname="DEVICE_ID", read=True)
-        #b = d1.rw_dev_dr(regname="DEVICE_ID", read=True)
-        #c = d2.rw_dev_dr(regname="DEVICE_ID", read=True)
-        #a = d0.rw_dev_ir(bitcount=8, read=True)
-        #b = d1.rw_dev_ir(bitcount=8, read=True)
-        #c = d0.rw_dev_ir(bitcount=8, read=True)
-        a, a_stat = d0.run_instruction("IDCODE", read=True, read_status=True)
-        #c = d2.run_instruction("IDCODE", read=True,
-        #                       data=bitarray('1100101000110101'*2))
-
-        #c = chain.rw_ir(data=ConstantBitarray(True, 8), read=True, lastbit=False)
-        #b = chain.rw_ir(data=ConstantBitarray(True, 8), read=True, lastbit=False)
-        #a = chain.rw_ir(data=ConstantBitarray(True, 8), read=True)
-
-        #chain.flush()
 
         t = time.time()
-        if not any((a, b, c)):
+        if not any((a, b, c)) and len(chain._command_queue.queue):
             print("NO PROMISES")
+            raise Exception()
             chain.flush()
         if a:
             print("A     ", a(), a)

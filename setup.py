@@ -41,15 +41,16 @@ setup(
     author_email='jessy.diamondman@gmail.com',
     packages=[
         'proteusisc',
-        'proteusisc/drivers'
+        'proteusisc/drivers',
+        'proteusisc/test_utils'
         ],
     platforms='any',
     license='LGPL 2.1',
     install_requires=[
-        'libusb1 >= 1.5.0',
+        'libusb1 >= 1.5.3',
         'bitarray >= 0.8.1',
         'bs4 >= 0.0.1',
-        'requests >= 2.10.0',
+        'requests >= 2.11.1',
     ],
     description="Driver framework for In System Configureation (ISC) Controllers (for example, JTAG)",
     long_description=open(os.path.join(os.path.dirname(__file__),

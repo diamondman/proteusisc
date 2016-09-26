@@ -9,7 +9,28 @@ from .primitive import DeviceTarget, ExpandRequiresTAP, Executable
 
 
 class CommandQueue(collections.MutableSequence):
+    """A container to stage Primitives that knows how to compile and optimize those Primitives.
+
+    Most primitives are not directly executable by an ISC Controller,
+    and must be expanded into lower level primitives until a fully
+    executable list of primitives is created.
+
+    Primitives can sometimes execute faster if combined or
+    reordered. Saving up as many Primitives as possible before
+    execution increases the opportunity for optimization.
+
+    The CommandQueue is responsible for:
+        - Storing primitives until they need to execute.
+        - Compiling/Expanding primitives into executable primitives.
+        - Optimizing the expanded primitive stream to speed up execution.
+
+    """
     def __init__(self, chain):
+        """Create a new CommandQueue to manage, compile, and run Primitives.
+
+        Args:
+            chain: A JTAGScanChain instance that this queue will be associated with.
+        """
         self.queue = []
         self._fsm = JTAGStateMachine()
         self._chain = chain
@@ -48,7 +69,34 @@ class CommandQueue(collections.MutableSequence):
 
     def _compile_device_specific_prims(self, debug=False,
                                        stages=None, stagenames=None):
-                ############### GROUPING BY EXEC BOUNDARIES!################
+        """Using the data stored in the CommandQueue, Extract and align compatible sequences of Primitives and compile/optimize the Primitives down into a stream of Level 2 device agnostic primitives.
+
+        BACKGROUND:
+        Device Specific primitives present a special opportunity for
+        optimization. Many JTAG systems program one device on the
+        chain at a time. But because all devices on a JTAG chain are
+        sent information at once, NO-OP instructions are sent to these
+        other devices.
+
+        When programming multiple devices, Sending these NO-OPS is a
+        missed opportunity for optimization. Instead of configuring
+        one device at a time, it is more efficient to collect
+        instructions for all deices, and align them so multiple
+        devices can be configured at the same time.
+
+        WAT THIS METHOD DOES:
+        This method takes in a list of Primitives, groups the device
+        specific primitives by target device, aligns the sequences of
+        device instructions, and expands the aligned sequences into a
+        flat list of device agnostic primitives.
+
+        Args:
+            debug: A boolean for if debug information should be generated.
+            stages: A list to be edited by this method to store snapshots of the compilation state. Used if debug is True.
+            stagenames: A list of strings describing each debug snapshot of the compiilation process. Used if debug is True.
+
+        """
+        ############### GROUPING BY EXEC BOUNDARIES!################
 
         fences = []
         fence = [self[0]]
@@ -122,7 +170,7 @@ class CommandQueue(collections.MutableSequence):
         ################ Flatten out LV3 Primitives ################
         while(any((f._layer == 3 for f in ingested_chain))):
             ################# COMBINE COMPATIBLE PRIMS #################
-            ingested_chain = mergePrims(self._chain, ingested_chain)
+            ingested_chain = _merge_prims(ingested_chain)
 
             if debug:
                 stages.append(ingested_chain.snapshot())
@@ -148,7 +196,7 @@ class CommandQueue(collections.MutableSequence):
         while(any((isinstance(f._valid_prim, DeviceTarget)
                    for f in ingested_chain))):
             ################# COMBINE COMPATIBLE PRIMS #################
-            ingested_chain = mergePrims(self._chain, ingested_chain)
+            ingested_chain = _merge_prims(ingested_chain)
 
             if debug:
                 stages.append(ingested_chain.snapshot())
@@ -188,7 +236,7 @@ class CommandQueue(collections.MutableSequence):
         ###################### INITIAL PRIMS! ######################
 
         if debug:
-            stages.append([self._chain.snapshot_queue()])
+            stages.append([self.snapshot()])
             stagenames.append("Input Stream")
 
         #Sanitize input stream and render down to lv2 dev agnostic prims
@@ -208,7 +256,7 @@ class CommandQueue(collections.MutableSequence):
         while (not all((isinstance(p, (ExpandRequiresTAP,Executable))
                         for p in flattened_prims))):
             ################# COMBINE COMPATIBLE PRIMS #################
-            flattened_prims = mergePrims(self._chain, flattened_prims)
+            flattened_prims = _merge_prims(flattened_prims)
 
             if debug:
                 stages.append([[p.snapshot() for p in flattened_prims]])
@@ -236,7 +284,7 @@ class CommandQueue(collections.MutableSequence):
 
 
         ################# COMBINE COMPATIBLE PRIMS #################
-        flattened_prims = mergePrims(self._chain, flattened_prims)
+        flattened_prims = _merge_prims(flattened_prims)
 
         if debug:
             stages.append([[p.snapshot() for p in flattened_prims]])
@@ -265,7 +313,7 @@ class CommandQueue(collections.MutableSequence):
 
         #################### COMBINE LV1 PRIMS #####################
 
-        flattened_prims = mergePrims(self._chain, flattened_prims)
+        flattened_prims = _merge_prims(flattened_prims)
 
         if debug:
             stages.append([[p.snapshot() for p in flattened_prims]])
@@ -278,23 +326,35 @@ class CommandQueue(collections.MutableSequence):
 
 
     def flush(self):
+        """Force the queue of Primitives to compile, execute on the Controller, and fulfill promises with the data returned."""
         self.stages = []
         self.stagenames = []
         self._compile(debug=True, stages=self.stages, stagenames=self.stagenames)
         if self.debug:
             print("ABOUT TO EXEC", self.queue)
-        self._chain._controller.execute(self.queue)
+        self._chain._controller._execute_primitives(self.queue)
         self.queue = []
 
-def mergePrims(chain, inseq):
-    if isinstance(inseq, FrameSequence):
-        merged_prims = FrameSequence(chain)
+def _merge_prims(prims):
+    """Helper method to greedily combine Frames (of Primitives) or Primitives based on the rules defined in the Primitive's class.
+
+    Used by a CommandQueue during compilation and optimization of
+    Primitives.
+
+    Args:
+        prims: A list or FrameSequence of Primitives or Frames (respectively) to try to merge together.
+
+    Returns:
+        A list or FrameSequence (the same type as prims) of the compined Primitives or Frames.
+    """
+    if isinstance(prims, FrameSequence):
+        merged_prims = FrameSequence(prims._chain)
     else:
         merged_prims = []
-    working_prim = inseq[0]
+    working_prim = prims[0]
     i = 1
-    while i < len(inseq):
-        tmp = inseq[i]
+    while i < len(prims):
+        tmp = prims[i]
         res = working_prim.merge(tmp)
         if res is not None:
             working_prim = res

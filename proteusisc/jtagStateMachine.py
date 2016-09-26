@@ -1,6 +1,16 @@
 from bitarray import bitarray
 
 class JTAGStateMachine(object):
+    """A software implementation of the JTAG TAP state machine.
+
+    https://web.archive.org/web/20150923141837/http://www.embecosm.com/appnotes/ean5/images/tap-state-machine.png
+    Instances of this class are used to track the state of JTAG
+    devices, and calculate the operations required to get a chip
+    in a specific state.
+
+    This class is also used in JTAG Device simulators for testing.
+
+    """
     states = {
         "_PRE5": ["_PRE5", "_PRE4"],
         "_PRE4": ["_PRE5", "_PRE3"],
@@ -48,7 +58,7 @@ class JTAGStateMachine(object):
             raise ValueError("%s is not a valid state for this state machine"%value)
 
     @classmethod
-    def find_shortest_path(cls, start, end, path=None):
+    def _find_shortest_path(cls, start, end, path=None):
         path = (path or []) + [start]
         if start == end:
             return path
@@ -57,14 +67,14 @@ class JTAGStateMachine(object):
         shortest = None
         for node in cls.states[start]:
             if node not in path:
-                newpath = cls.find_shortest_path(node, end, path)
+                newpath = cls._find_shortest_path(node, end, path)
                 if newpath:
                     if not shortest or len(newpath) < len(shortest):
                         shortest = newpath
         return shortest
 
     @classmethod
-    def get_steps_from_nodes_path(cls, path):
+    def _get_steps_from_nodes_path(cls, path):
         steps = []
         last_node = path[0]
         for node in path[1:]:
@@ -73,13 +83,24 @@ class JTAGStateMachine(object):
         return bitarray(steps)
 
     def calc_transition_to_state(self, newstate):
-        if newstate not in self.states:
-            raise ValueError("%s is not a valid state for this state machine"%newstate)
+        """Given a target state, generate the sequence of transitions that would move this state machine instance to that target state.
 
-        path = self.find_shortest_path(self._statestr, newstate)
+        Args:
+            newstate: A str state name to calculate the path to.
+
+        Returns:
+            A bitarray containing the bits that would transition this
+            state machine to the target state. The bits read from right
+            to left.
+        """
+        if newstate not in self.states:
+            raise ValueError("%s is not a valid state for this state "
+                             "machine"%newstate)
+
+        path = self._find_shortest_path(self._statestr, newstate)
         if not path:
             raise ValueError("No path to the requested state.")
-        res = self.get_steps_from_nodes_path(path)
+        res = self._get_steps_from_nodes_path(path)
         res.reverse()
         return res
 

@@ -18,19 +18,52 @@ from .errors import DevicePermissionDeniedError, JTAGAlreadyEnabledError,\
 from .jtagUtils import NULL_ID_CODES
 
 class JTAGScanChain(object):
-    def gen_prim_adder(self, cls_):
-        if not hasattr(self, cls_._function_name):
-            def adder(*args, **kwargs):
-                return self.queue_command(cls_(_chain=self, *args,
-                                               **kwargs))
-            setattr(self, cls_._function_name, adder)
-            return True
-        return False
+    """Represents a physical JTAG Scan Chain consisting of 0 or more devices controlled by a JTAG Controller.
 
+    https://en.wikipedia.org/wiki/JTAG#Daisy-chained_JTAG_.28IEEE_1149.1.29
+
+    A JTAGScanChain is mostly glue logic between all the individual
+    low level hardware and software interfaces, combining them into a
+    useful interface for tracking the state of the Controller, the
+    scan cain's TAP state, and the register states of devices on the
+    chain.
+
+    The responsibilities of a JTAGScanChain include:
+        * Abstracting away the JTAG Controller.
+        * Auto detecting devices attached to the controller.
+        * Initializing JTAGDevice instances for each detected device.
+        * Maintaining a registry of available Primitive classes.
+        * Managing the primitives staged for execution.
+
+    The JTAGScanChain is also a primary point for creating Primitives
+    with automatically generated functions for running each registered
+    Primitive.
+
+    Primitives can becreated and staged by calling the method named in
+    the primitive's '_function_name' attribute.
+
+    If for example there is a Primitive defined as:
+        class DoThing(Primitie):
+            _function_name = 'do_thing'
+            # Body of Primitive
+
+    The primitive could be created and staged with
+        chain = JTAGScahChain(...)
+        chain.do_thing(...).
+
+    """
     def __init__(self, controller,
                  device_initializer=\
                  lambda sc, idcode: JTAGDevice(sc,idcode),
                  ignore_jtag_enabled=False, debug=False):
+        """Create a new JTAGScanChain to track and control a real chain.
+
+        Args:
+            controller: The CableDriver that this ScanChain will control.
+            device_initializer: A callable that can map a (JTAGScanChain, bitarray) to an instance of a JTAGDevice (Allows custom classes to be used).
+            ignore_jtag_enabled: A boolean on if errors should be ignored when JTA is already enabled on the controller.
+            debug: A boolean to enable extra debug printing.
+        """
         self._debug = debug
         self._devices = []
         self._hasinit = False
@@ -75,11 +108,28 @@ class JTAGScanChain(object):
                     self._lv1_chain_primitives.append(prim)
 
         for func_name, prim in self._chain_primitives.items():
-            if not self.gen_prim_adder(prim):
+            if not self._gen_prim_adder(prim):
                 raise Exception("Failed adding primitive %s, "\
                                 "primitive with name %s "\
                                 "already exists on scanchain"%\
                                 (prim, prim._function_name))
+
+    def _gen_prim_adder(self, cls_):
+        """Given a Primitive class 'P', automatically create a function on this JTAGScanChain that initializes an instance of P (from arguments to the method) and adds that instance to the list of primitives staged for execution.
+
+        Args:
+            cls_: A class that is a subtype of Primitive.
+
+        Returns:
+            A boolean True if success, False on failure.
+        """
+        if not hasattr(self, cls_._function_name):
+            def adder(*args, **kwargs):
+                return self.queue_command(cls_(_chain=self, *args,
+                                               **kwargs))
+            setattr(self, cls_._function_name, adder)
+            return True
+        return False
 
     def __repr__(self):
         return "<JTAGScanChain>"
@@ -88,6 +138,15 @@ class JTAGScanChain(object):
         return self._command_queue.snapshot()
 
     def queue_command(self, prim):
+        """Stage a Primitive for execution.
+
+        Args:
+            prim: An instance of Primitive to stage for execution.
+
+        Returns:
+            A TDOPromise for the return data from the staged prim.
+            None if no return data from the prim.
+        """
         self._command_queue.append(prim)
         return prim.get_promise()
 
@@ -98,6 +157,12 @@ class JTAGScanChain(object):
         return self._device_primitives[name]
 
     def init_chain(self):
+        """Autodetect the devices attached to the Controller, and initialize a JTAGDevice for each.
+
+        This is a required call before device specific Primitives can
+        be used.
+
+        """
         if not self._hasinit:
             self._hasinit = True
             self._devices = []
@@ -123,6 +188,7 @@ class JTAGScanChain(object):
             self._devices.reverse()
 
     def flush(self):
+        """Trigger the compilation, optimization, execution, and promise fullment of all primitives staged for execution."""
         self._command_queue.flush()
 
     def jtag_disable(self):
