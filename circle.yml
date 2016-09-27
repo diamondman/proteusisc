@@ -1,0 +1,14 @@
+machine:
+  python:
+    version: 3.5.2
+
+test:
+  override:
+    - mkdir -p $CIRCLE_TEST_REPORTS/pytest
+    - py.test --junitxml=$CIRCLE_TEST_REPORTS/pytest/output.xml --cov-report term-missing --cov proteusisc -v
+  post:
+    - bash <(curl -s https://codecov.io/bash)
+
+dependencies:
+  pre:
+    -  pip install pytest pytest-cov
