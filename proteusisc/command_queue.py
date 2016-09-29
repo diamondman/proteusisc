@@ -40,13 +40,13 @@ class CommandQueue(collections.MutableSequence):
         self.queue = []
 
     def snapshot(self):
-        return [p.snapshot() for p in self.queue]
+        return [p.snapshot() for p in self.queue]#pragma: no cover
 
     def __len__(self):
         return len(self.queue)
 
     def __delitem__(self, index):
-        self.queue.__delitem__(index)
+        self.queue.__delitem__(index)#pragma: no cover
 
     def insert(self, index, value):
         self.queue.insert(index, value)
@@ -110,7 +110,7 @@ class CommandQueue(collections.MutableSequence):
                 fence = [p]
         fences.append(fence)
 
-        if debug:
+        if debug: #pragma: no cover
             formatted_fences = []
             for fence in fences:
                 formatted_fence = [p.snapshot() for p in fence]
@@ -130,7 +130,7 @@ class CommandQueue(collections.MutableSequence):
                 subchain = tmp_chains.setdefault(k, []).append(p)
             split_fences.append(list(tmp_chains.values()))
 
-        if debug:
+        if debug:#pragma: no cover
             formatted_split_fences = []
             for fence in split_fences:
                 for group in fence:
@@ -148,7 +148,7 @@ class CommandQueue(collections.MutableSequence):
             for f_i, fence in enumerate(split_fences)
         ]
 
-        if debug:
+        if debug:#pragma: no cover
             formatted_grouped_fences = []
             for fence in grouped_fences:
                 formatted_grouped_fences += fence.snapshot() + [[]]
@@ -162,7 +162,7 @@ class CommandQueue(collections.MutableSequence):
         for fence in grouped_fences[1:]:
             ingested_chain += fence
 
-        if debug:
+        if debug:#pragma: no cover
             stages.append(ingested_chain.snapshot())
             stagenames.append("Recombining sanitized exec boundaries")
 
@@ -172,7 +172,7 @@ class CommandQueue(collections.MutableSequence):
             ################# COMBINE COMPATIBLE PRIMS #################
             ingested_chain = _merge_prims(ingested_chain)
 
-            if debug:
+            if debug:#pragma: no cover
                 stages.append(ingested_chain.snapshot())
                 stagenames.append("Combining compatible lv3 prims.")
 
@@ -187,7 +187,7 @@ class CommandQueue(collections.MutableSequence):
             expanded_prims.finalize()
             ingested_chain = expanded_prims
 
-            if debug:
+            if debug:#pragma: no cover
                 stages.append(ingested_chain.snapshot())
                 stagenames.append("Expanding lv3 prims")
 
@@ -198,7 +198,7 @@ class CommandQueue(collections.MutableSequence):
             ################# COMBINE COMPATIBLE PRIMS #################
             ingested_chain = _merge_prims(ingested_chain)
 
-            if debug:
+            if debug:#pragma: no cover
                 stages.append(ingested_chain.snapshot())
                 stagenames.append("Merging Device Specific Prims")
 
@@ -214,13 +214,13 @@ class CommandQueue(collections.MutableSequence):
             expanded_prims.finalize()
             ingested_chain = expanded_prims
 
-            if debug:
+            if debug:#pragma: no cover
                 stages.append(ingested_chain.snapshot())
                 stagenames.append("Expanding Device Specific Prims")
 
         ############ Convert FrameSequence to flat array ###########
         flattened_prims = [f._valid_prim for f in ingested_chain]
-        if debug:
+        if debug:#pragma: no cover
             stages.append([[p.snapshot() for p in flattened_prims]])
             stagenames.append("Converting format to single stream.")
 
@@ -235,7 +235,7 @@ class CommandQueue(collections.MutableSequence):
 
         ###################### INITIAL PRIMS! ######################
 
-        if debug:
+        if debug:#pragma: no cover
             stages.append([self.snapshot()])
             stagenames.append("Input Stream")
 
@@ -258,7 +258,7 @@ class CommandQueue(collections.MutableSequence):
             ################# COMBINE COMPATIBLE PRIMS #################
             flattened_prims = _merge_prims(flattened_prims)
 
-            if debug:
+            if debug:#pragma: no cover
                 stages.append([[p.snapshot() for p in flattened_prims]])
                 stagenames.append("Merging Device Agnostic LV2 Prims")
 
@@ -278,7 +278,7 @@ class CommandQueue(collections.MutableSequence):
                     expanded_prims.append(p)
             flattened_prims = expanded_prims
 
-            if debug:
+            if debug:#pragma: no cover
                 stages.append([[p.snapshot() for p in flattened_prims]])
                 stagenames.append("Expanding Device Agnostic LV2 Prims")
 
@@ -286,7 +286,7 @@ class CommandQueue(collections.MutableSequence):
         ################# COMBINE COMPATIBLE PRIMS #################
         flattened_prims = _merge_prims(flattened_prims)
 
-        if debug:
+        if debug:#pragma: no cover
             stages.append([[p.snapshot() for p in flattened_prims]])
             stagenames.append("Final LV2 merge")
 
@@ -301,7 +301,7 @@ class CommandQueue(collections.MutableSequence):
                 expanded_prims.append(p)
         flattened_prims = expanded_prims
 
-        if debug:
+        if debug:#pragma: no cover
             stages.append([[p.snapshot() for p in flattened_prims]])
             stagenames.append("Expand to LV1 Primitives")
 
@@ -313,11 +313,12 @@ class CommandQueue(collections.MutableSequence):
 
         #################### COMBINE LV1 PRIMS #####################
 
-        flattened_prims = _merge_prims(flattened_prims)
+        flattened_prims = _merge_prims(flattened_prims,
+                        stagenames=stagenames, debug=debug, stages=stages)
 
-        if debug:
+        if debug:#pragma: no cover
             stages.append([[p.snapshot() for p in flattened_prims]])
-            stagenames.append("Final LV2 merge")
+            stagenames.append("Final LV1 merge")
 
         ############################################################
 
@@ -339,7 +340,7 @@ class CommandQueue(collections.MutableSequence):
         self._chain._controller._execute_primitives(self.queue)
         self.queue = []
 
-def _merge_prims(prims):
+def _merge_prims(prims, *, debug=False, stagenames=None, stages=None):
     """Helper method to greedily combine Frames (of Primitives) or Primitives based on the rules defined in the Primitive's class.
 
     Used by a CommandQueue during compilation and optimization of
@@ -347,6 +348,9 @@ def _merge_prims(prims):
 
     Args:
         prims: A list or FrameSequence of Primitives or Frames (respectively) to try to merge together.
+        debug: A boolean for if debug information should be generated.
+        stages: A list to be edited by this method to store snapshots of the compilation state. Used if debug is True.
+        stagenames: A list of strings describing each debug snapshot of the compiilation process. Used if debug is True.
 
     Returns:
         A list or FrameSequence (the same type as prims) of the compined Primitives or Frames.
@@ -357,14 +361,24 @@ def _merge_prims(prims):
         merged_prims = []
     working_prim = prims[0]
     i = 1
+    logging_tmp = []
+
     while i < len(prims):
         tmp = prims[i]
         res = working_prim.merge(tmp)
         if res is not None:
             working_prim = res
+            if debug:#pragma: no cover
+                logging_tmp.append(
+                    [p.snapshot() for p in
+                     merged_prims+[working_prim]])
         else:
             merged_prims.append(working_prim)
             working_prim = tmp
         i += 1
     merged_prims.append(working_prim)
+    if debug:#pragma: no cover
+        stages.append(logging_tmp)
+        stagenames.append("Merge intermediate states")
+
     return merged_prims
