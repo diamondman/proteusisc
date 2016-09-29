@@ -74,7 +74,8 @@ class CableDriver(object):
                 if res and p._promise:
                     if self._scanchain and self._scanchain._debug:#pragma: no cover
                         print("RAW DATA GOING TO PROMISE", res, len(res))
-                    p._promise._fulfill(res)
+                    p._promise._fulfill(
+                        res, ignore_nonpromised_bits=p._TDO.isarbitrary)
 
     @property
     def _handle(self):

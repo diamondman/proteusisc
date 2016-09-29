@@ -19,7 +19,7 @@ from proteusisc.primitive import Level1Primitive,\
 from proteusisc.contracts import NOCARE, ZERO, ONE, CONSTANT, ARBITRARY
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGNotEnabledError
-from proteusisc.bittypes import ConstantBitarray
+from proteusisc.bittypes import ConstantBitarray, CompositeBitarray
 
 #PROG = 8
 #TCK = 4
@@ -35,6 +35,9 @@ class XPC1TransferPrimitive(Level1Primitive, Executable):
     _max_bits = 65536
     _TMS, _TDI, _TDO = ARBITRARY, ARBITRARY, ARBITRARY
     def _get_args(self):
+        if isinstance(self.tdo, CompositeBitarray):
+            self.tdo = self.tdo.prepare(preserve_history=True)
+
         return [self.count], {"TMS":self.tms, "TDI":self.tdi,
                               'TDO': self.tdo}
 

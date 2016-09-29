@@ -38,8 +38,8 @@ class ConstantBitarray(collections.Sequence):
             return ConstantBitarray(self._val, len(range(*indices)))
 
         if isinstance(index, int):
-            if (index < self._length and index >= 0) or\
-               (self._length and index == -1):
+            index = len(self)-abs(index) if index < 0 else index
+            if (index < self._length and index >= 0):
                 return self._val
             raise IndexError("%s index out of range"%type(self))
         raise TypeError("%s indices must be integers or slices, not %s"%
@@ -147,8 +147,9 @@ class NoCareBitarray(collections.Sequence):
         length: An integer specifying how many bits are in the array.
 
     """
-    def __init__(self, length):
+    def __init__(self, length, *, _preserve=False):
         self._length = length
+        self._preserve = _preserve
 
     def __len__(self):
         return self._length
@@ -158,15 +159,15 @@ class NoCareBitarray(collections.Sequence):
             return NoCareBitarray(len(range(*indices)))
 
         if isinstance(index, int):
-
-            if (index < self._length and index >= 0) or\
-               (self._length and index == -1):
+            index = len(self)-abs(index) if index < 0 else index
+            if (index < self._length and index >= 0):
                 return False
             raise IndexError("%s index out of range"%type(self))
         raise TypeError("%s indices must be integers or slices, not %s"%
                         (type(self), type(index)))
     def __repr__(self):
-        return "<NC: (%s)>"%(self._length) # pragma: no cover
+        return "<NC%s: (%s)>"%("(P)" if self._preserve else "",
+                               self._length) # pragma: no cover
     def __add__(self, other):
         """Handles combining different bitarray types.
 
@@ -177,21 +178,33 @@ class NoCareBitarray(collections.Sequence):
         array's constant value are the same.
         """
         if isinstance(other, NoCareBitarray):
-            return NoCareBitarray(self._length+other._length)
-        if isinstance(other, ConstantBitarray):
-            return ConstantBitarray(other._val,
-                                    self._length+other._length)
-        if isinstance(other, bool):
-            return ConstantBitarray(other, self._length+1)
-        if isinstance(other, bitarray):
-            return bitarray(self)+other
+                return NoCareBitarray(self._length+other._length)
+
+        if self._preserve:
+            if isinstance(other, (CompositeBitarray, ConstantBitarray,
+                                  bitarray)):
+                return CompositeBitarray(self, other)
+            if isinstance(other, bool):
+                return CompositeBitarray(self, ConstantBitarray(other, 1))
+        else:
+            if isinstance(other, ConstantBitarray):
+                return ConstantBitarray(other._val, len(self)+len(other))
+            if isinstance(other, bool):
+                return ConstantBitarray(other, len(self)+1)
+            if isinstance(other, bitarray):
+                return bitarray(self)+other
         return NotImplemented
     def __radd__(self, other):
-        if isinstance(other, ConstantBitarray):
-            return ConstantBitarray(other._val,
-                                    self._length+other._length)
-        if isinstance(other, bool):
-            return ConstantBitarray(other, self._length+1)
+        if self._preserve:
+            if isinstance(other, (CompositeBitarray, ConstantBitarray)):
+                return CompositeBitarray(other, self)
+            if isinstance(other, bool):
+                return CompositeBitarray(ConstantBitarray(other, 1), self)
+        else:
+            if isinstance(other, ConstantBitarray):
+                return ConstantBitarray(other._val, len(self)+len(other))
+            if isinstance(other, bool):
+                return ConstantBitarray(other, len(self)+1)
         return NotImplemented
 
     def count(self, val=True):
@@ -210,3 +223,161 @@ class NoCareBitarray(collections.Sequence):
 
     def all(self):
         return False
+
+
+class CompositeBitarray(collections.Sequence):
+    """A container to hold multiple bitarray types without actually combining them and losing information about which bits are NoCare.
+
+    Most bits marked as No Care have no negative effect if the bits
+    assume either True or False. If a ConstantBitArray(True,...) is
+    added to a NoCareBitarray(...), the result will be a
+    ConstantBitArray with a value of True and the length of both
+    component bitarrays. This is fine for TDI and TMS bits, but not
+    acceptable for TDO bits.
+
+    For primitives that support arbitrary tdo bits, the No Care bits
+    that were added to the sequence should turn into False bits, which
+    is violated in the addition demonstrated above (the NoCare bits
+    are not retrievable from the combined ConstantBitArray).
+
+    The current solution is to build a bitarray class that keeps track
+    of the component bitarrays that would normally have been merged
+    together. These components stay split until the point the
+    'prepare' method is called. Arguments to 'prepare' specify if the
+    associated primitive supports arbitrary TDO data or not, so the
+    combination of data can take into account if the NoCare bits
+    should be converted to False or True.
+
+    """
+    #TODO add iterator to speed up walking structure
+    def __init__(self, *components):
+        """Create a bitarray object that stores its components by reference).
+
+        Args:
+            *components: Any number of bitarray instances to store in this composition.
+        """
+        #TODO Check if this lookup structure causes slowdown.
+        self._components = []
+        self._length = 0
+        for elem in components:
+            if isinstance(elem, CompositeBitarray):
+                for subelem in elem._components:
+                    self._add_elem(subelem[1])
+            else:
+                self._add_elem(elem)
+
+    def _add_elem(self, elem):
+        self._components.append(
+            (range(self._length, self._length+len(elem)), elem))
+        self._length += len(elem)
+
+    def _lookup_range(self, index):
+        for r, elem in self._components:
+            if index in r:
+                return r, elem
+        return None, None #pragma: no cover
+
+    def __len__(self):
+        return self._length
+    def __getitem__(self, index):
+        """Get a value at an index from the composite bitarray
+
+        Since the actual bit values are stored in an array of arrays,
+        the array of components has to be searched to find the correct
+        sub array (and its offset) to look for the index.
+
+        This functions is used exceedingly rarely, since most data
+        extraction is done with 'prepare'. If this method starts being
+        used more, it will be necessary to change the underlying data
+        type to some kind of tree, or support an efficient iterator.
+
+        Args:
+            index: An int bit number to look up in the combined bits of all components.
+
+        Return:
+            A boolean value of the bit looked up.
+
+        """
+        #if isinstance(index, slice):
+        #    indices = index.indices(len(self))
+        #    return ConstantBitarray(self._val, len(range(*indices)))
+        if isinstance(index, int):
+            index = len(self)-abs(index) if index < 0 else index
+            print(index)
+            if (index < self._length and index >= 0):
+                r, elem = self._lookup_range(index)
+                return elem[index-r.start]
+            raise IndexError("%s index out of range"%type(self))
+        raise TypeError("%s indices must be integers, not %s"%
+                        (type(self), type(index)))
+    def __repr__(self):
+        return "<CMP: %s (%s)>"%\
+            ("".join(['?' if isinstance(elem[1], NoCareBitarray) else
+                      (('T' if b else 'F') if isinstance(elem[1],
+                                                         ConstantBitarray)
+                       else ('1' if b else '0'))
+                      for elem in self._components for b in elem[1]]),
+             self._length)# pragma: no cover
+    def __add__(self, other):
+        if isinstance(other, (CompositeBitarray, ConstantBitarray)):
+            return CompositeBitarray(self, other)
+        return NotImplemented
+    def __radd__(self, other):
+        if isinstance(other, (CompositeBitarray, ConstantBitarray)):
+            return CompositeBitarray(other, self)
+        return NotImplemented
+
+    def count(self, val=True):
+        """Get the number of bits in the array with the specified value.
+
+        Args:
+            val: A boolean value to check against the array's value.
+
+        Returns:
+            An integer of the number of bits in the array equal to val.
+        """
+        count = 0
+        for r, elem in self._components:
+            print(elem, val, elem.count(val))
+            count += elem.count(val)
+        return count
+
+    def any(self):
+        for r, elem in self._components:
+            if elem.any():
+                return True
+        return False
+
+    def all(self):
+        for r, elem in self._components:
+            if not elem.all():
+                return False
+        return True
+
+    def prepare(self, *, preserve_history=False):
+        """Extract the composite array's data into a usable bitarray based on if NoCare bits should be rendered as True or False.
+
+        This method does the heavy lifting of producing a bitarray
+        that is more efficient for tdo bits when that optimization is
+        available.
+
+        KWArgs:
+            preserve_history: A bool, True means No Care bits render as Fakse.
+
+        Returns:
+            A bitarray that is the combined result of all the composite bitarray's components.
+
+        """
+        res = NoCareBitarray(0)
+        for r, elem in self._components:
+            if isinstance(elem, NoCareBitarray):
+                if elem._preserve:
+                    if preserve_history:
+                        res += ConstantBitarray(False, len(elem))
+                    else:
+                        res += NoCareBitarray(len(elem))
+                else:
+                    res += elem
+            else:
+                res += elem
+        return res

@@ -13,6 +13,22 @@ class TDOPromise(object):
     transformation of its original primitives and can piece the
     appropriate bits together to form its value.
 
+    Some primitives support arbitrary tdo bits. When a primitive that
+    returns TDO and anoter one that does not are merged into a
+    primitive that supports arbitrary TDO bits, the resulting
+    primitive can specify exactly which bits it wants to be read back
+    from the chip (This is tracked with the ComponentBitarray
+    class). When this happend, normal offsets do not work anymore
+    since they are based on the assumption that all bits are
+    returned. A new offset must be tracked in case the final primitive
+    supports arbitrary TDO.
+
+    It does not seem that this new offset can replace the original
+    offset, nor can No Care bits for tdo be rendered as False if the
+    current primitive supports Arbitrary bits since it may be merged
+    into another prim and end up unable to execute. Until a more
+    elegant solution comes up, both offsets must be stored.
+
     A promise's value can be returned by calling the promise:
         res = mypromise()
 
@@ -33,9 +49,12 @@ class TDOPromise(object):
         chain: A JTAGScanChain associated with this promise's primitie.
         bitstart: An integer offset used for selecting which bits of the original primitive the promise is selecting.
         bitlength: An integer count of how many bits of the original primitive should be selected by this promise.
+        bitstartselective: The index to use if only the needed tdo bits are returned instead of all bits for a primitive.
+
     """
     count = 0
-    def __init__(self, chain, bitstart, bitlength, *, _parent=None):
+    def __init__(self, chain, bitstart, bitlength, *,
+                 _parent=None, bitstartselective=None):
         self.sn = TDOPromise.count
         TDOPromise.count += 1
         self._chain = chain
@@ -44,6 +63,9 @@ class TDOPromise(object):
         self._components = []
         self._bitstart = bitstart
         self._bitlength = bitlength
+        self._bitstartselective = bitstartselective if \
+                                  bitstartselective is not None else\
+                                  bitstart
 
     def __call__(self):
         if self._value:
@@ -52,9 +74,10 @@ class TDOPromise(object):
         return self._value
 
     def __repr__(self):
-        return "<P %s; bit %s; len %s; parent: %s>" %\
+        return "<P %s; bit %s; len %s; parent: %s; bitideal:%s>" %\
             (self.sn, self._bitstart, self._bitlength,
-             self._parent.sn if self._parent else "NONE")\
+             self._parent.sn if self._parent else "NONE",
+             self._bitstartselective)\
              #pragma: no cover
 
     @property
@@ -110,10 +133,32 @@ class TDOPromise(object):
         self._addsub(tail, self._bitlength-1)
         return rest, tail
 
-    def _fulfill(self, bits):
+    def _fulfill(self, bits, ignore_nonpromised_bits=False):
+        """Supply the promise with the bits from its associated primitive's execution.
+
+        The fulfillment process must walk the promise chain backwards
+        until it reaches the original promise and can supply the final
+        value.
+
+        The data that comes in can either be all a bit read for every
+        bit written by the associated primitive, or (if the primitive
+        supports it), only the bits that are used by promises. The
+        ignore_nonpromised_bits flag specifies which format the
+        incoming data is in.
+
+        Args:
+            bits: A bitarray (or compatible) containing the data read from the jtag controller's TDO pin.
+            ignore_nonpromised_bits: A boolean specifying if only promised bits are being returned (and thus the 2nd index of the promise must be used for slicing the incoming data).
+
+        """
         if self._allsubsfulfilled():
             if not self._components:
-                self._value = bits[self._bitstart:self._bitend]
+                if ignore_nonpromised_bits:
+                    self._value = bits[self._bitstartselective:
+                                       self._bitstartselective +
+                                       self._bitlength]
+                else:
+                    self._value = bits[self._bitstart:self._bitend]
             else:
                 components = self._components[::-1]
                 self._value = components[0][0]._value
@@ -133,27 +178,34 @@ class TDOPromise(object):
                 return False
         return True
 
-    def makesubatoffset(self, bitoffset):
+    def makesubatoffset(self, bitoffset, *, _offsetideal=None):
         """Create a copy of this promise with an offset, and use it as this promise's child.
 
         If this promise's primitive is being merged with another
         primitive, a new subpromise may be required to keep track of
         the new offset of data coming from the new primitive.
 
+
         Args:
             bitoffset: An integer offset of the data in the new primitive.
+        _offsetideal: integer offset of the data if terms of bits actually used for promises. Used to calculate the start index to read if the associated primitive has arbitrary TDO control.
 
         Returns:
             A TDOPromise registered with this promise, and with the
             correct offset.
 
         """
+        if _offsetideal is None:
+            _offsetideal = bitoffset
         if bitoffset is 0:
             return self
-        newpromise = TDOPromise(self._chain,
-                                self._bitstart + bitoffset,
-                                self._bitlength,
-                                _parent=self)
+        newpromise = TDOPromise(
+            self._chain,
+            self._bitstart + bitoffset,
+            self._bitlength,
+            _parent=self,
+            bitstartselective=self._bitstartselective+_offsetideal
+        )
         self._addsub(newpromise, 0)
         return newpromise
 
@@ -173,18 +225,28 @@ class TDOPromiseCollection(object):
         self.sn = TDOPromise.count
         TDOPromise.count += 1
 
-    def add(self, promise, bitoffset):
+    def add(self, promise, bitoffset, *, _offsetideal=None):
+        """Add a promise to the promise collection at an optional offset.
+
+        Args:
+            promise: A TDOPromise to add to this collection.
+            bitoffset: An integer offset for this new promise in the collection.
+            _offsetideal: An integer offset for this new promise in the collection if the associated primitive supports arbitrary TDO control.
+        """
         #This Assumes that things are added in order.
         #Sorting or checking should likely be added.
+        if _offsetideal is None:
+            _offsetideal = bitoffset
         if isinstance(promise, TDOPromise):
             if bitoffset is 0:
                 newpromise = promise
             else:
-                newpromise = promise.makesubatoffset(bitoffset)
+                newpromise = promise.makesubatoffset(
+                    bitoffset, _offsetideal=_offsetideal)
             self._promises.append(newpromise)
         elif isinstance(promise, TDOPromiseCollection):
             for p in promise._promises:
-                self.add(p, bitoffset)
+                self.add(p, bitoffset, _offsetideal=_offsetideal)
 
     def split_to_subpromises(self):
         """Split a promise into two promises. A tail bit, and the 'rest'.
@@ -225,11 +287,14 @@ class TDOPromiseCollection(object):
     def __bool__(self):
         return bool(self._promises)
 
-    def _fulfill(self, bits):
+    def _fulfill(self, bits, ignore_nonpromised_bits=False):
         for promise in self._promises:
-            promise._fulfill(bits)
+            promise._fulfill(
+                bits,
+                ignore_nonpromised_bits=ignore_nonpromised_bits
+            )
 
-    def makesubatoffset(self, bitoffset):
+    def makesubatoffset(self, bitoffset, *, _offsetideal=None):
         """Create a copy of this PromiseCollection with an offset applied to each contained promise and register each with their parent.
 
         If this promise's primitive is being merged with another
@@ -238,15 +303,18 @@ class TDOPromiseCollection(object):
 
         Args:
             bitoffset: An integer offset of the data in the new primitive.
+            _offsetideal: An integer offset to use if the associated primitive supports arbitrary TDO control.
 
         Returns:
             A new TDOPromiseCollection registered with this promise
             collection, and with the correct offset.
 
         """
+        if _offsetideal is None:
+            _offsetideal = bitoffset
         if bitoffset is 0:
             return self
         newpromise = TDOPromiseCollection(self._chain, self._bitlength)
         for promise in self._promises:
-            newpromise.add(promise, bitoffset)
+            newpromise.add(promise, bitoffset, _offsetideal=_offsetideal)
         return newpromise

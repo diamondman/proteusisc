@@ -34,6 +34,11 @@ def test_promise_subpromises():
     assert pro._components[0] == (rest, 0)
     assert pro._components[1] == (tail, 4)
 
+    pro = TDOPromise(chain, 0, 1)
+    rest, tail = pro.split_to_subpromises()
+    assert rest == None
+    assert tail == pro
+
 def test_promise_fulfill():
     pro = TDOPromise(chain, 0, 5)
     pro._fulfill(bitarray('10101'))
@@ -94,5 +99,19 @@ def test_promisecollection_make_offset_sub():
 
     offsetpromises = promises.makesubatoffset(5)
     offsetpromises._fulfill(bitarray('000001111111011001010'))
+    assert pro0() == bitarray('11111110')
+    assert pro1() == bitarray('11001010')
+
+def test_promisecollection_make_offset_sub_with_ideal_tdo():
+    pro0 = TDOPromise(chain, 0, 8)
+    pro1 = TDOPromise(chain, 0, 8)
+    promises = TDOPromiseCollection(chain, 24)
+    promises.add(pro0, 0)
+    promises.add(pro1, 16, _offsetideal=8)
+
+    offsetpromises = promises.makesubatoffset(5, _offsetideal=0)
+    print(offsetpromises)
+    offsetpromises._fulfill(bitarray('1111111011001010'),
+                            ignore_nonpromised_bits=True)
     assert pro0() == bitarray('11111110')
     assert pro1() == bitarray('11001010')

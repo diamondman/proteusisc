@@ -15,7 +15,8 @@ from proteusisc.jtagUtils import blen2Blen, buff2Blen,\
     build_byte_align_buff
 from proteusisc.cabledriver import CableDriver
 from proteusisc.primitive import Level1Primitive, Executable
-from proteusisc.bittypes import ConstantBitarray, NoCareBitarray
+from proteusisc.bittypes import ConstantBitarray, NoCareBitarray,\
+    CompositeBitarray
 from proteusisc.contracts import NOCARE, ZERO, ONE, CONSTANT, ARBITRARY
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGControlError, JTAGNotEnabledError
@@ -85,6 +86,8 @@ class DigilentWriteTMSPrimitive(Level1Primitive, Executable):
     _driver_function_name = 'write_tms_bits'
     _TMS, _TDI, _TDO = ARBITRARY, CONSTANT, CONSTANT
     def _get_args(self):
+        if isinstance(self.tdo, CompositeBitarray):
+            self.tdo = self.tdo.prepare()
         if isinstance(self.tdo, ConstantBitarray):
             tdo = self.tdo._val
         elif isinstance(self.tdo, NoCareBitarray):
@@ -105,6 +108,8 @@ class DigilentWriteTDIPrimitive(Level1Primitive, Executable):
     _driver_function_name = 'write_tdi_bits'
     _TMS, _TDI, _TDO = CONSTANT, ARBITRARY, CONSTANT
     def _get_args(self):
+        if isinstance(self.tdo, CompositeBitarray):
+            self.tdo = self.tdo.prepare()
         if isinstance(self.tdo, ConstantBitarray):
             tdo = self.tdo._val
         elif isinstance(self.tdo, NoCareBitarray):
@@ -125,6 +130,8 @@ class DigilentWriteTMSTDIPrimitive(Level1Primitive, Executable):
     _driver_function_name = 'write_tms_tdi_bits'
     _TMS, _TDI, _TDO = ARBITRARY, ARBITRARY, CONSTANT
     def _get_args(self):
+        if isinstance(self.tdo, CompositeBitarray):
+            self.tdo = self.tdo.prepare()
         if isinstance(self.tdo, ConstantBitarray):
             tdo = self.tdo._val
         elif isinstance(self.tdo, NoCareBitarray):

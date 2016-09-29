@@ -161,7 +161,7 @@ class Level1Primitive(Primitive):
         elif not isinstance(_tdi, collections.Iterable):
             _tdi = ConstantBitarray(_tdi, count)
         if _tdo is None:
-            _tdo = NoCareBitarray(count)
+            _tdo = NoCareBitarray(count, _preserve=True)
         elif not isinstance(_tdo, collections.Iterable):
             _tdo = ConstantBitarray(_tdo, count)
 
@@ -282,7 +282,8 @@ class Level1Primitive(Primitive):
             if not self._promise and not target._promise:
                 promise = None
             elif self._promise and not target._promise:
-                promise = self._promise.makesubatoffset(target.count)
+                promise = self._promise.makesubatoffset(target.count,
+                                                        _offsetideal=0)
             elif not self._promise and target._promise:
                 promise = target._promise
             else:
