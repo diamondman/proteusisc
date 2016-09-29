@@ -329,7 +329,11 @@ class CommandQueue(collections.MutableSequence):
         """Force the queue of Primitives to compile, execute on the Controller, and fulfill promises with the data returned."""
         self.stages = []
         self.stagenames = []
-        self._compile(debug=True, stages=self.stages, stagenames=self.stagenames)
+        if self.debug:
+            self._compile(debug=True, stages=self.stages,
+                          stagenames=self.stagenames)
+        else:
+            self._compile()
         if self.debug:
             print("ABOUT TO EXEC", self.queue)
         self._chain._controller._execute_primitives(self.queue)
