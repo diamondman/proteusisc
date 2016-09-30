@@ -1,5 +1,7 @@
 from bitarray import bitarray
 from itertools import chain
+import struct
+import math
 # pylint: disable=no-name-in-module
 from usb1 import USBErrorPipe, USBErrorOverflow
 
@@ -25,7 +27,7 @@ class FakeXPCU1Handle(object):
     def __init__(self, *devices):
         self.devices = devices
         self._jtag_on = False
-        self.speed = 0x11
+        self.speed = 0x10
         self.transfer_bit_count = 0
         self.doing_transfer = False
         self._blk_read_buffer = []
@@ -248,6 +250,9 @@ class FakeDevHandle(object):
         self._blk_read_buffer = []
         self._lastcmd = None
         self._adv_req_enabled = False
+        self._adv_req_read_tdo = False
+        self._adv_req_bitcount = 0
+        self._speed = 4000000
 
     @property
     def jtagon(self):
@@ -570,6 +575,24 @@ class FakeDevHandle(object):
         self._adv_req_read_tdo = False
         self._adv_req_bitcount = bitcount
         self._blk_read_buffer.append(b'\x01\x00')
+
+    def _handle_blk_GET_SPEED(self, params):
+        if not self._jtag_on:
+            self._blk_read_buffer.append(b'\x01\x04')
+        else:
+            self._blk_read_buffer.append(b'\x05\x00'+\
+                                         struct.pack("<I", self._speed))
+
+    def _handle_blk_SET_SPEED(self, params):
+        if not self._jtag_on:
+            self._blk_read_buffer.append(b'\x01\x04')
+        else:
+            req_speed = struct.unpack("<I", params)[0]
+            self._speed = 62500*(2**min(6,max(0,math.floor(
+                math.log2(req_speed/62500)
+            ))))
+            self._blk_read_buffer.append(b'\x05\x00'+\
+                                         struct.pack("<I", self._speed))
 
 class FakeUSBDev(object):
     """The most basic features required for simulating a usb1.USBDevice.

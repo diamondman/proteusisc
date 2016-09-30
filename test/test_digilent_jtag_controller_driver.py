@@ -278,3 +278,21 @@ def test_clock_tick_primitive():
         )
         c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
+
+def test_get_set_speed():
+    ctrl = FakeDevHandle()
+    c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
+
+    assert c._get_speed() is None
+    assert c._set_speed(4000000) is None
+    c.jtag_enable()
+    assert c._get_speed() == 4000000
+    assert c._set_speed(4000000) == 4000000
+    assert c._get_speed() == 4000000
+
+    assert c._set_speed(3000000) == 2000000
+    assert c._get_speed() == 2000000
+
+    assert c.speed == 2000000
+    c.speed = 1500000
+    assert c.speed == 1000000

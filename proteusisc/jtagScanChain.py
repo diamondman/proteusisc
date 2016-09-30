@@ -69,6 +69,7 @@ class JTAGScanChain(object):
         self._hasinit = False
         self._sm = JTAGStateMachine()
         self._ignore_jtag_enabled = ignore_jtag_enabled
+        self._desired_speed = None
 
         self.initialize_device_from_id = device_initializer
         self.get_descriptor_for_idcode = \
@@ -205,6 +206,19 @@ class JTAGScanChain(object):
         except JTAGAlreadyEnabledError as e:
             if not self._ignore_jtag_enabled:
                 raise e
+        if self._desired_speed:
+            #Maybe the speed should be set before commands are executed
+            self._controller.speed = self._desired_speed
+
+    @property
+    def speed(self):
+        return self._controller.speed or self._desired_speed or 0
+
+    @speed.setter
+    def speed(self, value):
+        self._desired_speed = value
+        #Should desired speed be set to the real speed?
+        self._controller.speed = value
 
     def _tap_transition_driver_trigger(self, bits):
         statetrans = [self._sm.state]

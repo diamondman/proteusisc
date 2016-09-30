@@ -53,6 +53,9 @@ class XilinxPC1Driver(CableDriver):
 
         self.productName = 'Platform Cable 1'
         self.firmwareVersion = 0
+
+        #Physically set the controller Speed
+        self.speed = 12000000
         h.close()
 
 
@@ -164,7 +167,7 @@ class XilinxPC1Driver(CableDriver):
     def xpcu_enable_cpld_upgrade_mode(self, enable):
         self._handle.controlWrite(0x40, 0xb0, 0x52, 1 if enable else 0, b'')
 
-    def xpcu_set_jtag_speed(self, speed_mode=1):
+    def xpcu_set_jtag_speed(self, speed_mode):
         self._handle.controlWrite(0x40, 0xb0, 0x28, 0x10|speed_mode, b'')
 
     def xpcu_get_GPIO_state(self):
@@ -219,5 +222,12 @@ class XilinxPC1Driver(CableDriver):
 
             return raw_bits
 
+    def _get_speed(self):
+        return self._set_speed(12000000)
+
+    def _set_speed(self, speed):
+        power = min(4,max(0,math.floor(math.log2(speed/750000))))
+        self.xpcu_set_jtag_speed(4-power)
+        return 750000 * (2**power)
 
 __filter__ = [((0x03FD, 0x0008),XilinxPC1Driver)]

@@ -44,6 +44,20 @@ def test_init_chain_triple():
         devid = struct.unpack("<L", codes[i].tobytes()[::-1])[0]
         assert dev._id == devid
 
+def test_set_desired_speed():
+    ctrl = FakeXPCU1Handle()
+    usbdev = FakeUSBDev(ctrl)
+    c = getDriverInstanceForDevice(usbdev)
+    chain = JTAGScanChain(c)
+
+    assert c.speed == 12000000
+    chain.jtag_enable()
+    assert c.speed == 12000000
+    chain.jtag_disable()
+
+    chain.speed = 1000000
+    chain.jtag_enable()
+    assert c.speed == 750000
 
 def test_read_ir_1(chain_1dev):
     a = chain_1dev.rw_ir(bitcount=8, read=True)

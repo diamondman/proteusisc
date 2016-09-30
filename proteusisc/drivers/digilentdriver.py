@@ -10,6 +10,7 @@
 """
 
 from bitarray import bitarray
+import struct
 
 from proteusisc.jtagUtils import blen2Blen, buff2Blen,\
     build_byte_align_buff
@@ -291,6 +292,34 @@ class DigilentAdeptController(CableDriver):
             raise JTAGControlError("Error Code %s"%status_code)
 
         self.close_handle()
+
+    def _get_speed(self):
+        if not self._jtagon:
+            return None
+
+        self._handle.bulkWrite(self._cmdout_interface, _BMSG_GET_SPEED)
+        res = self._handle.bulkRead(self._cmdin_interface, 6)
+        if res[1] != 0:
+            raise JTAGControlError("Uknown Issue reading TDO bits: %s", res)
+
+        return struct.unpack('<I', res[2:])[0]
+
+    def _set_speed(self, speed):
+        if not self._jtagon:
+            return None
+
+        #START REQUEST
+        self._handle.bulkWrite(self._cmdout_interface,
+                               _BMSG_SET_SPEED +\
+                               b"".join([bytes([(speed>>(8*i))&0xff])
+                                         for i in range(4)]))
+        res = self._handle.bulkRead(self._cmdin_interface, 6)
+        if res[1] != 0:
+            if res[1] == 4:
+                raise JTAGControlError("SET_SPEED reports jtag disabled.")
+            raise JTAGControlError("Uknown Issue reading TDO bits: %s", res)
+
+        return struct.unpack('<I', res[2:])[0]
 
     def write_tms_bits(self, data, return_tdo=False, TDI=False):
         """

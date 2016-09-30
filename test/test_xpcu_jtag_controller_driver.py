@@ -135,3 +135,26 @@ def test_transfer_bits_adv():
 )
     assert d0.tapstate == "SHIFTDR"
     assert bits == d0._idcode
+
+def test_get_set_speed():
+    ctrl = FakeXPCU1Handle()
+    c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
+
+    assert c._get_speed() == 12000000
+    print()
+    assert c._set_speed(4000000) == 3000000
+    print()
+    #Can not read speed from controller,
+    #_set_speed changes the controller's
+    #speed but does not update locally
+    assert c._get_speed() == 12000000
+    print()
+
+    assert c._set_speed(1500000) == 1500000
+
+    c.speed = 1500000
+    assert c.speed == 1500000
+    print()
+    c.speed = 10000000
+    print()
+    assert c.speed == 6000000

@@ -1,5 +1,6 @@
 #-*- coding: utf-8 -*-
 import pytest
+import struct
 from bitarray import bitarray
 from usb1 import USBErrorPipe, USBErrorOverflow
 from proteusisc.jtagUtils import blen2Blen, buff2Blen,\
@@ -12,7 +13,7 @@ from proteusisc.drivers.digilentdriver import _CMSG_PROD_NAME,\
     _CMSG_OEM_SEED, _CMSG_PROD_ID, _CMSG_OEM_CHECK,\
     _BMSG_ENABLE_JTAG, _BMSG_DISABLE_JTAG, _BMSG_WRITE_TMS,\
     _BMSG_WRITE_TMS_TDI, _BMSG_WRITE_TDI, _BMSG_READ_TDO,\
-    _BMSG_CLOCK_TICK
+    _BMSG_CLOCK_TICK, _BMSG_GET_SPEED, _BMSG_SET_SPEED
 def test_fakeusbdev():
     ctrl = FakeDevHandle()
     usbdev = FakeUSBDev(ctrl)
@@ -58,6 +59,40 @@ def test_controller_control_messages():
     oembyte = oem_seed[0]^oem_seed[1]
     val =  bytes((oembyte^ord(b) for b in reversed('Digi')))
     assert res == val
+
+def test_controller_speed_get_set():
+    h = FakeDevHandle()
+
+    #Try reading speed without JTAG being on. Should FAIL.
+    h.bulkWrite(1, _BMSG_GET_SPEED)
+    res = h.bulkRead(2, 2)
+    assert res == b'\x01\x04'
+
+    #Try setting speed without JTAG being on. Should FAIL.
+    h.bulkWrite(1, _BMSG_SET_SPEED+struct.pack("<I", 3000000))
+    res = h.bulkRead(2, 2)
+    assert res == b'\x01\x04'
+
+    #ENABLE JTAG
+    h.bulkWrite(1, _BMSG_ENABLE_JTAG)
+    res = h.bulkRead(2, 2)
+    assert res == b'\x01\x00'
+
+    #Try reading with jtag on
+    h.bulkWrite(1, _BMSG_GET_SPEED)
+    res = h.bulkRead(2, 6)
+    assert res == b'\x05\x00'+struct.pack("<I", 4000000)
+
+    #set speed with jtag on
+    h.bulkWrite(1, _BMSG_SET_SPEED+struct.pack("<I", 3000000))
+    res = h.bulkRead(2, 6)
+    assert res == b'\x05\x00'+struct.pack("<I", 2000000)
+
+    #read speed after setting it with jtag on
+    h.bulkWrite(1, _BMSG_GET_SPEED)
+    res = h.bulkRead(2, 6)
+    assert res == b'\x05\x00'+struct.pack("<I", 2000000)
+
 
 def test_controller_close():
     #Nothing here yet....

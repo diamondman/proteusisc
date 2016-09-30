@@ -44,6 +44,7 @@ class CableDriver(object):
         self._dev_handle = None
         self._scanchain = None
         self._jtagon = False
+        self._speed = None
 
 
     def __repr__(self):
@@ -93,3 +94,12 @@ class CableDriver(object):
 
     def jtag_disable(self):
         pass #Oerride if necessary
+
+    @property
+    def speed(self):
+        if self._speed is None:
+            self._speed = self._get_speed()
+        return self._speed
+    @speed.setter
+    def speed(self, val):
+        self._speed = self._set_speed(val)

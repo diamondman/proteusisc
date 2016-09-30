@@ -303,7 +303,7 @@ class CompositeBitarray(collections.Sequence):
         #    return ConstantBitarray(self._val, len(range(*indices)))
         if isinstance(index, int):
             index = len(self)-abs(index) if index < 0 else index
-            print(index)
+            print("Reading a CompositeBitarray bit",index)
             if (index < self._length and index >= 0):
                 r, elem = self._lookup_range(index)
                 return elem[index-r.start]
@@ -338,7 +338,7 @@ class CompositeBitarray(collections.Sequence):
         """
         count = 0
         for r, elem in self._components:
-            print(elem, val, elem.count(val))
+            #print(elem, val, elem.count(val))
             count += elem.count(val)
         return count
 

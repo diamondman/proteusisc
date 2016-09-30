@@ -33,9 +33,10 @@ def test_controller_control_messages():
     assert res == b'\x05\x06'
 
     #SPEED
-    assert h.speed is 0x11
     h.controlWrite(0x40, 0xB0, 0x28, 0x14, b'')
     assert h.speed is 0x14
+    h.controlWrite(0x40, 0xB0, 0x28, 0x11, b'')
+    assert h.speed is 0x11
 
     with pytest.raises(Exception):
         h.controlWrite(0x40, 0xB0, 0x28, 0x04, b'')
