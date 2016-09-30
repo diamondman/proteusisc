@@ -56,6 +56,16 @@ class ConstantBitarray(collections.Sequence):
         while combining two ConstantBitArrays depends on if the two
         array's constant value are the same.
         """
+        if len(self) == 0:
+            return other
+        if isinstance(other, bool):
+            if self._val == other:
+                return ConstantBitarray(self._val, self._length+1)
+            else:
+                return bitarray((*(self._val,)*self._length, other))
+
+        if len(other) == 0:
+            return self
         if isinstance(other, ConstantBitarray):
             if self._val == other._val:
                 return ConstantBitarray(self._val,
@@ -63,16 +73,14 @@ class ConstantBitarray(collections.Sequence):
             else:
                 return bitarray((*(self._val,)*self._length,
                                  *(other._val,)*other._length))
-        if isinstance(other, bool):
-            if self._val == other:
-                return ConstantBitarray(self._val, self._length+1)
-            else:
-                return bitarray((*(self._val,)*self._length, other))
         if isinstance(other, bitarray):
             return bitarray(self)+other
         return NotImplemented
     def __radd__(self, other):
         if isinstance(other, bool):
+            if len(self) == 0:
+                #Can not tell yet if bool + CBa must be CBa
+                return other
             if self._val == other:
                 return ConstantBitarray(self._val, self._length+1)
             else:
@@ -177,6 +185,10 @@ class NoCareBitarray(collections.Sequence):
         while combining two ConstantBitArrays depends on if the two
         array's constant value are the same.
         """
+        if len(self) == 0:
+            return other
+        if not isinstance(other, bool) and len(other) == 0:
+            return self
         if isinstance(other, NoCareBitarray):
                 return NoCareBitarray(self._length+other._length)
 
@@ -195,6 +207,9 @@ class NoCareBitarray(collections.Sequence):
                 return bitarray(self)+other
         return NotImplemented
     def __radd__(self, other):
+        if not isinstance(other, bool) and len(self) == 0:
+            return other
+
         if self._preserve:
             if isinstance(other, (CompositeBitarray, ConstantBitarray)):
                 return CompositeBitarray(other, self)
@@ -310,14 +325,15 @@ class CompositeBitarray(collections.Sequence):
             raise IndexError("%s index out of range"%type(self))
         raise TypeError("%s indices must be integers, not %s"%
                         (type(self), type(index)))
+    def __str__(self):
+        return "".join(['?' if isinstance(elem[1], NoCareBitarray) else
+                        (('T' if b else 'F') if isinstance(elem[1],
+                                                    ConstantBitarray)
+                         else ('1' if b else '0'))
+                        for elem in self._components for b in elem[1]])
     def __repr__(self):
         return "<CMP: %s (%s)>"%\
-            ("".join(['?' if isinstance(elem[1], NoCareBitarray) else
-                      (('T' if b else 'F') if isinstance(elem[1],
-                                                         ConstantBitarray)
-                       else ('1' if b else '0'))
-                      for elem in self._components for b in elem[1]]),
-             self._length)# pragma: no cover
+            (str(self), self._length)# pragma: no cover
     def __add__(self, other):
         if isinstance(other, (CompositeBitarray, ConstantBitarray)):
             return CompositeBitarray(self, other)

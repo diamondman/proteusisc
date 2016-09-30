@@ -55,7 +55,9 @@ class JTAGScanChain(object):
     def __init__(self, controller,
                  device_initializer=\
                  lambda sc, idcode: JTAGDevice(sc,idcode),
-                 ignore_jtag_enabled=False, debug=False):
+                 ignore_jtag_enabled=False, debug=False,
+                 collect_compiler_artifacts=False,
+                 collect_compiler_merge_artifacts=False):
         """Create a new JTAGScanChain to track and control a real chain.
 
         Args:
@@ -65,6 +67,8 @@ class JTAGScanChain(object):
             debug: A boolean to enable extra debug printing.
         """
         self._debug = debug
+        self._collect_compiler_artifacts = collect_compiler_artifacts
+        self._collect_compiler_merge_artifacts = collect_compiler_merge_artifacts
         self._devices = []
         self._hasinit = False
         self._sm = JTAGStateMachine()

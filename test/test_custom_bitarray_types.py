@@ -317,12 +317,12 @@ def test_composite_general():
     c2 = NoCareBitarray(5)
     comp = CompositeBitarray(c1, c2)
     assert len(comp) == 9
-    assert str(comp) == "<CMP: TTTT????? (9)>"
+    assert comp.__repr__() == "<CMP: TTTT????? (9)>"
 
     c3 = bitarray('1001')
     comp2 = CompositeBitarray(comp, c3)
     assert len(comp2) == 13
-    assert str(comp2) == "<CMP: TTTT?????1001 (13)>"
+    assert comp2.__repr__() == "<CMP: TTTT?????1001 (13)>"
 
     #NOT TESTING __getitem__ much BECAUSE NOT USED
     #Does not respect nocare combining with prims...
@@ -345,7 +345,7 @@ def test_composite_general_nocare_preserve():
     c3 = bitarray('1001')
     comp = CompositeBitarray(c1, c2, c3)
     assert len(comp) == 13
-    assert str(comp) == "<CMP: TTTT?????1001 (13)>"
+    assert comp.__repr__() == "<CMP: TTTT?????1001 (13)>"
 
     assert comp.prepare() == bitarray('1111111111001')
     assert comp.prepare(preserve_history=True) == \

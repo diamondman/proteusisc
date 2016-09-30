@@ -313,8 +313,10 @@ class CommandQueue(collections.MutableSequence):
 
         #################### COMBINE LV1 PRIMS #####################
 
-        flattened_prims = _merge_prims(flattened_prims,
-                        stagenames=stagenames, debug=debug, stages=stages)
+        flattened_prims = _merge_prims(
+            flattened_prims,
+            stagenames=stagenames, stages=stages,
+            debug=self._chain._collect_compiler_merge_artifacts)
 
         if debug:#pragma: no cover
             stages.append([[p.snapshot() for p in flattened_prims]])
@@ -330,7 +332,7 @@ class CommandQueue(collections.MutableSequence):
         """Force the queue of Primitives to compile, execute on the Controller, and fulfill promises with the data returned."""
         self.stages = []
         self.stagenames = []
-        if self.debug:
+        if self._chain._collect_compiler_artifacts:
             self._compile(debug=True, stages=self.stages,
                           stagenames=self.stagenames)
         else:

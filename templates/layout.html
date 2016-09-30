@@ -62,6 +62,15 @@
       word-wrap:break-word;
       }
 
+      span.vt_CompositeBitarray {
+      font-family: "Lucida Console", Monaco, monospace;
+      max-height: 200px;
+      overflow: auto;
+      display:block;
+      max-width:350px;
+      word-wrap:break-word;
+      }
+
       span.L_1 {
       background-color: #00FFFF;
       color: #FF0000;
@@ -107,7 +116,7 @@
 		  (D{{ prim['dev'] }}; T{{ prim['grouping'] }})
 		</span>
 		{% if prim['promise'] %}
-		<br> <span class="primtype">
+		<br> <span class="primtype tp_{{ prim['promise'].__class__.__name__ }}">
 		  Promise: {{ prim['promise'] }}
 		</span>
 		{% endif %}

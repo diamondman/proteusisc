@@ -140,7 +140,7 @@ class RWDevDR(Level2Primitive, DeviceTarget):
     def __init__(self, *args, regname, **kwargs):
         super(RWDevDR, self).__init__(*args, **kwargs)
         self.bitcount = self.dev._desc._registers[regname]
-        if self.data and len(self.data) is not self.bitcount:
+        if self.data and len(self.data) != self.bitcount:
             if len(self.data) > self.bitcount:
                 raise ValueError("TOO MUCH DATA for IR")
             else:
@@ -158,13 +158,12 @@ class RWDevDR(Level2Primitive, DeviceTarget):
     def expand_frame(cls, frame, sm):
         sm.state = "UPDATEDR"
         chain = frame._chain
-        data = NoCareBitarray(0)
         rw_dr = chain.get_prim('rw_dr')
         pframes = []
         for i, p in enumerate(reversed(frame)):
             newprim = rw_dr(read=p.read, data=p.data,
                             _chain=chain, _promise=p._promise,
-                            lastbit=i+1 is len(frame))
+                            lastbit=i+1 == len(frame))
             pframes.append(Frame.from_prim(chain, newprim))
         return FrameSequence(chain, *pframes)
 
@@ -174,7 +173,7 @@ class RWDevIR(Level2Primitive, DeviceTarget):
     def __init__(self, *args, **kwargs):
         super(RWDevIR, self).__init__(*args, **kwargs)
         self.bitcount = self.dev._desc._ir_length
-        if self.data and len(self.data) is not self.bitcount:
+        if self.data and len(self.data) != self.bitcount:
             if len(self.data) > self.bitcount:
                 raise ValueError("TOO MUCH DATA for IR")
             else:
@@ -199,7 +198,7 @@ class RWDevIR(Level2Primitive, DeviceTarget):
             data = p.data or ConstantBitarray(True, p.bitcount)
             newprim = rw_ir(read=p.read, data=data,
                             _chain=chain, _promise=p._promise,
-                            lastbit=i+1 is len(frame))
+                            lastbit=i+1 == len(frame))
             pframes.append(Frame.from_prim(chain, newprim))
         return FrameSequence(chain, *pframes)
 
@@ -440,7 +439,6 @@ class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
 
 class Sleep(Level2Primitive, Executable):
     _function_name = 'sleep'
-    #_driver_function_name = 'sleep'
     def __init__(self, *args, delay, **kwargs):
         super(Sleep, self).__init__(*args, **kwargs)
         self.delay = delay
