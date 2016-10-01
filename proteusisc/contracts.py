@@ -219,6 +219,16 @@ class Requirement(object):
         #print(res, A, B, C, D, "\n")
         return res
 
+    def __hash__(self):
+        return (self.isarbitrary<<3) | (self.isconstant<<2) |\
+            (self.issingle<<1) |\
+            (self.value and (self.isconstant or self.issingle))
+
+    def __eq__(self, other):
+        if not isinstance(other, Requirement):
+            return NotImplemented
+        return hash(self) == hash(other)
+
 NOCARE =       Requirement(False, False, False, False)
 ZERO =         Requirement(False, False, True,  False)
 ONE =          Requirement(False, False, True,  True)

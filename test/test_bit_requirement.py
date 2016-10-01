@@ -104,3 +104,16 @@ def test_requirement_score():
     assert ONE.score == ZERO.score
     assert CONSTANT.score > ZERO.score
     assert ARBITRARY.score > CONSTANT.score
+
+def test_equality():
+    assert ONE == Requirement(False, False, True, True)
+    assert CONSTANTONE == Requirement(False, True, False, True)
+    assert CONSTANTONE == Requirement(False, True, True, True)
+    assert ARBITRARY == Requirement(True, True, True, True)
+
+    assert ARBITRARY != CONSTANTONE
+    assert ARBITRARY != ZERO
+    assert ARBITRARY != ONE
+    assert CONSTANT != ONE
+    assert CONSTANTONE != CONSTANTZERO
+    assert ONE != ZERO

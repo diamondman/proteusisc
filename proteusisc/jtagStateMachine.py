@@ -82,6 +82,7 @@ class JTAGStateMachine(object):
             last_node = node
         return bitarray(steps)
 
+    _lookup_cache = {}
     def calc_transition_to_state(self, newstate):
         """Given a target state, generate the sequence of transitions that would move this state machine instance to that target state.
 
@@ -91,8 +92,15 @@ class JTAGStateMachine(object):
         Returns:
             A bitarray containing the bits that would transition this
             state machine to the target state. The bits read from right
-            to left.
+            to left. For efficiency, this retulting bitarray is cached.
+            Do not edit this bitarray, or it will cause undefined
+            behavior.
         """
+        cached_val = JTAGStateMachine._lookup_cache.\
+                     get((self.state, newstate))
+        if cached_val:
+            return cached_val
+
         if newstate not in self.states:
             raise ValueError("%s is not a valid state for this state "
                              "machine"%newstate)
@@ -102,6 +110,7 @@ class JTAGStateMachine(object):
             raise ValueError("No path to the requested state.")
         res = self._get_steps_from_nodes_path(path)
         res.reverse()
+        JTAGStateMachine._lookup_cache[(self.state, newstate)] = res
         return res
 
     def reset(self):

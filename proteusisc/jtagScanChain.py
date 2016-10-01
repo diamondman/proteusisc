@@ -69,6 +69,7 @@ class JTAGScanChain(object):
         self._debug = debug
         self._collect_compiler_artifacts = collect_compiler_artifacts
         self._collect_compiler_merge_artifacts = collect_compiler_merge_artifacts
+        self._fitted_lv1_prim_cache = {}
         self._devices = []
         self._hasinit = False
         self._sm = JTAGStateMachine()
@@ -294,6 +295,10 @@ class JTAGScanChain(object):
         m = will require reconfiguring argument and using multiple of prim
         M = Requires using multiple of several prims to satisfy requirement
         """
+        res = self._fitted_lv1_prim_cache.get(reqef)
+        if res:
+            return res
         prim = self.get_best_lv1_prim(reqef)
-
-        return partial(prim, _chain=self, reqef=reqef)
+        res = partial(prim, _chain=self, reqef=reqef)
+        self._fitted_lv1_prim_cache[reqef] = res
+        return res
