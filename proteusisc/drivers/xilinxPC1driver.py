@@ -90,6 +90,8 @@ class XilinxPC1Driver(CableDriver):
         if self._scanchain:
             self._scanchain._tap_transition_driver_trigger(TMS)
 
+        bit_return_count = TDO.count(True)
+
         outbits = bitarray()
         for i in range(int(math.ceil(count/4.0))):
             _start = max(count-((i+1)*4), 0)
@@ -103,7 +105,8 @@ class XilinxPC1Driver(CableDriver):
             outbits.extend(tdo_extend)
             outbits.extend(pad + bitarray([True]*(4-len(pad))))
 
-        return self.xpcu_GPIO_transfer(count-1, outbits.tobytes())
+        return self.xpcu_GPIO_transfer(count, outbits.tobytes(),
+                    bit_return_count=bit_return_count)
 
     def transfer_bits_single(self, count, TMS, TDI, TDO=False):
         if not self._jtagon:
@@ -184,42 +187,51 @@ class XilinxPC1Driver(CableDriver):
         #print(bin(ord(b)))
         return bool(ord(b)&1)
 
-    def xpcu_GPIO_transfer(self, bit_count, data):
-        if self._scanchain and self._scanchain._debug:
-            print("***INPUT DATA TO CPXU (%s bits):"%(bit_count+1), " ".join((hex(data)[2:].zfill(2)for data in data)))
-        if bit_count < 0:
+    def xpcu_GPIO_transfer(self, bit_count, data, *, bit_return_count=None):
+        if bit_count < 1:
             raise ValueError()
-        bits_ret = bin(sum([((ord(data[i*2+1:i*2+2])>>4) &
-                             (( 1<< min(4, (bit_count+1)-(i*4)) )-1) )<<4*i
-                            for i in range(int(len(data)/2))])).count('1')
+        if bit_count > 0xFFFFFF+1:
+            raise ValueError("Too many transactions. Max 16777216.")
 
-        self._handle.controlWrite(0x40, 0xb0, 0xa6, bit_count, b'')
+        bit_count_dev = bit_count-1 #Controller uses 0 based bitcount.
+        bit_count_low = bit_count_dev & 0xFFFF #16 bits for 'index' field
+        bit_count_high = (bit_count_dev>>8) & 0xFF00
 
-        bytec = self._handle.bulkWrite(2, data, timeout=5000)
-        if bits_ret:
-            bytes_wanted = int(math.ceil(bits_ret/8.0))
+        if self._scanchain and self._scanchain._debug:
+            print("***INPUT DATA TO CPXU (%s bits):"%(bit_count),
+                  " ".join((hex(data)[2:].zfill(2)for data in data)))
+        if bit_return_count is None:
+            bit_return_count = bin(sum([((ord(data[i*2+1:i*2+2])>>4) &
+                                 (( 1<< min(4, bit_count-(i*4)) )-1) )<<4*i
+                                for i in range(int(len(data)/2))])).count('1')
+        self._handle.controlWrite(0x40, 0xb0, bit_count_high | 0xa6,
+                                  bit_count_low, b'')
+
+        bytec = self._handle.bulkWrite(2, data, timeout=2500)
+
+        if bit_return_count:
+            bytes_wanted = int(math.ceil(bit_return_count/8.0))
             bytes_expected = bytes_wanted +(1 if bytes_wanted%2 else 0)
             ret = self._handle.bulkRead(6, bytes_expected, timeout=5000)
 
             if self._scanchain and self._scanchain._debug:
-                print("OUTPUT DATA FROM XPCU (retbits: %s)"%bits_ret,
+                print("OUTPUT DATA FROM XPCU (retbits: %s)"%bit_return_count,
                       " ".join((hex(data)[2:].zfill(2)for data in ret)))
-            final_group_index = (bits_ret-(bits_ret%32))//8
+            final_group_index = (bit_return_count-(bit_return_count%32))//8
             retiter = iter(ret[:final_group_index])
             fullgroups = [bytes(elem[::-1]) for elem in
                           zip(retiter, retiter, retiter, retiter)][::-1]
             other=ret[final_group_index:][::-1]
             other_bits = bitarray()
             other_bits.frombytes(other)
-            other_bits = other_bits[:bits_ret-(8*final_group_index)]
+            other_bits = other_bits[:bit_return_count-(8*final_group_index)]
 
             reordered_data = b"".join(fullgroups)
             raw_bits = bitarray()
             raw_bits.frombytes(reordered_data)
             raw_bits = other_bits + raw_bits
 
-            assert len(raw_bits) == bits_ret, "WRONG BIT NUM CALCULATED"
-
+            assert len(raw_bits) == bit_return_count, "WRONG BIT NUM CALCULATED"
             return raw_bits
 
     def _get_speed(self):

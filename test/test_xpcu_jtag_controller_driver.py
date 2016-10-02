@@ -25,11 +25,11 @@ def test_xpcu_GPIO_transfer():
     c.jtag_enable()
 
     #RESET TAP AND TRANS TO SHIFTDR
-    c.xpcu_GPIO_transfer(9-1, b'\xF0\x0F\x50\x0F\x00\x01')
+    c.xpcu_GPIO_transfer(9, b'\xF0\x0F\x50\x0F\x00\x01')
     assert d0.tapstate == "SHIFTDR"
 
     #READ 32 BITS OF DATA
-    bits = c.xpcu_GPIO_transfer(32-1, b'\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF')
+    bits = c.xpcu_GPIO_transfer(32, b'\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF')
     assert d0.tapstate == "SHIFTDR"
     assert bits == d0._idcode
 
@@ -41,7 +41,7 @@ def test_xpcu_GPIO_transfer_adv():
     c.jtag_enable()
 
     #RESET, TRANS TO SHIFTDR, DO NOTHING, READ 32 BITS
-    bits = c.xpcu_GPIO_transfer(32+16-1, b'\xF0\x0F\x50\x0F\x00\x01\x00\x00\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF')
+    bits = c.xpcu_GPIO_transfer(32+16, b'\xF0\x0F\x50\x0F\x00\x01\x00\x00\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF')
     assert d0.tapstate == "SHIFTDR"
     assert bits == d0._idcode
 
@@ -56,22 +56,22 @@ def test_xpcu_GPIO_transfer_adv_read_7_8_9_15_16_17_bits():
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
     #Do nothing interesting and read each bit. Checking return length
-    ret = c.xpcu_GPIO_transfer(7-1, b'\x00\xFF'*2)
+    ret = c.xpcu_GPIO_transfer(7, b'\x00\xFF'*2)
     assert len(ret) == 7
 
-    ret = c.xpcu_GPIO_transfer(8-1, b'\x00\xFF'*2)
+    ret = c.xpcu_GPIO_transfer(8, b'\x00\xFF'*2)
     assert len(ret) == 8
 
-    ret = c.xpcu_GPIO_transfer(9-1, b'\x00\xFF'*3)
+    ret = c.xpcu_GPIO_transfer(9, b'\x00\xFF'*3)
     assert len(ret) == 9
 
-    ret = c.xpcu_GPIO_transfer(15-1, b'\x00\xFF'*4)
+    ret = c.xpcu_GPIO_transfer(15, b'\x00\xFF'*4)
     assert len(ret) == 15
 
-    ret = c.xpcu_GPIO_transfer(16-1, b'\x00\xFF'*4)
+    ret = c.xpcu_GPIO_transfer(16, b'\x00\xFF'*4)
     assert len(ret) == 16
 
-    ret = c.xpcu_GPIO_transfer(17-1, b'\x00\xFF'*5)
+    ret = c.xpcu_GPIO_transfer(17, b'\x00\xFF'*5)
     assert len(ret) == 17
 
 def test_xpcu_GPIO_transfer_adv_read_31_32_33_63_64_65_bits():
@@ -85,22 +85,22 @@ def test_xpcu_GPIO_transfer_adv_read_31_32_33_63_64_65_bits():
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
     #Do nothing interesting and read each bit. Checking return length
-    ret = c.xpcu_GPIO_transfer(31-1, b'\x00\xFF'*8)
+    ret = c.xpcu_GPIO_transfer(31, b'\x00\xFF'*8)
     assert len(ret) == 31
 
-    ret = c.xpcu_GPIO_transfer(32-1, b'\x00\xFF'*8)
+    ret = c.xpcu_GPIO_transfer(32, b'\x00\xFF'*8)
     assert len(ret) == 32
 
-    ret = c.xpcu_GPIO_transfer(33-1, b'\x00\xFF'*9)
+    ret = c.xpcu_GPIO_transfer(33, b'\x00\xFF'*9)
     assert len(ret) == 33
 
-    ret = c.xpcu_GPIO_transfer(63-1, b'\x00\xFF'*16)
+    ret = c.xpcu_GPIO_transfer(63, b'\x00\xFF'*16)
     assert len(ret) == 63
 
-    ret = c.xpcu_GPIO_transfer(64-1, b'\x00\xFF'*16)
+    ret = c.xpcu_GPIO_transfer(64, b'\x00\xFF'*16)
     assert len(ret) == 64
 
-    ret = c.xpcu_GPIO_transfer(65-1, b'\x00\xFF'*17)
+    ret = c.xpcu_GPIO_transfer(65, b'\x00\xFF'*17)
     assert len(ret) == 65
 
 def test_transfer_bits():
