@@ -81,6 +81,11 @@ class XilinxPC1Driver(CableDriver):
     def transfer_bits(self, count, *, TMS=True, TDI=False, TDO=False):
         if not self._jtagon:
             raise JTAGNotEnabledError('JTAG Must be enabled first')
+        if count < 1:
+            raise ValueError()
+        if count > 0xFFFFFF+1:
+            raise ValueError("Too many transactions. Max 16777216.")
+
         if isinstance(TMS, (numbers.Number, bool)):
             TMS = ConstantBitarray(bool(TMS), count)
         if isinstance(TDI, (numbers.Number, bool)):
@@ -91,21 +96,51 @@ class XilinxPC1Driver(CableDriver):
             self._scanchain._tap_transition_driver_trigger(TMS)
 
         bit_return_count = TDO.count(True)
+        print("BIT RETURN COUNT", bit_return_count, len(TDO), count)
 
-        outbits = bitarray()
-        for i in range(int(math.ceil(count/4.0))):
-            _start = max(count-((i+1)*4), 0)
-            _end = count-(i*4)
-            pad = bitarray((4-(_end-_start))*'0')
-            tms_extend = pad+TMS[_start:_end]
-            tdi_extend = pad+TDI[_start:_end]
-            tdo_extend = pad+TDO[_start:_end]
-            outbits.extend(tms_extend)
-            outbits.extend(tdi_extend)
-            outbits.extend(tdo_extend)
-            outbits.extend(pad + bitarray([True]*(4-len(pad))))
+        from time import time
+        t = time()
+        outdata = bytearray(int(math.ceil(count/4.0))*2)
+        tmsbytes = TMS.tobytes()
+        tdibytes = TDI.tobytes()
+        tdobytes = TDO.tobytes()
 
-        return self.xpcu_GPIO_transfer(count, outbits.tobytes(),
+        adjusted_count = math.ceil(count/4)*4
+        outbaseindex = 0
+        inoffset = 0
+        if count%8-4>0:
+            #0xAa 0xBb 0xCc 0xDd = 0xab 0xcd
+            outdata[0], outdata[1] = \
+                ((tmsbytes[-1]<<4)&0xF0)|(tdibytes[-1]&0xF), \
+                ((tdobytes[-1]<<4)&0xF0)|(0xF<<(4-(count%4)))&0xF
+            outbaseindex = 2
+        if count%8:
+            #0xAa 0xBb 0xCc 0xDd = 0xAB 0xCD
+            outdata[outbaseindex], outdata[outbaseindex+1] = \
+                (tmsbytes[-1]&0xF0)|(tdibytes[-1]>>4), \
+                (tdobytes[-1]&0xF0)|(0xFF<<(4-min(4, count%8)))&0xF
+            outbaseindex += 2
+            inoffset = 1
+
+        readoffset = -(inoffset+1)
+        # This is done this way because breaking these into variables
+        # blows up the runtime. Thanks to mekarpeles for finding this.
+        # Bit shifts and readoffset increased performance slightly.
+        # Encoding 16777216 bits takes 3.2s, down from 80s (on 2.9 GHZ i7-3520M)
+        for i in range(len(tmsbytes)-inoffset):#range(len(outdata)//4):
+            outdata[(i<<2)+outbaseindex], outdata[(i<<2)+1+outbaseindex], \
+                outdata[(i<<2)+2+outbaseindex], outdata[(i<<2)+3+outbaseindex] \
+                = \
+                ((tmsbytes[readoffset-i]&0x0F)<<4)|(tdibytes[readoffset-i]&0x0F), \
+                ((tdobytes[readoffset-i]&0x0F)<<4)|0x0F,\
+                (tmsbytes[readoffset-i]&0xF0)|(tdibytes[readoffset-i]>>4), \
+                (tdobytes[readoffset-i]&0xF0)|0x0F
+
+
+        print("XPCU1 byte blocks 2 Data Prepare Time:", time()-t)
+
+        print("LENGTH OF OUTDATA", len(outdata))
+        return self.xpcu_GPIO_transfer(adjusted_count, outdata,
                     bit_return_count=bit_return_count)
 
     def transfer_bits_single(self, count, TMS, TDI, TDO=False):
@@ -197,6 +232,8 @@ class XilinxPC1Driver(CableDriver):
         bit_count_low = bit_count_dev & 0xFFFF #16 bits for 'index' field
         bit_count_high = (bit_count_dev>>8) & 0xFF00
 
+        from time import time
+        t = time()
         if self._scanchain and self._scanchain._debug:
             print("***INPUT DATA TO CPXU (%s bits):"%(bit_count),
                   " ".join((hex(data)[2:].zfill(2)for data in data)))
@@ -204,19 +241,32 @@ class XilinxPC1Driver(CableDriver):
             bit_return_count = bin(sum([((ord(data[i*2+1:i*2+2])>>4) &
                                  (( 1<< min(4, bit_count-(i*4)) )-1) )<<4*i
                                 for i in range(int(len(data)/2))])).count('1')
+        print("COUNT TDO BITS time        ", time()-t)
+
+        print("VALUE", hex(bit_count_high | 0xa6)[2:].zfill(4),
+              "INDEX", hex(bit_count_low)[2:].zfill(4),
+              "DATLEN", len(data))
         self._handle.controlWrite(0x40, 0xb0, bit_count_high | 0xa6,
                                   bit_count_low, b'')
 
-        bytec = self._handle.bulkWrite(2, data, timeout=2500)
+        print("DATA OUT", data)
+
+        t = time()
+        bytec = self._handle.bulkWrite(2, data, timeout=120000)
+        print("TRANSFER time              ", time()-t)
 
         if bit_return_count:
+            t = time()
             bytes_wanted = int(math.ceil(bit_return_count/8.0))
             bytes_expected = bytes_wanted +(1 if bytes_wanted%2 else 0)
+            print("WANTED %s; EXPECTED %s"%(bytes_wanted, bytes_expected))
             ret = self._handle.bulkRead(6, bytes_expected, timeout=5000)
 
-            if self._scanchain and self._scanchain._debug:
-                print("OUTPUT DATA FROM XPCU (retbits: %s)"%bit_return_count,
+            print(ret.hex())
+            #if self._scanchain and self._scanchain._debug:
+            print("OUTPUT DATA FROM XPCU (retbits: %s)"%bit_return_count,
                       " ".join((hex(data)[2:].zfill(2)for data in ret)))
+
             final_group_index = (bit_return_count-(bit_return_count%32))//8
             retiter = iter(ret[:final_group_index])
             fullgroups = [bytes(elem[::-1]) for elem in
@@ -231,7 +281,10 @@ class XilinxPC1Driver(CableDriver):
             raw_bits.frombytes(reordered_data)
             raw_bits = other_bits + raw_bits
 
-            assert len(raw_bits) == bit_return_count, "WRONG BIT NUM CALCULATED"
+            assert len(raw_bits) == bit_return_count, \
+                "WRONG BIT NUM CALCULATED; returned: %s; expected: %s"%\
+                (len(raw_bits), bit_return_count)
+            print("RETURN DATA CALCULATION time", time()-t)
             return raw_bits
 
     def _get_speed(self):

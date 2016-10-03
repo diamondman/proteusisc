@@ -1,0 +1,54 @@
+        t = time()
+        outbits = bitarray(int(math.ceil(count/4.0))*16)
+        for i in range((count-(count%4))//4):
+            outbits[i*16:(i*16)+4] = bitarray(TMS[i*4:(i+1)*4])
+            outbits[(i*16)+4:(i*16)+8] = bitarray(TDI[i*4:(i+1)*4])
+            outbits[(i*16)+8:(i*16)+12] = bitarray(TDO[i*4:(i+1)*4])
+            outbits[(i*16)+12:(i*16)+16] = True
+        if count%4:
+            offset = 4-(count%4)
+            outbits[offset-16:-12] = bitarray(TMS[offset-4:count])
+            outbits[offset-12:-8] = bitarray(TDI[offset-4:count])
+            outbits[offset-8:-4] = bitarray(TDO[offset-4:count])
+            outbits[offset-4:] = True
+
+        print("XPCU1 bitarray ranges Data Prepare Time:", time()-t)
+
+
+
+
+
+
+
+
+
+
+
+        outdata = bytearray(int(math.ceil(count/4.0))*2)
+        TMS.reverse()
+        tmsbytes = TMS.tobytes()
+        TDI.reverse()
+        tdibytes = TDI.tobytes()
+        TDO.reverse()
+        tdobytes = TDO.tobytes()
+
+        print("TMS", tmsbytes)
+        print("TDI", tdibytes)
+        print("TDO", tdobytes)
+
+        import ipdb
+        ipdb.set_trace()
+
+        # This is done this way because breaking these into variables
+        # blows up the runtime. Thanks to mekarpeles for finding this
+        for i in range(len(outdata)//4):#range((count-(count%4))//8):
+            outdata[i*4], outdata[i*4+1], outdata[i*4+2], outdata[i*4+3] \
+                = (tmsbytes[i]&0xF0)|(tdibytes[i]>>4), \
+                (tdobytes[i]&0xF0)|0x0F, \
+                ((tmsbytes[i]&0x0F)<<4)|(tdibytes[i]&0xFF), \
+                ((tdobytes[i]&0x0F)<<4)|0x0F
+
+        #if len(outdata)%4:
+        #    outdata[-2], outdata[-1] = \
+        #        (tmsbytes[i+1]&0xF0)|(tdibytes[i+1]>>4), \
+        #        (tdobytes[i+1]&0xF0)|0x0F
