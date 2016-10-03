@@ -104,6 +104,8 @@ class FakeXPCU1Handle(object):
                             "Expected %s; Got %s"%
                             (expected_data_len, len(data)))
         bitsin = bitarray()
+        #Deal with issue of bitarray not accepting bytearrays
+        data = bytes(data)
         bitsin.frombytes(data)
         bitiniter = iter(bitsin)
         bgroups = list(zip(bitiniter, bitiniter, bitiniter, bitiniter))

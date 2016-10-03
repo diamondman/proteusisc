@@ -1,5 +1,6 @@
 import collections
 from bitarray import bitarray
+import math
 
 class ConstantBitarray(collections.Sequence):
     """A bitarray type where all bits are the same value.
@@ -117,6 +118,20 @@ class ConstantBitarray(collections.Sequence):
 
     def all(self):
         return self._val
+
+    def tobytes(self):
+        if not len(self):
+            return b''
+        if self._val:
+            if len(self)%8:
+                return bytes([0xFF]*(math.ceil(len(self)/8)-1)+\
+                             [(0xFF<<(8-len(self)%8))&0xFF])
+            return bytes([0xFF]*(math.ceil(len(self)/8)))
+
+        return bytes([0x00]*(math.ceil(len(self)/8)))
+
+    def reverse(self):
+        pass
 
 class NoCareBitarray(collections.Sequence):
     """A bitarray type with no preference on its bit values.
@@ -238,6 +253,14 @@ class NoCareBitarray(collections.Sequence):
 
     def all(self):
         return False
+
+    def tobytes(self):
+        if not len(self):
+            return b''
+        return bytes([0x00]*(math.ceil(len(self)/8)))
+
+    def reverse(self):
+        pass
 
 
 class CompositeBitarray(collections.Sequence):
