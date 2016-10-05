@@ -68,6 +68,9 @@ class XilinxPC1Driver(CableDriver):
                                           self.firmwareVersion)
 
     def jtag_enable(self):
+        if self._dev.getProductID() == 0x0D:
+            self._handle.claimInterface(0)
+            self._handle.setInterfaceAltSetting(0,1)
         self.xpcu_enable_output(True)
         self.xpcu_set_jtag_speed(False)
         self._jtagon = True
@@ -76,6 +79,9 @@ class XilinxPC1Driver(CableDriver):
     def jtag_disable(self):
         self.xpcu_enable_output(False)
         self._jtagon = False
+        if self._dev.getProductID() == 0x0D:
+            self._handle.releaseInterface(0)
+
         #self.xpcu_enable_cpld_upgrade_mode(False)
 
     def transfer_bits(self, count, *, TMS=True, TDI=False, TDO=False):
@@ -238,14 +244,14 @@ class XilinxPC1Driver(CableDriver):
             print("***INPUT DATA TO CPXU (%s bits):"%(bit_count),
                   " ".join((hex(data)[2:].zfill(2)for data in data)))
         if bit_return_count is None:
-            bit_return_count = bin(sum([((ord(data[i*2+1:i*2+2])>>4) &
-                                 (( 1<< min(4, bit_count-(i*4)) )-1) )<<4*i
-                                for i in range(int(len(data)/2))])).count('1')
+            bit_return_count = XilinxPC1Driver._count_tdo_bits(data,
+                                                               bit_count)
         print("COUNT TDO BITS time        ", time()-t)
 
         print("VALUE", hex(bit_count_high | 0xa6)[2:].zfill(4),
               "INDEX", hex(bit_count_low)[2:].zfill(4),
               "DATLEN", len(data))
+
         self._handle.controlWrite(0x40, 0xb0, bit_count_high | 0xa6,
                                   bit_count_low, b'')
 
@@ -262,24 +268,20 @@ class XilinxPC1Driver(CableDriver):
             print("WANTED %s; EXPECTED %s"%(bytes_wanted, bytes_expected))
             ret = self._handle.bulkRead(6, bytes_expected, timeout=5000)
 
+            if len(ret) != bytes_expected:
+                raise Exception("Data returned is wrong lentgh. "
+                                "Expected %s; Got %s. This is likely an "
+                                "issue with the controller. Please report "
+                                "The data you sent caused this error."
+                                %(bytes_expected, len(ret)))
+
             print(ret.hex())
-            #if self._scanchain and self._scanchain._debug:
-            print("OUTPUT DATA FROM XPCU (retbits: %s)"%bit_return_count,
+            if self._scanchain and self._scanchain._debug:
+                print("OUTPUT DATA FROM XPCU (retbits: %s)"%bit_return_count,
                       " ".join((hex(data)[2:].zfill(2)for data in ret)))
 
-            final_group_index = (bit_return_count-(bit_return_count%32))//8
-            retiter = iter(ret[:final_group_index])
-            fullgroups = [bytes(elem[::-1]) for elem in
-                          zip(retiter, retiter, retiter, retiter)][::-1]
-            other=ret[final_group_index:][::-1]
-            other_bits = bitarray()
-            other_bits.frombytes(other)
-            other_bits = other_bits[:bit_return_count-(8*final_group_index)]
-
-            reordered_data = b"".join(fullgroups)
-            raw_bits = bitarray()
-            raw_bits.frombytes(reordered_data)
-            raw_bits = other_bits + raw_bits
+            raw_bits = XilinxPC1Driver._decode_tdo_bits(
+                ret, bit_return_count=bit_return_count)
 
             assert len(raw_bits) == bit_return_count, \
                 "WRONG BIT NUM CALCULATED; returned: %s; expected: %s"%\
@@ -295,4 +297,36 @@ class XilinxPC1Driver(CableDriver):
         self.xpcu_set_jtag_speed(4-power)
         return 750000 * (2**power)
 
-__filter__ = [((0x03FD, 0x0008),XilinxPC1Driver)]
+    @staticmethod
+    def _count_tdo_bits(data, bit_count):
+        return bin(sum([((ord(data[i*2+1:i*2+2])>>4) &
+                         (( 1<< min(4, bit_count-(i*4)) )-1) )<<4*i
+                        for i in range(int(len(data)/2))])).count('1')
+
+    @staticmethod
+    def _decode_tdo_bits(ret, *, bit_return_count=None, bit_count=None):
+        if bit_return_count is None:
+            bit_return_count = XilinxPC1Driver._count_tdo_bits(data,
+                                                               bit_count)
+
+        bytes_wanted = int(math.ceil(bit_return_count/8.0))
+        bytes_expected = bytes_wanted +(1 if bytes_wanted%2 else 0)
+
+        final_group_index = (bit_return_count-(bit_return_count%32))//8
+        retiter = iter(ret[:final_group_index])
+        fullgroups = [bytes(elem[::-1]) for elem in
+                      zip(retiter, retiter, retiter, retiter)][::-1]
+        other=ret[final_group_index:][::-1]
+        other_bits = bitarray()
+        other_bits.frombytes(other)
+        other_bits = other_bits[:bit_return_count-(8*final_group_index)]
+
+        reordered_data = b"".join(fullgroups)
+        raw_bits = bitarray()
+        raw_bits.frombytes(reordered_data)
+        raw_bits = other_bits + raw_bits
+
+        return raw_bits
+
+__filter__ = [((0x03FD, 0x000D),XilinxPC1Driver),
+              ((0x03FD, 0x0008),XilinxPC1Driver)]

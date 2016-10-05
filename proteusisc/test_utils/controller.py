@@ -103,25 +103,8 @@ class FakeXPCU1Handle(object):
             raise Exception("Incorrect number of data bytes. Would Hang. "
                             "Expected %s; Got %s"%
                             (expected_data_len, len(data)))
-        bitsin = bitarray()
-        #Deal with issue of bitarray not accepting bytearrays
-        data = bytes(data)
-        bitsin.frombytes(data)
-        bitiniter = iter(bitsin)
-        bgroups = list(zip(bitiniter, bitiniter, bitiniter, bitiniter))
-        tms = bitarray(chain.from_iterable(reversed(bgroups[0::4])))
-        tdi = bitarray(chain.from_iterable(reversed(bgroups[1::4])))
-        tdo = bitarray(chain.from_iterable(reversed(bgroups[2::4])))
-        tck = bitarray(chain.from_iterable(reversed(bgroups[3::4])))
-        tms.reverse()
-        tdi.reverse()
-        tdo.reverse()
-        tck.reverse()
-        tms = tms[:self.transfer_bit_count]
-        tdi = tdi[:self.transfer_bit_count]
-        tdo = tdo[:self.transfer_bit_count]
-        tck = tck[:self.transfer_bit_count]
-
+        tms, tdi, tdo, tck = FakeXPCU1Handle.\
+                    _decode_transfer_bits(data, self.transfer_bit_count)
         res_tmp = []
         dataout = b''
 
@@ -193,6 +176,50 @@ class FakeXPCU1Handle(object):
         #print("State %s => %s; Reading %s"%
         #    (oldstate,self.devices[0].tap.state,tdi))
         return tdi
+
+    @staticmethod
+    def _decode_transfer_bits(data, transfer_bit_count):
+        #Deal with issue of bitarray not accepting bytearrays
+        data = bytes(data)
+        bitsin = bitarray()
+        bitsin.frombytes(data)
+        bitiniter = iter(bitsin)
+        bgroups = list(zip(bitiniter, bitiniter, bitiniter, bitiniter))
+        tms = bitarray(chain.from_iterable(reversed(bgroups[0::4])))
+        tdi = bitarray(chain.from_iterable(reversed(bgroups[1::4])))
+        tdo = bitarray(chain.from_iterable(reversed(bgroups[2::4])))
+        tck = bitarray(chain.from_iterable(reversed(bgroups[3::4])))
+        tms.reverse()
+        tdi.reverse()
+        tdo.reverse()
+        tck.reverse()
+        tms = tms[:transfer_bit_count]
+        tdi = tdi[:transfer_bit_count]
+        tdo = tdo[:transfer_bit_count]
+        tck = tck[:transfer_bit_count]
+        return tms, tdi, tdo, tck
+
+    @staticmethod
+    def hexstr_to_bitdata(s, l):
+        if isinstance(s, str):
+            s = bytes.fromhex(s)
+        tms, tdi, tdo, tck = XPCU1._decode_transfer_bits(s, l)
+        print("TMS: %s (%s)", (tms.to01(), tms.count(True)))
+        print("TDI: %s (%s)", (tdi.to01(), tdi.count(True)))
+        print("TDO: %s (%s)", (tdo.to01(), tdo.count(True)))
+        print("TCK: %s (%s)", (tck.to01(), tck.count(True)))
+
+    @staticmethod
+    def hexstr_to_bitdata(s, l):
+        bs = bytearray.fromhex(s)
+        tms, tdi, tdo, tck = FakeXPCU1Handle._decode_transfer_bits(bs, l)
+        print("TMS: %s (%s)" % (tms.to01(), tms.count(True)))
+        print("TDI: %s (%s)" % (tdi.to01(), tdi.count(True)))
+        print("TDO: %s (%s)" % (tdo.to01(), tdo.count(True)))
+        print("TCK: %s (%s)" % (tck.to01(), tck.count(True)))
+
+
+
 
 class FakeDevHandle(object):
     """Artificial USB Digilent ISC controller that implements the usb1.USBDeviceHandle interface.
