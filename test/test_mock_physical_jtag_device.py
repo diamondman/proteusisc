@@ -1,6 +1,6 @@
 #-*- coding: utf-8 -*-
 import pytest
-from bitarray import bitarray
+from proteusisc import Bitarray
 from proteusisc.test_utils import MockPhysicalJTAGDevice
 
 def test_initialize_correct_defaults():
@@ -9,9 +9,9 @@ def test_initialize_correct_defaults():
     assert dev.name == "D0"
 
 def test_shift():
-    dev = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111101'))
+    dev = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111101'))
     #MOVE TO SHIFTDR. Prepare to read idcode.
-    for tms in reversed(bitarray('001011111')):
+    for tms in reversed(Bitarray('001011111')):
         dev.shift(tms, False)
     assert dev.tapstate == "SHIFTDR",\
         "Device TAP did not respond correctly to tms bits"
@@ -21,7 +21,7 @@ def test_shift():
 
     #Test reading IDcode works
     dev.clearhistory()
-    read_idcode = bitarray()
+    read_idcode = Bitarray()
     real_idcode = dev.idcode
     for i in range(31):
         read_idcode.append(dev.shift(False, True))
@@ -34,8 +34,8 @@ def test_shift():
 
     #Test setting an IR
     dev.clearhistory()
-    read_status = bitarray()
-    for tms in reversed(bitarray('0011')):
+    read_status = Bitarray()
+    for tms in reversed(Bitarray('0011')):
         dev.shift(tms, False)
     assert dev.tapstate == "SHIFTIR",\
         "Device TAP did not respond correctly to tms bits"
@@ -49,32 +49,32 @@ def test_shift():
     assert "UPDATEIR" in dev.event_history
 
 def test_idcode_ins_loads_id_code():
-    dev = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111101'))
+    dev = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111101'))
     #MOVE TO SHIFTDR. Prepare to read idcode.
-    for tms in reversed(bitarray('001011111')):
+    for tms in reversed(Bitarray('001011111')):
         dev.shift(tms, False)
 
     #READ OUT IDCODE TO CLEAR IT
-    for tms in reversed(bitarray('10000000000000000000000000000000')):
+    for tms in reversed(Bitarray('10000000000000000000000000000000')):
         dev.shift(tms, False)
 
     #GO TO SHIFTIR
-    for tms in reversed(bitarray('00111')):
+    for tms in reversed(Bitarray('00111')):
         dev.shift(tms, False)
     assert dev.tapstate == "SHIFTIR"
 
     #SHIFT IN 'IDCODE' instruction (00000001)
-    tmsbits = bitarray('10000000')[::-1]
-    tdibits = bitarray('00000001')[::-1]
+    tmsbits = Bitarray('10000000')[::-1]
+    tdibits = Bitarray('00000001')[::-1]
     for bit in range(len(tmsbits)):
         dev.shift(tmsbits[bit], tdibits[bit])
 
     #GO TO SHIFTDR
-    for tms in reversed(bitarray('00101')):
+    for tms in reversed(Bitarray('00101')):
         dev.shift(tms, False)
 
     #READIDCODE
-    read_idcode = bitarray()
+    read_idcode = Bitarray()
     real_idcode = dev.idcode
     for i in range(31):
         read_idcode.append(dev.shift(False, True))
@@ -86,23 +86,23 @@ def test_captureDR_loads_reg():
     #in the scan chain that caused initialization to loop forever,
     #constantly redetecting the same device. The fix was to check that
     #the IDCODE register is updated in the CaptureDR state.
-    dev = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111101'))
+    dev = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111101'))
 
     #CHANGE TO SHIFTDR
-    for tms in reversed(bitarray('001011111')):
+    for tms in reversed(Bitarray('001011111')):
         dev.shift(tms, False)
 
     #READ OUT IDCODE TO CLEAR IT
-    for tms in reversed(bitarray('10000000000000000000000000000000')):
+    for tms in reversed(Bitarray('10000000000000000000000000000000')):
         dev.shift(tms, False)
 
     #LOOP BACK AROUND TO SHIFTDR THROUGH CAPTUREDR
-    for tms in reversed(bitarray('0011')):
+    for tms in reversed(Bitarray('0011')):
         dev.shift(tms, False)
 
     #READ OUT IDCODE TO CLEAR IT
-    read_idcode = bitarray()
+    read_idcode = Bitarray()
     real_idcode = dev.idcode
-    for tms in reversed(bitarray('10000000000000000000000000000000')):
+    for tms in reversed(Bitarray('10000000000000000000000000000000')):
         read_idcode.append(dev.shift(tms, False))
     assert read_idcode[::-1] == real_idcode

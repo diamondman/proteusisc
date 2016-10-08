@@ -1,6 +1,5 @@
 #-*- coding: utf-8 -*-
-from bitarray import bitarray
-
+from proteusisc import Bitarray
 from proteusisc.promise import TDOPromise, TDOPromiseCollection
 
 class FakeChain(object):
@@ -41,19 +40,19 @@ def test_promise_subpromises():
 
 def test_promise_fulfill():
     pro = TDOPromise(chain, 0, 5)
-    pro._fulfill(bitarray('10101'))
-    assert pro() == bitarray('10101')
+    pro._fulfill(Bitarray('10101'))
+    assert pro() == Bitarray('10101')
 
-    pro._fulfill(bitarray('01010'))
-    assert pro() == bitarray('01010')
+    pro._fulfill(Bitarray('01010'))
+    assert pro() == Bitarray('01010')
 
     #Check that splitting into two prims/promises
     #still fulfills correctly
     pro = TDOPromise(chain, 0, 5)
     rest, tail = pro.split_to_subpromises()
-    tail._fulfill(bitarray('1'))
-    rest._fulfill(bitarray('0101'))
-    assert pro() == bitarray('10101')
+    tail._fulfill(Bitarray('1'))
+    rest._fulfill(Bitarray('0101'))
+    assert pro() == Bitarray('10101')
 
 def test_promisecollection_creation():
     pro = TDOPromise(chain, 0, 8)
@@ -66,14 +65,14 @@ def test_promisecollection_fulfill():
     pro = TDOPromise(chain, 0, 8)
     promises = TDOPromiseCollection(chain, 8)
     promises.add(pro, 0)
-    promises._fulfill(bitarray('11001010'))
-    assert pro() == bitarray('11001010')
+    promises._fulfill(Bitarray('11001010'))
+    assert pro() == Bitarray('11001010')
 
     pro = TDOPromise(chain, 0, 10)
     promises = TDOPromiseCollection(chain, 8)
     promises.add(pro, 2)
-    promises._fulfill(bitarray('0011001010'))
-    assert pro() == bitarray('11001010')
+    promises._fulfill(Bitarray('0011001010'))
+    assert pro() == Bitarray('11001010')
 
 
 def test_promisecollection_split_fulfill():
@@ -85,10 +84,10 @@ def test_promisecollection_split_fulfill():
 
     rest, tail = promises.split_to_subpromises()
 
-    rest._fulfill(bitarray('111111011001010'))
-    tail._fulfill(bitarray('1'))
-    assert pro0() == bitarray('11111110')
-    assert pro1() == bitarray('11001010')
+    rest._fulfill(Bitarray('111111011001010'))
+    tail._fulfill(Bitarray('1'))
+    assert pro0() == Bitarray('11111110')
+    assert pro1() == Bitarray('11001010')
 
 def test_promisecollection_make_offset_sub():
     pro0 = TDOPromise(chain, 0, 8)
@@ -98,9 +97,9 @@ def test_promisecollection_make_offset_sub():
     promises.add(pro1, 8)
 
     offsetpromises = promises.makesubatoffset(5)
-    offsetpromises._fulfill(bitarray('000001111111011001010'))
-    assert pro0() == bitarray('11111110')
-    assert pro1() == bitarray('11001010')
+    offsetpromises._fulfill(Bitarray('000001111111011001010'))
+    assert pro0() == Bitarray('11111110')
+    assert pro1() == Bitarray('11001010')
 
 def test_promisecollection_make_offset_sub_with_ideal_tdo():
     pro0 = TDOPromise(chain, 0, 8)
@@ -111,7 +110,7 @@ def test_promisecollection_make_offset_sub_with_ideal_tdo():
 
     offsetpromises = promises.makesubatoffset(5, _offsetideal=0)
     print(offsetpromises)
-    offsetpromises._fulfill(bitarray('1111111011001010'),
+    offsetpromises._fulfill(Bitarray('1111111011001010'),
                             ignore_nonpromised_bits=True)
-    assert pro0() == bitarray('11111110')
-    assert pro1() == bitarray('11001010')
+    assert pro0() == Bitarray('11111110')
+    assert pro1() == Bitarray('11001010')

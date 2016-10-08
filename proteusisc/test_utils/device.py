@@ -1,4 +1,4 @@
-from bitarray import bitarray
+from .. import Bitarray
 from collections import deque, Iterable
 
 from ..jtagStateMachine import JTAGStateMachine
@@ -25,7 +25,7 @@ class ShiftRegister(object):
 
     Attributes:
         size: An integer bitwidth of the register.
-        initval: An boolean or bitarray to initialize the register's bits
+        initval: An boolean or Bitarray to initialize the register's bits
 
     """
 
@@ -73,12 +73,12 @@ class ShiftRegister(object):
 
         Usage:
             >>> from proteusisc.test_util import ShiftRegister
-            >>> from bitarray import bitarray
-            >>> sr = ShiftRegister(8, bitarray('11001010'))
-            >>> ba = bitarray()
+            >>> from proteusisc import Bitarray
+            >>> sr = ShiftRegister(8, Bitarray('11001010'))
+            >>> ba = Bitarray()
             >>> for i in range(8)
             ...     ba.append(sr.shift(False))
-            >>> assert ba == bitarray('01010011')
+            >>> assert ba == Bitarray('01010011')
         """
         res = self._data.pop()
         self._data.appendleft(val)
@@ -97,11 +97,11 @@ class ShiftRegister(object):
         """Reads out the data stored in the shift register
 
         Returns:
-            A bitarray of all the data in the shiftregister.
+            A Bitarray of all the data in the shiftregister.
 
-            [True, False] => bitarray("10")
+            [True, False] => Bitarray("10")
         """
-        return bitarray(self._data)
+        return Bitarray(self._data)
 
 class MockPhysicalJTAGDevice(object):
     def __init__(self, irlen=8, name=None, status=None, idcode=None):
@@ -116,7 +116,7 @@ class MockPhysicalJTAGDevice(object):
         self.current_instruction = "IDCODE"
 
         self._idcode = idcode or \
-                       bitarray('00000110110101001000000010010011')
+                       Bitarray('00000110110101001000000010010011')
 
         self._instruction_register_map = {
             'BULKPROG': 'DATAREG',
@@ -204,7 +204,7 @@ class MockPhysicalJTAGDevice(object):
 
     def calc_status_register(self):
         data = self._custom_status if self._custom_status\
-               else bitarray('11111011')
+               else Bitarray('11111011')
         return ShiftRegister(self.irlen, data)
 
     def _TLR(self):

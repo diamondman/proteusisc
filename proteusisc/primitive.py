@@ -1,10 +1,9 @@
-from bitarray import bitarray
 import types
 import operator
 import collections
 
 from .promise import TDOPromise, TDOPromiseCollection
-from .bittypes import ConstantBitarray, NoCareBitarray
+from .bittypes import ConstantBitarray, NoCareBitarray, Bitarray
 from .contracts import NOCARE
 
 class Primitive(object):
@@ -34,7 +33,7 @@ class Primitive(object):
         for v in vars(self):
             if v not in {"dev", "_promise", "_synthetic"}:
                 value = getattr(self, v)
-                if isinstance(value, bitarray):
+                if isinstance(value, Bitarray):
                     value = value.to01()
                     if len(value) > 30:
                         value = str(value)[:30]+"...(%s)"%len(value)
@@ -161,7 +160,7 @@ class Level1Primitive(Primitive):
         elif not isinstance(_tdi, collections.Iterable):
             _tdi = ConstantBitarray(_tdi, count)
         if _tdo is None:
-            _tdo = NoCareBitarray(count, _preserve=True)
+            _tdo = NoCareBitarray(count)
         elif not isinstance(_tdo, collections.Iterable):
             _tdo = ConstantBitarray(_tdo, count)
 
@@ -228,13 +227,13 @@ class Level1Primitive(Primitive):
         tms = self.tms
         tdi = self.tdi
         tdo = self.tdo
-        if isinstance(self.tdi, bitarray):
+        if isinstance(self.tdi, Bitarray):
             if len(self.tdi)>30:
                 tdi = "%s...(%s bits)"%(tdi[0:30], len(tdi))
-        if isinstance(self.tms, bitarray):
+        if isinstance(self.tms, Bitarray):
             if len(self.tms)>30:
                 tms = "%s...(%s bits)"%(tms[0:30], len(tms))
-        if isinstance(self.tdo, bitarray):
+        if isinstance(self.tdo, Bitarray):
             if len(self.tdo)>30:
                 tdo = "%s...(%s bits)"%(tdo[0:30], len(tdo))
         return "<%s(TMS:%s; TDI:%s; TDO:%s)>"%\

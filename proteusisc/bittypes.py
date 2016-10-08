@@ -2,6 +2,36 @@ import collections
 from bitarray import bitarray
 import math
 
+class Bitarray(bitarray):#collections.Sequence):
+    #def __init__(self, initial):
+    #    if isinstance(initia, bitarray):
+    #        self._val = initial
+    #    else:
+    #        self._val = bitarray(initial)
+    #
+    #def __repr__(self):
+    #    return "<BA %s>"%self._val.__repr__()
+
+    def __add__(self, other):
+        if len(self) == 0:
+            return other
+        if len(other) == 0:
+            return self
+        if isinstance(other, (ConstantBitarray, NoCareBitarray,
+                              Bitarray)):
+            return CompositeBitarray(self, other)
+        return NotImplemented
+
+    def __radd__(self, other):
+        if len(self) == 0:
+            return other
+        if len(other) == 0:
+            return self
+        if isinstance(other, (ConstantBitarray, NoCareBitarray)):
+            return CompositeBitarray(other, self)
+        return NotImplemented
+
+
 class ConstantBitarray(collections.Sequence):
     """A bitarray type where all bits are the same value.
 
@@ -34,6 +64,8 @@ class ConstantBitarray(collections.Sequence):
     def __len__(self):
         return self._length
     def __getitem__(self, index):
+        #import ipdb
+        #ipdb.set_trace()
         if isinstance(index, slice):
             indices = index.indices(len(self))
             return ConstantBitarray(self._val, len(range(*indices)))
@@ -48,6 +80,7 @@ class ConstantBitarray(collections.Sequence):
     def __repr__(self):
         return "<Const: %s (%s)>"%\
             (self._val, self._length)# pragma: no cover
+
     def __add__(self, other):
         """Handles combining different bitarray types.
 
@@ -59,39 +92,29 @@ class ConstantBitarray(collections.Sequence):
         """
         if len(self) == 0:
             return other
-        if isinstance(other, bool):
-            if self._val == other:
-                return ConstantBitarray(self._val, self._length+1)
-            else:
-                return bitarray((*(self._val,)*self._length, other))
-
         if len(other) == 0:
             return self
         if isinstance(other, ConstantBitarray):
             if self._val == other._val:
                 return ConstantBitarray(self._val,
                                         self._length+other._length)
-            else:
-                return bitarray((*(self._val,)*self._length,
-                                 *(other._val,)*other._length))
-        if isinstance(other, bitarray):
-            return bitarray(self)+other
+            return CompositeBitarray(self, other)
+        #if isinstance(other, bitarray):
+        #    return CompositeBitarray(self, other)
         return NotImplemented
-    def __radd__(self, other):
-        if isinstance(other, bool):
-            if len(self) == 0:
-                #Can not tell yet if bool + CBa must be CBa
-                return other
-            if self._val == other:
-                return ConstantBitarray(self._val, self._length+1)
-            else:
-                return bitarray((other, *(self._val,)*self._length))
-        return NotImplemented
+
+    def __iter__(self):
+        for bit in range(self._length):
+            yield self._val
+
+    def __reversed__(self):
+        for bit in range(self._length):
+            yield self._val
 
     def __eq__(self, other):
         if isinstance(other, ConstantBitarray):
             return len(self) == len(other) and self._val == other._val
-        if isinstance(other, bitarray):
+        if isinstance(other, Bitarray):
             if len(self) != len(other):
                 return False
             if self._val:
@@ -170,13 +193,14 @@ class NoCareBitarray(collections.Sequence):
         length: An integer specifying how many bits are in the array.
 
     """
-    def __init__(self, length, *, _preserve=False):
+    def __init__(self, length):
         self._length = length
-        self._preserve = _preserve
 
     def __len__(self):
         return self._length
     def __getitem__(self, index):
+        #import ipdb
+        #ipdb.set_trace()
         if isinstance(index, slice):
             indices = index.indices(len(self))
             return NoCareBitarray(len(range(*indices)))
@@ -188,9 +212,18 @@ class NoCareBitarray(collections.Sequence):
             raise IndexError("%s index out of range"%type(self))
         raise TypeError("%s indices must be integers or slices, not %s"%
                         (type(self), type(index)))
+
+    def __iter__(self):
+        for _ in range(self._length):
+            yield False
+
+    def __reversed__(self):
+        for _ in range(self._length):
+            yield False
+
     def __repr__(self):
-        return "<NC%s: (%s)>"%("(P)" if self._preserve else "",
-                               self._length) # pragma: no cover
+        return "<NC%s: (%s)>"%self._length # pragma: no cover
+
     def __add__(self, other):
         """Handles combining different bitarray types.
 
@@ -200,41 +233,33 @@ class NoCareBitarray(collections.Sequence):
         while combining two ConstantBitArrays depends on if the two
         array's constant value are the same.
         """
+        if isinstance(other, bool):
+            return NotImplemented
         if len(self) == 0:
             return other
-        if not isinstance(other, bool) and len(other) == 0:
+        if len(other) == 0:
             return self
+
         if isinstance(other, NoCareBitarray):
-                return NoCareBitarray(self._length+other._length)
-
-        if self._preserve:
-            if isinstance(other, (CompositeBitarray, ConstantBitarray,
-                                  bitarray)):
-                return CompositeBitarray(self, other)
-            if isinstance(other, bool):
-                return CompositeBitarray(self, ConstantBitarray(other, 1))
-        else:
-            if isinstance(other, ConstantBitarray):
-                return ConstantBitarray(other._val, len(self)+len(other))
-            if isinstance(other, bool):
-                return ConstantBitarray(other, len(self)+1)
-            if isinstance(other, bitarray):
-                return bitarray(self)+other
+            return NoCareBitarray(self._length+other._length)
+        if isinstance(other, ConstantBitarray):
+            if not other._val:
+                return ConstantBitarray(False, self._length+other._length)
+            return CompositeBitarray(self, other)
         return NotImplemented
-    def __radd__(self, other):
-        if not isinstance(other, bool) and len(self) == 0:
-            return other
 
-        if self._preserve:
-            if isinstance(other, (CompositeBitarray, ConstantBitarray)):
-                return CompositeBitarray(other, self)
-            if isinstance(other, bool):
-                return CompositeBitarray(ConstantBitarray(other, 1), self)
-        else:
-            if isinstance(other, ConstantBitarray):
-                return ConstantBitarray(other._val, len(self)+len(other))
-            if isinstance(other, bool):
-                return ConstantBitarray(other, len(self)+1)
+    def __radd__(self, other):
+        if isinstance(other, bool):
+            return NotImplemented
+        if len(self) == 0:
+            return other
+        if len(other) == 0:
+            return self
+
+        if isinstance(other, ConstantBitarray):
+            if not other._val:
+                return ConstantBitarray(False, self._length+other._length)
+            return CompositeBitarray(other, self)
         return NotImplemented
 
     def count(self, val=True):
@@ -287,7 +312,7 @@ class CompositeBitarray(collections.Sequence):
     should be converted to False or True.
 
     """
-    #TODO add iterator to speed up walking structure
+    #@profile
     def __init__(self, *components):
         """Create a bitarray object that stores its components by reference).
 
@@ -336,9 +361,11 @@ class CompositeBitarray(collections.Sequence):
             A boolean value of the bit looked up.
 
         """
-        #if isinstance(index, slice):
-        #    indices = index.indices(len(self))
-        #    return ConstantBitarray(self._val, len(range(*indices)))
+        #import ipdb
+        #ipdb.set_trace()
+        if index == slice(1, None, None):
+            return CompositeBitarray(self._components[0][1][1:],
+                                    *(c[1] for c in self._components[1:]))
         if isinstance(index, int):
             index = len(self)-abs(index) if index < 0 else index
             print("Reading a CompositeBitarray bit",index)
@@ -357,14 +384,29 @@ class CompositeBitarray(collections.Sequence):
     def __repr__(self):
         return "<CMP: %s (%s)>"%\
             (str(self), self._length)# pragma: no cover
+
+    #@profile
     def __add__(self, other):
-        if isinstance(other, (CompositeBitarray, ConstantBitarray)):
+        if isinstance(other, (CompositeBitarray, ConstantBitarray,
+                              NoCareBitarray, Bitarray)):
             return CompositeBitarray(self, other)
         return NotImplemented
+    #@profile
     def __radd__(self, other):
-        if isinstance(other, (CompositeBitarray, ConstantBitarray)):
+        if isinstance(other, (ConstantBitarray, NoCareBitarray,
+                              Bitarray)):
             return CompositeBitarray(other, self)
         return NotImplemented
+
+    def __iter__(self):
+        for _, elem in self._components:
+            for bit in elem:
+                yield bit
+
+    def __reversed__(self):
+        for _, elem in reversed(self._components):
+            for bit in reversed(elem):
+                yield bit
 
     def count(self, val=True):
         """Get the number of bits in the array with the specified value.
@@ -410,13 +452,14 @@ class CompositeBitarray(collections.Sequence):
         res = NoCareBitarray(0)
         for r, elem in self._components:
             if isinstance(elem, NoCareBitarray):
-                if elem._preserve:
-                    if preserve_history:
-                        res += ConstantBitarray(False, len(elem))
-                    else:
-                        res += NoCareBitarray(len(elem))
+                if preserve_history:
+                    res += ConstantBitarray(False, len(elem))
                 else:
                     res += elem
             else:
                 res += elem
         return res
+
+    def tobytes(self):
+        tmpba = bitarray(self)
+        return tmpba.tobytes()

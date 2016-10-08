@@ -10,7 +10,6 @@
 """
 
 import math
-from bitarray import bitarray
 import numbers
 
 from proteusisc.cabledriver import CableDriver
@@ -19,7 +18,8 @@ from proteusisc.primitive import Level1Primitive,\
 from proteusisc.contracts import NOCARE, ZERO, ONE, CONSTANT, ARBITRARY
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGNotEnabledError
-from proteusisc.bittypes import ConstantBitarray, CompositeBitarray
+from proteusisc.bittypes import ConstantBitarray, CompositeBitarray,\
+    Bitarray
 
 #PROG = 8
 #TCK = 4
@@ -145,7 +145,7 @@ class XilinxPC1Driver(CableDriver):
 
         print("XPCU1 byte blocks 2 Data Prepare Time:", time()-t)
 
-        print("LENGTH OF OUTDATA", len(outdata))
+        #print("LENGTH OF OUTDATA", len(outdata))
         return self.xpcu_GPIO_transfer(adjusted_count, outdata,
                     bit_return_count=bit_return_count)
 
@@ -153,15 +153,15 @@ class XilinxPC1Driver(CableDriver):
         if not self._jtagon:
             raise JTAGNotEnabledError()
         if isinstance(TMS, (numbers.Number, bool)):
-            TMS = bitarray(count*('1' if TMS else '0'))
+            TMS = Bitarray(count*('1' if TMS else '0'))
         if isinstance(TDI, (numbers.Number, bool)):
-            TDI = bitarray(count*('1' if TDI else '0'))
+            TDI = Bitarray(count*('1' if TDI else '0'))
         #if isinstance(TDO, (numbers.Number, bool)):
-        #    TDO = bitarray(count*('1' if TDO else '0'))
+        #    TDO = Bitarray(count*('1' if TDO else '0'))
         if self._scanchain:
             self._scanchain._tap_transition_driver_trigger(TMS)
         #self.xpcu_single_read()
-        outbits = bitarray()
+        outbits = Bitarray()
         TMS.reverse()
         TDI.reverse()
 
@@ -180,15 +180,15 @@ class XilinxPC1Driver(CableDriver):
         if not self._jtagon:
             raise JTAGNotEnabledError()
         if isinstance(TMS, (numbers.Number, bool)):
-            TMS = bitarray(count*('1' if TMS else '0'))
+            TMS = Bitarray(count*('1' if TMS else '0'))
         if isinstance(TDI, (numbers.Number, bool)):
-            TDI = bitarray(count*('1' if TDI else '0'))
+            TDI = Bitarray(count*('1' if TDI else '0'))
         #if isinstance(TDO, (numbers.Number, bool)):
-        #    TDO = bitarray(count*('1' if TDO else '0'))
+        #    TDO = Bitarray(count*('1' if TDO else '0'))
         if self._scanchain:
             self._scanchain._tap_transition_driver_trigger(TMS)
         #self.xpcu_single_read()
-        outbits = bitarray()
+        outbits = Bitarray()
         TMS.reverse()
         TDI.reverse()
 
@@ -248,14 +248,14 @@ class XilinxPC1Driver(CableDriver):
                                                                bit_count)
         print("COUNT TDO BITS time        ", time()-t)
 
-        print("VALUE", hex(bit_count_high | 0xa6)[2:].zfill(4),
-              "INDEX", hex(bit_count_low)[2:].zfill(4),
-              "DATLEN", len(data))
+        #print("VALUE", hex(bit_count_high | 0xa6)[2:].zfill(4),
+        #      "INDEX", hex(bit_count_low)[2:].zfill(4),
+        #      "DATLEN", len(data))
 
         self._handle.controlWrite(0x40, 0xb0, bit_count_high | 0xa6,
                                   bit_count_low, b'')
 
-        print("DATA OUT", data)
+        #print("DATA OUT", data)
 
         t = time()
         bytec = self._handle.bulkWrite(2, data, timeout=120000)
@@ -275,7 +275,7 @@ class XilinxPC1Driver(CableDriver):
                                 "The data you sent caused this error."
                                 %(bytes_expected, len(ret)))
 
-            print(ret.hex())
+            #print(ret.hex())
             if self._scanchain and self._scanchain._debug:
                 print("OUTPUT DATA FROM XPCU (retbits: %s)"%bit_return_count,
                       " ".join((hex(data)[2:].zfill(2)for data in ret)))
@@ -317,12 +317,12 @@ class XilinxPC1Driver(CableDriver):
         fullgroups = [bytes(elem[::-1]) for elem in
                       zip(retiter, retiter, retiter, retiter)][::-1]
         other=ret[final_group_index:][::-1]
-        other_bits = bitarray()
+        other_bits = Bitarray()
         other_bits.frombytes(other)
         other_bits = other_bits[:bit_return_count-(8*final_group_index)]
 
         reordered_data = b"".join(fullgroups)
-        raw_bits = bitarray()
+        raw_bits = Bitarray()
         raw_bits.frombytes(reordered_data)
         raw_bits = other_bits + raw_bits
 

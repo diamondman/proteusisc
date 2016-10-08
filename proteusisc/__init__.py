@@ -11,4 +11,6 @@
 
 __version__ = '0.1.0'
 
+from .bittypes import Bitarray, ConstantBitarray, NoCareBitarray
+from proteusisc.jtagScanChain import JTAGScanChain
 from .controllerManager import getAttachedControllers

@@ -1,11 +1,10 @@
 #-*- coding: utf-8 -*-
 import pytest
-from bitarray import bitarray
 
 from proteusisc.controllerManager import getDriverInstanceForDevice
 from proteusisc.test_utils import FakeUSBDev, FakeXPCU1Handle,\
     MockPhysicalJTAGDevice
-from proteusisc.primitive import ConstantBitarray
+from proteusisc.primitive import ConstantBitarray, Bitarray
 
 def test_jtag_onoff():
     ctrl = FakeXPCU1Handle()
@@ -18,8 +17,8 @@ def test_jtag_onoff():
     assert not ctrl.jtagon
 
 def test_xpcu_GPIO_transfer():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
-                    idcode=bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
+                    idcode=Bitarray('00000110110101001000000010010011'))
     ctrl = FakeXPCU1Handle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
@@ -34,8 +33,8 @@ def test_xpcu_GPIO_transfer():
     assert bits == d0._idcode
 
 def test_xpcu_GPIO_transfer_adv():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
-                    idcode=bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
+                    idcode=Bitarray('00000110110101001000000010010011'))
     ctrl = FakeXPCU1Handle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
@@ -50,8 +49,8 @@ def test_xpcu_GPIO_transfer_adv_read_7_8_9_15_16_17_bits():
     #number, the XPCU produces a new little endian shift register of
     #size 16 bits. This 2nd register can expand to 32 bits. There were
     #early issues with processing return data as it crossed boundaries.
-    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
-                    idcode=bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
+                    idcode=Bitarray('00000110110101001000000010010011'))
     ctrl = FakeXPCU1Handle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
@@ -79,8 +78,8 @@ def test_xpcu_GPIO_transfer_adv_read_31_32_33_63_64_65_bits():
     #number, the XPCU produces a new little endian shift register of
     #size 16 bits. This 2nd register can expand to 32 bits. There were
     #early issues processing return data as it crossed boundary.
-    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
-                    idcode=bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
+                    idcode=Bitarray('00000110110101001000000010010011'))
     ctrl = FakeXPCU1Handle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
@@ -104,14 +103,14 @@ def test_xpcu_GPIO_transfer_adv_read_31_32_33_63_64_65_bits():
     assert len(ret) == 65
 
 def test_transfer_bits():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
-                    idcode=bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
+                    idcode=Bitarray('00000110110101001000000010010011'))
     ctrl = FakeXPCU1Handle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
 
     #RESET TAP AND TRANS TO SHIFTDR
-    c.transfer_bits(9, TMS=bitarray('001011111'))
+    c.transfer_bits(9, TMS=Bitarray('001011111'))
     assert d0.tapstate == "SHIFTDR"
 
     #READ 32 BITS OF DATA
@@ -121,14 +120,14 @@ def test_transfer_bits():
     assert res == d0._idcode
 
 def test_transfer_bits_adv():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
-                    idcode=bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
+                    idcode=Bitarray('00000110110101001000000010010011'))
     ctrl = FakeXPCU1Handle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
 
     #RESET, TRANS TO SHIFTDR, DO NOTHING, READ 32 BITS
-    bits = c.transfer_bits(32+9, TMS=bitarray('0'*32 + '001011111'),
+    bits = c.transfer_bits(32+9, TMS=Bitarray('0'*32 + '001011111'),
                            TDI=False,
                            TDO=ConstantBitarray(True, 32)+
                            ConstantBitarray(False, 9)

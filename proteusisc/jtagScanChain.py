@@ -2,7 +2,6 @@ import math
 import time
 import struct
 from functools import partial
-from bitarray import bitarray
 
 from . import jtagDeviceDescription
 from .jtagStateMachine import JTAGStateMachine
@@ -62,7 +61,7 @@ class JTAGScanChain(object):
 
         Args:
             controller: The CableDriver that this ScanChain will control.
-            device_initializer: A callable that can map a (JTAGScanChain, bitarray) to an instance of a JTAGDevice (Allows custom classes to be used).
+            device_initializer: A callable that can map a (JTAGScanChain, Bitarray) to an instance of a JTAGDevice (Allows custom classes to be used).
             ignore_jtag_enabled: A boolean on if errors should be ignored when JTA is already enabled on the controller.
             debug: A boolean to enable extra debug printing.
         """
@@ -227,7 +226,7 @@ class JTAGScanChain(object):
 
     def _tap_transition_driver_trigger(self, bits):
         statetrans = [self._sm.state]
-        for bit in bits[::-1]:
+        for bit in reversed(bits):
             self._sm.transition_bit(bit)
             statetrans.append(self._sm.state)
 

@@ -1,10 +1,10 @@
 import csv
 import os
 import math
-from bitarray import bitarray
+from .bittypes import Bitarray
 
-NULL_ID_CODES = [bitarray('1'*32),
-                 bitarray('0'*32)]
+NULL_ID_CODES = [Bitarray('1'*32),
+                 Bitarray('0'*32)]
 
 manufacturer_lookup = {
     1: 'AMD', 2: 'AMI', 4: 'Fujitsu', 7: 'Hitachi', 8: 'Inmos',
@@ -55,15 +55,15 @@ manufacturer_lookup = {
 }
 
 def bitfieldify(buff, count):
-    """Extract a bitarray out of a bytes array.
+    """Extract a Bitarray out of a bytes array.
 
     Some hardware devices read from the LSB to the MSB, but the bit types available prefer to put pad bits on the LSB side, completely changing the data.
 
     This function takes in bytes and the number of bits to extract
-    starting from the LSB, and produces a bitarray of those bits.
+    starting from the LSB, and produces a Bitarray of those bits.
 
     """
-    databits = bitarray()
+    databits = Bitarray()
     databits.frombytes(buff)
     return databits[len(databits)-count:]
 
@@ -84,7 +84,7 @@ def buff2Blen(bits):
     """Convert bitrray length to minimum byte length to store those bits.
 
     Args:
-        bits: A bitarray or similar.
+        bits: A Bitarray or similar.
 
     Returns:
         An Integer value of the minimum number of bytes needed to
@@ -94,18 +94,18 @@ def buff2Blen(bits):
     return blen2Blen(len(bits))
 
 def build_byte_align_buff(bits):
-    """Pad the left side of a bitarray with 0s to align its length with byte boundaries.
+    """Pad the left side of a Bitarray with 0s to align its length with byte boundaries.
 
     Args:
-        bits: A bitarray to be padded and aligned.
+        bits: A Bitarray to be padded and aligned.
 
     Returns:
-        A newly aligned bitarray.
+        A newly aligned Bitarray.
     """
     bitmod = len(bits)%8
     if bitmod == 0:
-        rdiff = bitarray()
+        rdiff = Bitarray()
     else:
-        rdiff = bitarray(8-bitmod)
+        rdiff = Bitarray(8-bitmod)
         rdiff.setall(False)
     return rdiff+bits

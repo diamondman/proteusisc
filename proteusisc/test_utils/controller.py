@@ -1,4 +1,4 @@
-from bitarray import bitarray
+from .. import Bitarray
 from itertools import chain
 import struct
 import math
@@ -114,15 +114,15 @@ class FakeXPCU1Handle(object):
                 if tdo[i]:
                     res_tmp = [resbit] + res_tmp
                     if len(res_tmp) == 32:
-                        tmpbits = bitarray(res_tmp)
+                        tmpbits = Bitarray(res_tmp)
                         dataout += tmpbits.tobytes()[::-1]
                         res_tmp = []
 
         if res_tmp:
             if len(res_tmp) > 16:
-                tmpbits = bitarray(res_tmp + [False]*(32-len(res_tmp)))
+                tmpbits = Bitarray(res_tmp + [False]*(32-len(res_tmp)))
             else:
-                tmpbits = bitarray(res_tmp + [False]*(16-len(res_tmp)))
+                tmpbits = Bitarray(res_tmp + [False]*(16-len(res_tmp)))
             dataout += tmpbits.tobytes()[::-1]
 
         if dataout:
@@ -179,16 +179,16 @@ class FakeXPCU1Handle(object):
 
     @staticmethod
     def _decode_transfer_bits(data, transfer_bit_count):
-        #Deal with issue of bitarray not accepting bytearrays
+        #Deal with issue of Bitarray not accepting bytearrays
         data = bytes(data)
-        bitsin = bitarray()
+        bitsin = Bitarray()
         bitsin.frombytes(data)
         bitiniter = iter(bitsin)
         bgroups = list(zip(bitiniter, bitiniter, bitiniter, bitiniter))
-        tms = bitarray(chain.from_iterable(reversed(bgroups[0::4])))
-        tdi = bitarray(chain.from_iterable(reversed(bgroups[1::4])))
-        tdo = bitarray(chain.from_iterable(reversed(bgroups[2::4])))
-        tck = bitarray(chain.from_iterable(reversed(bgroups[3::4])))
+        tms = Bitarray(chain.from_iterable(reversed(bgroups[0::4])))
+        tdi = Bitarray(chain.from_iterable(reversed(bgroups[1::4])))
+        tdo = Bitarray(chain.from_iterable(reversed(bgroups[2::4])))
+        tck = Bitarray(chain.from_iterable(reversed(bgroups[3::4])))
         tms.reverse()
         tdi.reverse()
         tdo.reverse()
@@ -203,22 +203,11 @@ class FakeXPCU1Handle(object):
     def hexstr_to_bitdata(s, l):
         if isinstance(s, str):
             s = bytes.fromhex(s)
-        tms, tdi, tdo, tck = XPCU1._decode_transfer_bits(s, l)
+        tms, tdi, tdo, tck = FakeXPCU1Handle._decode_transfer_bits(s, l)
         print("TMS: %s (%s)", (tms.to01(), tms.count(True)))
         print("TDI: %s (%s)", (tdi.to01(), tdi.count(True)))
         print("TDO: %s (%s)", (tdo.to01(), tdo.count(True)))
         print("TCK: %s (%s)", (tck.to01(), tck.count(True)))
-
-    @staticmethod
-    def hexstr_to_bitdata(s, l):
-        bs = bytearray.fromhex(s)
-        tms, tdi, tdo, tck = FakeXPCU1Handle._decode_transfer_bits(bs, l)
-        print("TMS: %s (%s)" % (tms.to01(), tms.count(True)))
-        print("TDI: %s (%s)" % (tdi.to01(), tdi.count(True)))
-        print("TDO: %s (%s)" % (tdo.to01(), tdo.count(True)))
-        print("TCK: %s (%s)" % (tck.to01(), tck.count(True)))
-
-
 
 
 class FakeDevHandle(object):
@@ -528,7 +517,7 @@ class FakeDevHandle(object):
         self._initialize_advanced_return(bitcount, doreturn)
         self._blk_read_buffer.append(b'\x01\x00')
     def _handle_blk_WRITE_TMS_TDI_stage2(self, data, bitcount, read_tdo):
-        bits = bitarray()
+        bits = Bitarray()
         bits.frombytes(data[::-1])
         bits = bits[(8*len(data)) - (bitcount*2):]
         tms = bits[::2][::-1]
@@ -537,7 +526,7 @@ class FakeDevHandle(object):
         for i in range(bitcount):
             tdo.append(self._write_to_dev_chain(tms[i], tdi[i]))
         if read_tdo:
-            tdo_bits = bitarray(([False]*(8-(len(tdo)%8)))+tdo[::-1])
+            tdo_bits = Bitarray(([False]*(8-(len(tdo)%8)))+tdo[::-1])
             tdo_bytes = tdo_bits.tobytes()
             self._blk_read_buffer.append(tdo_bytes[::-1])
 
@@ -549,14 +538,14 @@ class FakeDevHandle(object):
         self._blk_read_buffer.append(b'\x01\x00')
     def _handle_blk_WRITE_TMS_stage2(self, data, bitcount,
                                      read_tdo, *, tdi):
-        bits = bitarray()
+        bits = Bitarray()
         bits.frombytes(data[::-1])
         tms = bits[(8*len(data)) - (bitcount):]
         tdo = []
         for tmsbit in reversed(tms):
             tdo.append(self._write_to_dev_chain(tmsbit, tdi))
         if read_tdo:
-            tdo_bits = bitarray(([False]*(8-(len(tdo)%8)))+tdo[::-1])
+            tdo_bits = Bitarray(([False]*(8-(len(tdo)%8)))+tdo[::-1])
             tdo_bytes = tdo_bits.tobytes()
             self._blk_read_buffer.append(tdo_bytes[::-1])
 
@@ -571,7 +560,7 @@ class FakeDevHandle(object):
         self._adv_req_bitcount = bitcount
         self._adv_req_read_tdo = True
         self._blk_read_buffer.append(b'\x01\x00')
-        tdo_bits = bitarray(([False]*(8-(len(tdo)%8)))+tdo[::-1])
+        tdo_bits = Bitarray(([False]*(8-(len(tdo)%8)))+tdo[::-1])
         tdo_bytes = tdo_bits.tobytes()
         self._blk_read_buffer.append(tdo_bytes[::-1])
 
@@ -583,14 +572,14 @@ class FakeDevHandle(object):
         self._blk_read_buffer.append(b'\x01\x00')
     def _handle_blk_WRITE_TDI_stage2(self, data, bitcount,
                                      read_tdo, *, tms):
-        bits = bitarray()
+        bits = Bitarray()
         bits.frombytes(data[::-1])
         tdi = bits[(8*len(data)) - (bitcount):]
         tdo = []
         for tdibit in reversed(tdi):
             tdo.append(self._write_to_dev_chain(tms, tdibit))
         if read_tdo:
-            tdo_bits = bitarray(([False]*(8-(len(tdo)%8)))+tdo[::-1])
+            tdo_bits = Bitarray(([False]*(8-(len(tdo)%8)))+tdo[::-1])
             tdo_bytes = tdo_bits.tobytes()
             self._blk_read_buffer.append(tdo_bytes[::-1])
 

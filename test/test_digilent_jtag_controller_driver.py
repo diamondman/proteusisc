@@ -1,11 +1,10 @@
 #-*- coding: utf-8 -*-
 import pytest
-from bitarray import bitarray
 
 from proteusisc.controllerManager import getDriverInstanceForDevice
 from proteusisc.test_utils import FakeUSBDev, FakeDevHandle,\
     MockPhysicalJTAGDevice
-from proteusisc.primitive import ConstantBitarray
+from proteusisc.primitive import ConstantBitarray, Bitarray
 from proteusisc.drivers.digilentdriver import DigilentWriteTMSPrimitive,\
     DigilentWriteTDIPrimitive, DigilentWriteTMSTDIPrimitive,\
     DigilentReadTDOPrimitive, DigilentClockTickPrimitive

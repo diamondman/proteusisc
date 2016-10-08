@@ -1,6 +1,5 @@
 #-*- coding: utf-8 -*-
 import pytest
-from bitarray import bitarray
 
 from proteusisc.contracts import Requirement,\
     NOCARE, ZERO, ONE, CONSTANT, CONSTANTZERO, CONSTANTONE, ARBITRARY
