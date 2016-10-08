@@ -1,3 +1,5 @@
+from __future__ import generator_stop
+from itertools import islice
 import collections
 from bitarray import bitarray
 import math
@@ -222,7 +224,7 @@ class NoCareBitarray(collections.Sequence):
             yield False
 
     def __repr__(self):
-        return "<NC%s: (%s)>"%self._length # pragma: no cover
+        return "<NC: (%s)>"%self._length # pragma: no cover
 
     def __add__(self, other):
         """Handles combining different bitarray types.
@@ -313,32 +315,82 @@ class CompositeBitarray(collections.Sequence):
 
     """
     #@profile
-    def __init__(self, *components):
+    def __init__(self, component1=None, component2=None,
+                 *, offset=0, tailoffset=0):
         """Create a bitarray object that stores its components by reference).
 
         Args:
             *components: Any number of bitarray instances to store in this composition.
         """
         #TODO Check if this lookup structure causes slowdown.
-        self._components = []
-        self._length = 0
-        for elem in components:
-            if isinstance(elem, CompositeBitarray):
-                for subelem in elem._components:
-                    self._add_elem(subelem[1])
+        self._llhead = None
+        self._lltail = None
+        self._length = -offset-tailoffset
+        self._offset = offset
+        self._tailoffset = tailoffset
+
+        #if isinstance(component1, CompositeBitarray) and \
+        #   isinstance(component2, CompositeBitarray):
+
+        if component1 is None and component2 is not None:
+            component1 = component2
+            component2 = None
+
+        if component1 is None:
+            return
+        elif isinstance(component1, CompositeBitarray):
+            self._length += len(component1)
+            if self._offset == len(component1._llhead.value):
+                self._llhead = component1._llhead.next
             else:
-                self._add_elem(elem)
+                self._llhead = component1._llhead
+            self._lltail = component1._lltail
+            self._offset += component1._offset
+        else:
+            self._length += len(component1)
+            self._llhead = _DLLNode(component1)
+            self._lltail = self._llhead
 
-    def _add_elem(self, elem):
-        self._components.append(
-            (range(self._length, self._length+len(elem)), elem))
-        self._length += len(elem)
+        #print(list(self._iter_components()))
 
-    def _lookup_range(self, index):
-        for r, elem in self._components:
-            if index in r:
-                return r, elem
-        return None, None #pragma: no cover
+        #import ipdb
+        #ipdb.set_trace()
+
+        if component2 is None:
+            pass
+        elif isinstance(component2, CompositeBitarray):
+            if self._lltail is component2._llhead:
+                #TODO Figure out why offset/tailoffset is not right
+                #self._length += len(component2) -
+                assert component1._tailoffset + component2._offset ==\
+                    len(component1._lltail.value),\
+                    "Linkedlist pieces recombined not along seam."
+                self._lltail = component2._lltail
+                self._tailoffset = component2._tailoffset
+                self._length = len(component1)+len(component2)
+                #self._length = sum(len(elem) for elem in
+                #                   self._iter_components()) -\
+                #                   (self._offset+self._tailoffset)
+                #assert self._length == len(component1)+len(component2),\
+                #    "%s != %s"%(sekf._length,
+                #                len(component1)+len(component2))
+            else:
+                self._length += len(component2)
+                self._lltail.next = component2._llhead
+                #self._lltail._next = component2._llhead
+                #component2._llhead._prev = self._lltail
+                self._lltail = component2._lltail
+        else:
+            self._length += len(component2)
+            node = _DLLNode(component2)
+            node.prev = self._lltail
+            #node._prev = self._lltail
+            #self._lltail._next = node
+            self._lltail = node
+
+    def _iter_components(self):
+        for elem in self._llhead.iternexttill(self._lltail):
+            yield elem.value
 
     def __len__(self):
         return self._length
@@ -364,23 +416,32 @@ class CompositeBitarray(collections.Sequence):
         #import ipdb
         #ipdb.set_trace()
         if index == slice(1, None, None):
-            return CompositeBitarray(self._components[0][1][1:],
-                                    *(c[1] for c in self._components[1:]))
+            return CompositeBitarray(self, offset=1)
+        if index == 0:
+            res = CompositeBitarray()
+            res._length = 1
+            res._llhead = self._llhead
+            res._lltail = self._llhead
+            res._tailoffset = len(res._lltail.value)-1
+            return res
         if isinstance(index, int):
-            index = len(self)-abs(index) if index < 0 else index
-            print("Reading a CompositeBitarray bit",index)
-            if (index < self._length and index >= 0):
-                r, elem = self._lookup_range(index)
-                return elem[index-r.start]
-            raise IndexError("%s index out of range"%type(self))
+        #    index = len(self)-abs(index) if index < 0 else index
+        #    print("Reading a CompositeBitarray bit",index)
+        #    if (index < self._length and index >= 0):
+        #        r, elem = self._lookup_range(index)
+        #        return elem[index-r.start]
+        #    raise IndexError("%s index out of range"%type(self))
+            raise IndexError("No support for non 0 ints for now.")
         raise TypeError("%s indices must be integers, not %s"%
                         (type(self), type(index)))
     def __str__(self):
-        return "".join(['?' if isinstance(elem[1], NoCareBitarray) else
-                        (('T' if b else 'F') if isinstance(elem[1],
+        return "".join(['?' if isinstance(elem, NoCareBitarray) else
+                        (('T' if b else 'F') if isinstance(elem,
                                                     ConstantBitarray)
                          else ('1' if b else '0'))
-                        for elem in self._components for b in elem[1]])
+                        for elem in self._iter_components()
+                        for b in elem])\
+                            [self._offset:-self._tailoffset or None]
     def __repr__(self):
         return "<CMP: %s (%s)>"%\
             (str(self), self._length)# pragma: no cover
@@ -399,14 +460,68 @@ class CompositeBitarray(collections.Sequence):
         return NotImplemented
 
     def __iter__(self):
-        for _, elem in self._components:
-            for bit in elem:
+        #TODO Not handling a single item with offset and tailoffset
+        cnt = 0
+        node = self._llhead
+        for bit in islice(node.value, self._offset, None):
+            cnt += 1
+            if cnt > len(self):
+                import ipdb
+                ipdb.set_trace()
+                raise Exception("SHIT! LOOPED TILL %s; End %s"%\
+                                (cnt, len(self)))
+            yield bit
+        if node is self._lltail:
+            return
+
+        while True:
+            node = node.next
+            if node is self._lltail:
+                break
+            for bit in node.value:
+                cnt += 1
+                if cnt > len(self):
+                    import ipdb
+                    ipdb.set_trace()
+                    raise Exception("SHIT! LOOPED TILL %s; End %s"%\
+                                    (cnt, len(self)))
                 yield bit
 
+        for bit in islice(node.value, None, -self._tailoffset or None):
+            cnt += 1
+            if cnt > len(self):
+                import ipdb
+                ipdb.set_trace()
+                raise Exception("SHIT! LOOPED TILL %s; End %s"%\
+                                (cnt, len(self)))
+            yield bit
+
     def __reversed__(self):
-        for _, elem in reversed(self._components):
-            for bit in reversed(elem):
+        #TODO Not handling a single item with offset and tailoffset
+        node = self._lltail
+        ptiter = reversed(node.value)
+        for _ in range(self._tailoffset):
+            next(ptiter)
+        #if node is self._llhead:
+        #    for _ in range(self._tailoffset,
+        #                   len(node.value)-self._offset):
+        #        yield next(ptiter)
+        #    return
+        #else:
+        for bit in ptiter:
+            yield bit
+
+        while True:
+            node = node.prev
+            if node is self._llhead:
+                break
+            for bit in reversed(node.value):
                 yield bit
+
+        ptiter = reversed(node.value)
+        for _ in range(len(node.value)-self._offset):
+            yield next(ptiter)
+
 
     def count(self, val=True):
         """Get the number of bits in the array with the specified value.
@@ -417,23 +532,13 @@ class CompositeBitarray(collections.Sequence):
         Returns:
             An integer of the number of bits in the array equal to val.
         """
-        count = 0
-        for r, elem in self._components:
-            #print(elem, val, elem.count(val))
-            count += elem.count(val)
-        return count
+        return sum((elem.count(val) for elem in self._iter_components()))
 
     def any(self):
-        for r, elem in self._components:
-            if elem.any():
-                return True
-        return False
+        return any((elem.any() for elem in self._iter_components()))
 
     def all(self):
-        for r, elem in self._components:
-            if not elem.all():
-                return False
-        return True
+        return all((elem.all() for elem in self._iter_components()))
 
     def prepare(self, *, preserve_history=False):
         """Extract the composite array's data into a usable bitarray based on if NoCare bits should be rendered as True or False.
@@ -450,16 +555,67 @@ class CompositeBitarray(collections.Sequence):
 
         """
         res = NoCareBitarray(0)
-        for r, elem in self._components:
+        for elem in self._llhead.iternexttill(self._lltail):
             if isinstance(elem, NoCareBitarray):
                 if preserve_history:
-                    res += ConstantBitarray(False, len(elem))
+                    res += ConstantBitarray(False, len(elem.value))
                 else:
-                    res += elem
+                    res += elem.value
             else:
-                res += elem
+                res += elem.value
         return res
 
     def tobytes(self):
         tmpba = bitarray(self)
         return tmpba.tobytes()
+
+
+class _DLLNode(object):
+    def __init__(self, value):
+        self._value = value
+        self._next = None
+        self._prev = None
+
+    @property
+    def next(self):
+        return self._next
+    @next.setter
+    def next(self, node):
+        if self is node:
+            raise ValueError("Invalid next node. Infinite Loop")
+        self._next = node
+        node._prev = self
+
+    @property
+    def prev(self):
+        return self._prev
+    @prev.setter
+    def prev(self, node):
+        if self is node:
+            raise ValueError("Invalid prev node. Infinite Loop")
+        self._prev = node
+        node._next = self
+
+    @property
+    def value(self):
+        return self._value
+
+    def iternexttill(self, target):
+        node = self
+        while True:
+            yield node
+            if node is target:
+                break
+            node = node.next
+
+    def iterprevtill(self, target):
+        node = self
+        while True:
+            yield node
+            if node is target:
+                break
+            node = node.prev
+
+    def __repr__(self):
+        return "Node(%s%s)"%\
+            (self.value[:32], "..." if len(self.value)>32 else "")
