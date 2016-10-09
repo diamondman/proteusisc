@@ -8,7 +8,7 @@
     :copyright: (c) 2014 by Jessy Diamond Exum
     :license: Pending, see LICENSE for more details.
 """
-
+from time import time
 import math
 import numbers
 
@@ -35,8 +35,11 @@ class XPC1TransferPrimitive(Level1Primitive, Executable):
     _max_bits = 65536
     _TMS, _TDI, _TDO = ARBITRARY, ARBITRARY, ARBITRARY
     def _get_args(self):
+        from time import time
+        t = time()
         if isinstance(self.tdo, CompositeBitarray):
             self.tdo = self.tdo.prepare(preserve_history=True)
+        print("DRIVER FUNCTION ARGUMENT PREPARE TIME", time()-t)
 
         return [self.count], {"TMS":self.tms, "TDI":self.tdi,
                               'TDO': self.tdo}
@@ -78,12 +81,13 @@ class XilinxPC1Driver(CableDriver):
 
     def jtag_disable(self):
         self.xpcu_enable_output(False)
-        self._jtagon = False
-        if self._dev.getProductID() == 0x0D:
+        if self._dev.getProductID() == 0x0D and self._jtagon:
             self._handle.releaseInterface(0)
+        self._jtagon = False
 
         #self.xpcu_enable_cpld_upgrade_mode(False)
 
+    #@profile
     def transfer_bits(self, count, *, TMS=True, TDI=False, TDO=False):
         if not self._jtagon:
             raise JTAGNotEnabledError('JTAG Must be enabled first')
@@ -98,19 +102,25 @@ class XilinxPC1Driver(CableDriver):
             TDI = ConstantBitarray(bool(TDI), count)
         if isinstance(TDO, (numbers.Number, bool)):
             TDO = ConstantBitarray(bool(TDO), count)
-        if self._scanchain:
-            self._scanchain._tap_transition_driver_trigger(TMS)
 
+        #if self._scanchain:
+        #    t = time()
+        #    self._scanchain._tap_transition_driver_trigger(TMS)
+        #    print("XPCU1 Sync State Machine Time:", time()-t)
+
+        t = time()
         bit_return_count = TDO.count(True)
+        print("BIT RETURN COUNT CALCULATION TIME", time()-t)
         print("BIT RETURN COUNT", bit_return_count, len(TDO), count)
 
-        from time import time
         t = time()
         outdata = bytearray(int(math.ceil(count/4.0))*2)
         tmsbytes = TMS.tobytes()
         tdibytes = TDI.tobytes()
         tdobytes = TDO.tobytes()
+        print("XPCU1 TMS/TDI/TDO Buffer Prepare Time:", time()-t)
 
+        t = time()
         adjusted_count = math.ceil(count/4)*4
         outbaseindex = 0
         inoffset = 0

@@ -180,7 +180,8 @@ class FakeXPCU1Handle(object):
     @staticmethod
     def _decode_transfer_bits(data, transfer_bit_count):
         #Deal with issue of Bitarray not accepting bytearrays
-        data = bytes(data)
+        if isinstance(data, bytearray):
+            data = bytes(data)
         bitsin = Bitarray()
         bitsin.frombytes(data)
         bitiniter = iter(bitsin)
@@ -517,6 +518,8 @@ class FakeDevHandle(object):
         self._initialize_advanced_return(bitcount, doreturn)
         self._blk_read_buffer.append(b'\x01\x00')
     def _handle_blk_WRITE_TMS_TDI_stage2(self, data, bitcount, read_tdo):
+        if isinstance(data, bytearray):
+            data = bytes(data)
         bits = Bitarray()
         bits.frombytes(data[::-1])
         bits = bits[(8*len(data)) - (bitcount*2):]
@@ -538,6 +541,8 @@ class FakeDevHandle(object):
         self._blk_read_buffer.append(b'\x01\x00')
     def _handle_blk_WRITE_TMS_stage2(self, data, bitcount,
                                      read_tdo, *, tdi):
+        if isinstance(data, bytearray):
+            data = bytes(data)
         bits = Bitarray()
         bits.frombytes(data[::-1])
         tms = bits[(8*len(data)) - (bitcount):]
@@ -572,6 +577,8 @@ class FakeDevHandle(object):
         self._blk_read_buffer.append(b'\x01\x00')
     def _handle_blk_WRITE_TDI_stage2(self, data, bitcount,
                                      read_tdo, *, tms):
+        if isinstance(data, bytearray):
+            data = bytes(data)
         bits = Bitarray()
         bits.frombytes(data[::-1])
         tdi = bits[(8*len(data)) - (bitcount):]

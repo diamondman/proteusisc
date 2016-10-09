@@ -119,3 +119,8 @@ class JTAGStateMachine(object):
     def __repr__(self):
         return "<%s (State: %s)>"%\
             (self.__class__.__name__, self.state) # pragma: no cover
+
+    def __eq__(self, other):
+        if not isinstance(other, JTAGStateMachine):
+            return NotImplemented
+        return self.state == other.state

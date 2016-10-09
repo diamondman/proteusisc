@@ -1,8 +1,6 @@
 import collections
 
 from .jtagStateMachine import JTAGStateMachine
-
-from .jtagStateMachine import JTAGStateMachine
 from .frame import FrameSequence
 from .errors import ProteusISCError
 from .primitive import DeviceTarget, ExpandRequiresTAP, Executable
@@ -179,13 +177,23 @@ class CommandQueue(collections.MutableSequence):
             ################ TRANSLATION TO LOWER LAYER ################
             sm = JTAGStateMachine(self._chain._sm.state)
             expanded_prims = FrameSequence(self._chain)
+            #tmp = []
             for f in ingested_chain:
                 if f._layer == 3:
                     expanded_prims += f.expand_macro(sm)
+                    #tmp.append((type(f[0]).__name__, f[0].insname, sm.state))
                 else:
                     expanded_prims.append(f)
+                    #tmp.append(("UNKNOWN", type(f[0]).__name__))
             expanded_prims.finalize()
             ingested_chain = expanded_prims
+            #print("STATES", tmp)
+
+            if self._fsm is None:
+                self._fsm = sm
+            assert self._fsm == sm, "Target %s != Actual %s"%\
+                (self._fsm.state, sm.state)
+            print("FINAL TARGET IS", self._fsm.state)
 
             if debug:#pragma: no cover
                 stages.append(ingested_chain.snapshot())
@@ -206,13 +214,22 @@ class CommandQueue(collections.MutableSequence):
 
             sm = JTAGStateMachine(self._chain._sm.state)
             expanded_prims = FrameSequence(self._chain)
+            #tmp = []
             for f in ingested_chain:
                 if issubclass(f._prim_type, DeviceTarget):
                     expanded_prims += f.expand_macro(sm)
+                    #tmp.append((type(f[0]).__name__, sm.state))
                 else:
+                    f[0].apply_tap_effect(sm)
                     expanded_prims.append(f)
+                    #tmp.append((type(f[0]).__name__, sm.state))
             expanded_prims.finalize()
             ingested_chain = expanded_prims
+            #print("STATES", tmp)
+            if self._fsm is None:
+                self._fsm = sm
+            assert self._fsm == sm, "Target %s != Actual %s"%\
+                 (self._fsm.state, sm.state)
 
             if debug:#pragma: no cover
                 stages.append(ingested_chain.snapshot())
@@ -230,6 +247,7 @@ class CommandQueue(collections.MutableSequence):
 
     def _compile(self, debug=False, stages=None, stagenames=None,
                  dryrun=False):
+        self._fsm = None
         if len(self) == 0:
             return "No commands in Queue."
 
@@ -277,6 +295,10 @@ class CommandQueue(collections.MutableSequence):
                     p.oldstate = oldstate
                     expanded_prims.append(p)
             flattened_prims = expanded_prims
+            if self._fsm is None:
+                self._fsm = sm
+            assert self._fsm == sm, "Target %s != Actual %s"%\
+                  (self._fsm.state, sm.state)
 
             if debug:#pragma: no cover
                 stages.append([[p.snapshot() for p in flattened_prims]])
@@ -300,6 +322,10 @@ class CommandQueue(collections.MutableSequence):
             else:
                 expanded_prims.append(p)
         flattened_prims = expanded_prims
+        if self._fsm is None:
+            self._fsm = sm
+        assert self._fsm == sm, "Target %s != Actual %s"%\
+            (self._fsm.state, sm.state)
 
         if debug:#pragma: no cover
             stages.append([[p.snapshot() for p in flattened_prims]])
@@ -332,15 +358,30 @@ class CommandQueue(collections.MutableSequence):
         """Force the queue of Primitives to compile, execute on the Controller, and fulfill promises with the data returned."""
         self.stages = []
         self.stagenames = []
+
+        from time import time
+        t = time()
+        print("LEN OF QUENE", len(self))
         if self._chain._collect_compiler_artifacts:
             self._compile(debug=True, stages=self.stages,
                           stagenames=self.stagenames)
         else:
             self._compile()
+        print("END STATE", self._fsm.state)
+        print("COMPILE TIME", time()-t)
         if self.debug:
             print("ABOUT TO EXEC", self.queue)
+        bitcount = 0
+        for p in self.queue:
+            if hasattr(p, 'count'):
+                bitcount += p.count
+        print("TOTAL BITS OF ALL PRIMS", bitcount)
+        t = time()
         self._chain._controller._execute_primitives(self.queue)
+        print("EXECUTE TIME", time()-t)
         self.queue = []
+        #assert self._fsm == self._chain._sm
+        self._chain._sm.state = self._fsm.state
 
 def _merge_prims(prims, *, debug=False, stagenames=None, stages=None):
     """Helper method to greedily combine Frames (of Primitives) or Primitives based on the rules defined in the Primitive's class.

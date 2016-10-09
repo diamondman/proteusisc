@@ -1,6 +1,7 @@
 import csv
 import os
 import math
+from bitarray import bitarray
 from .bittypes import Bitarray
 
 NULL_ID_CODES = [Bitarray('1'*32),
@@ -104,8 +105,9 @@ def build_byte_align_buff(bits):
     """
     bitmod = len(bits)%8
     if bitmod == 0:
-        rdiff = Bitarray()
+        rdiff = bitarray()
     else:
-        rdiff = Bitarray(8-bitmod)
+        #KEEP bitarray
+        rdiff = bitarray(8-bitmod)
         rdiff.setall(False)
     return rdiff+bits
