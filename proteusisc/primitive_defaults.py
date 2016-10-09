@@ -436,10 +436,50 @@ class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
             best_prim(tms=data)
         ]
 
-class Sleep(Level2Primitive, Executable):
+#class Sleep(Level2Primitive, Executable):
+class Sleep(Level2Primitive, ExpandRequiresTAP):
     _function_name = 'sleep'
     def __init__(self, *args, delay, **kwargs):
         super(Sleep, self).__init__(*args, **kwargs)
+        self.delay = delay
+
+    def merge(self, target):
+        if isinstance(target, Sleep):
+            return Sleep(delay=self.delay+target.delay,
+                         _chain=self._chain)
+        return None
+
+    def expand(self, chain, sm):
+        if sm.state in ("TLR", "RTI"):
+            cycles = int((self.delay/1000)*chain.speed)
+            #print("EXPANDING SLEEP. delay: %sms; speed: %s; cycles: %s"%
+            #      (self.delay, chain.speed, cycles))
+            bit = sm.state == "TLR"
+            data = ConstantBitarray(bit, cycles)
+
+            reqef = (
+                ONE if bit else ZERO, #TMS
+                NOCARE, NOCARE #TDI, TDO
+            )
+            if self.debug:
+                print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
+            best_prim = self._chain.get_fitted_lv1_prim(reqef)
+
+            return [
+                best_prim(tms=data)
+            ]
+        #DEFAULT
+        return [HostSleep(delay=self.delay, _chain=chain)]
+
+
+    def apply_tap_effect(self, sm):
+        pass
+
+class HostSleep(Level2Primitive, Executable):
+    _function_name = 'host_sleep'
+    #_driver_function_name = 'sleep'
+    def __init__(self, *args, delay, **kwargs):
+        super(HostSleep, self).__init__(*args, **kwargs)
         self.delay = delay
 
     def merge(self, target):
