@@ -37,6 +37,13 @@ class XPC1TransferPrimitive(Level1Primitive, Executable):
     def _get_args(self):
         from time import time
         t = time()
+        print("TMS", type(self.tms).__name__)
+        if isinstance(self.tms, CompositeBitarray):
+            self.tms = self.tms.prepare()
+        print("TDI", type(self.tdi).__name__)
+        if isinstance(self.tdi, CompositeBitarray):
+            self.tdi = self.tdi.prepare()
+        print("TDO", type(self.tdo).__name__)
         if isinstance(self.tdo, CompositeBitarray):
             self.tdo = self.tdo.prepare(preserve_history=True)
         print("DRIVER FUNCTION ARGUMENT PREPARE TIME", time()-t)
@@ -87,7 +94,7 @@ class XilinxPC1Driver(CableDriver):
 
         #self.xpcu_enable_cpld_upgrade_mode(False)
 
-    @profile
+    #@profile
     def transfer_bits(self, count, *, TMS=True, TDI=False, TDO=False):
         if not self._jtagon:
             raise JTAGNotEnabledError('JTAG Must be enabled first')
@@ -124,7 +131,7 @@ class XilinxPC1Driver(CableDriver):
         itms = iter(TMS)
         itdi = iter(TDI)
         itdo = iter(TDO)
-        @profile
+        #@profile
         def get4bits(i):
             return next(i)<<3 | next(i)<<2 | next(i)<<1 | next(i)
 

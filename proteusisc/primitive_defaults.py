@@ -360,15 +360,16 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
                                       tdo=self.read or None,
                                       _promise=rest))
 
+            newdata = data[:1]
             reqef = (
                 ONE, #TMS
-                ONE if data[0] else ZERO, #TDI
+                ONE if all(newdata) else ZERO, #TDI
                 ONE if self.read else NOCARE #TDO
             )
             if self.debug:
                 print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
             write_last = self._chain.get_fitted_lv1_prim(reqef)
-            res.append(write_last(tms=True, tdi=data[0],
+            res.append(write_last(tms=True, tdi=newdata,
                                   tdo=self.read or None, _promise=tail))
 
         return res

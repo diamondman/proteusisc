@@ -33,6 +33,8 @@ class Bitarray(bitarray):#collections.Sequence):
             return CompositeBitarray(other, self)
         return NotImplemented
 
+    def _easy_mergable(self, other):
+        return False
 
 class ConstantBitarray(collections.Sequence):
     """A bitarray type where all bits are the same value.
@@ -159,6 +161,9 @@ class ConstantBitarray(collections.Sequence):
     def reverse(self):
         pass
 
+    def _easy_mergable(self, other):
+        return type(other) is ConstantBitarray and other._val == self._val
+
 class NoCareBitarray(collections.Sequence):
     """A bitarray type with no preference on its bit values.
 
@@ -196,8 +201,9 @@ class NoCareBitarray(collections.Sequence):
         length: An integer specifying how many bits are in the array.
 
     """
-    def __init__(self, length):
+    def __init__(self, length, *, _preserve=False):
         self._length = length
+        self._preserve = _preserve
 
     def __len__(self):
         return self._length
@@ -225,7 +231,8 @@ class NoCareBitarray(collections.Sequence):
             yield False
 
     def __repr__(self):
-        return "<NC: (%s)>"%self._length # pragma: no cover
+        return "<NC%s: (%s)>"%("(P)" if self._preserve else "",
+                               self._length) # pragma: no cover
 
     def __add__(self, other):
         """Handles combining different bitarray types.
@@ -248,6 +255,8 @@ class NoCareBitarray(collections.Sequence):
         if isinstance(other, ConstantBitarray):
             if not other._val:
                 return ConstantBitarray(False, self._length+other._length)
+            elif not self._preserve:
+                return ConstantBitarray(True, self._length+other._length)
             return CompositeBitarray(self, other)
         return NotImplemented
 
@@ -262,6 +271,8 @@ class NoCareBitarray(collections.Sequence):
         if isinstance(other, ConstantBitarray):
             if not other._val:
                 return ConstantBitarray(False, self._length+other._length)
+            elif not self._preserve:
+                return ConstantBitarray(True, self._length+other._length)
             return CompositeBitarray(other, self)
         return NotImplemented
 
@@ -290,6 +301,10 @@ class NoCareBitarray(collections.Sequence):
 
     def reverse(self):
         pass
+
+    def _easy_mergable(self, other):
+        return type(other) == NoCareBitarray or \
+            (type(other) == ConstantBitarray and other._val is False)
 
 
 class CompositeBitarray(collections.Sequence):
@@ -331,9 +346,6 @@ class CompositeBitarray(collections.Sequence):
         self._offset = offset
         self._tailoffset = tailoffset
 
-        #if isinstance(component1, CompositeBitarray) and \
-        #   isinstance(component2, CompositeBitarray):
-
         if component1 is None and component2 is not None:
             component1 = component2
             component2 = None
@@ -353,42 +365,33 @@ class CompositeBitarray(collections.Sequence):
             self._llhead = _DLLNode(component1)
             self._lltail = self._llhead
 
-        #print(list(self._iter_components()))
-
-        #import ipdb
-        #ipdb.set_trace()
-
-        if component2 is None:
-            pass
-        elif isinstance(component2, CompositeBitarray):
-            if self._lltail is component2._llhead:
-                #TODO Figure out why offset/tailoffset is not right
-                #self._length += len(component2) -
-                assert component1._tailoffset + component2._offset ==\
-                    len(component1._lltail.value),\
-                    "Linkedlist pieces recombined not along seam."
-                self._lltail = component2._lltail
-                self._tailoffset = component2._tailoffset
-                self._length = len(component1)+len(component2)
-                #self._length = sum(len(elem) for elem in
-                #                   self._iter_components()) -\
-                #                   (self._offset+self._tailoffset)
-                #assert self._length == len(component1)+len(component2),\
-                #    "%s != %s"%(sekf._length,
-                #                len(component1)+len(component2))
+        if component2 is not None:
+            oldtail = self._lltail
+            if isinstance(component2, CompositeBitarray):
+                if self._lltail is component2._llhead:
+                    assert component1._tailoffset + component2._offset ==\
+                        len(component1._lltail.value),\
+                        "Linkedlist pieces recombined not along seam."
+                    self._lltail = component2._lltail
+                    self._tailoffset = component2._tailoffset
+                    self._length = len(component1)+len(component2)
+                else:
+                    self._length += len(component2)
+                    self._lltail.next = component2._llhead
+                    self._lltail = component2._lltail
             else:
                 self._length += len(component2)
-                self._lltail.next = component2._llhead
-                #self._lltail._next = component2._llhead
-                #component2._llhead._prev = self._lltail
-                self._lltail = component2._lltail
-        else:
-            self._length += len(component2)
-            node = _DLLNode(component2)
-            node.prev = self._lltail
-            #node._prev = self._lltail
-            #self._lltail._next = node
-            self._lltail = node
+                node = _DLLNode(component2)
+                node.prev = self._lltail
+                self._lltail = node
+
+            if oldtail.next.value._easy_mergable(oldtail.value):
+                #Merge two links in the chain
+                oldtail._value += oldtail.next.value
+                oldtail.next = oldtail.next.next
+                if oldtail.next is self._lltail and oldtail.next.next:
+                    self._lltail = oldtail
+
 
     def _iter_components(self):
         for elem in self._llhead.iternexttill(self._lltail):
@@ -419,22 +422,14 @@ class CompositeBitarray(collections.Sequence):
         #ipdb.set_trace()
         if index == slice(1, None, None):
             return CompositeBitarray(self, offset=1)
-        if index == 0:
+        if index in (slice(None, 1), slice(0, 1)):
             res = CompositeBitarray()
             res._length = 1
             res._llhead = self._llhead
             res._lltail = self._llhead
             res._tailoffset = len(res._lltail.value)-1
             return res
-        if isinstance(index, int):
-        #    index = len(self)-abs(index) if index < 0 else index
-        #    print("Reading a CompositeBitarray bit",index)
-        #    if (index < self._length and index >= 0):
-        #        r, elem = self._lookup_range(index)
-        #        return elem[index-r.start]
-        #    raise IndexError("%s index out of range"%type(self))
-            raise IndexError("No support for non 0 ints for now.")
-        raise TypeError("%s indices must be integers, not %s"%
+        raise TypeError("%s indices must be slices, not %s"%
                         (type(self), type(index)))
     def __str__(self):
         return "".join(['?' if isinstance(elem, NoCareBitarray) else
@@ -545,10 +540,18 @@ class CompositeBitarray(collections.Sequence):
             A bitarray that is the combined result of all the composite bitarray's components.
 
         """
-        if preserve_history:
-            for elem in self._llhead.iternexttill(self._lltail):
-                if isinstance(elem.value, NoCareBitarray):
-                    elem._value = ConstantBitarray(False, len(elem.value))
+        types = []
+
+        for elem in self._llhead.iternexttill(self._lltail):
+            types.append("%s(%s:%s)"%\
+                         (type(elem.value).__name__,
+                          elem.value._val if isinstance(elem.value,
+                                                        ConstantBitarray)\
+                          else "_", len(elem.value)))
+            if isinstance(elem.value, NoCareBitarray) and\
+               preserve_history:
+                elem._value = ConstantBitarray(False, len(elem.value))
+        print(types)
         return self
 
     ##@profile

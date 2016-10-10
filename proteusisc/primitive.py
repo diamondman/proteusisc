@@ -160,7 +160,7 @@ class Level1Primitive(Primitive):
         elif not isinstance(_tdi, collections.Iterable):
             _tdi = ConstantBitarray(_tdi, count)
         if _tdo is None:
-            _tdo = NoCareBitarray(count)
+            _tdo = NoCareBitarray(count, _preserve=False)
         elif not isinstance(_tdo, collections.Iterable):
             _tdo = ConstantBitarray(_tdo, count)
 
