@@ -87,7 +87,7 @@ class XilinxPC1Driver(CableDriver):
 
         #self.xpcu_enable_cpld_upgrade_mode(False)
 
-    #@profile
+    @profile
     def transfer_bits(self, count, *, TMS=True, TDI=False, TDO=False):
         if not self._jtagon:
             raise JTAGNotEnabledError('JTAG Must be enabled first')
@@ -113,50 +113,54 @@ class XilinxPC1Driver(CableDriver):
         print("BIT RETURN COUNT CALCULATION TIME", time()-t)
         print("BIT RETURN COUNT", bit_return_count, len(TDO), count)
 
-        t = time()
+        #t = time()
         outdata = bytearray(int(math.ceil(count/4.0))*2)
-        tmsbytes = TMS.tobytes()
-        tdibytes = TDI.tobytes()
-        tdobytes = TDO.tobytes()
-        print("XPCU1 TMS/TDI/TDO Buffer Prepare Time:", time()-t)
+        #tmsbytes = TMS.tobytes()
+        #tdibytes = TDI.tobytes()
+        #tdobytes = TDO.tobytes()
+        #print("XPCU1 TMS/TDI/TDO Buffer Prepare Time:", time()-t)
 
         t = time()
-        adjusted_count = math.ceil(count/4)*4
-        outbaseindex = 0
-        inoffset = 0
-        if count%8-4>0:
-            #0xAa 0xBb 0xCc 0xDd = 0xab 0xcd
-            outdata[0], outdata[1] = \
-                ((tmsbytes[-1]<<4)&0xF0)|(tdibytes[-1]&0xF), \
-                ((tdobytes[-1]<<4)&0xF0)|(0xF<<(4-(count%4)))&0xF
-            outbaseindex = 2
-        if count%8:
-            #0xAa 0xBb 0xCc 0xDd = 0xAB 0xCD
-            outdata[outbaseindex], outdata[outbaseindex+1] = \
-                (tmsbytes[-1]&0xF0)|(tdibytes[-1]>>4), \
-                (tdobytes[-1]&0xF0)|(0xFF<<(4-min(4, count%8)))&0xF
-            outbaseindex += 2
-            inoffset = 1
+        itms = iter(TMS)
+        itdi = iter(TDI)
+        itdo = iter(TDO)
+        @profile
+        def get4bits(i):
+            return next(i)<<3 | next(i)<<2 | next(i)<<1 | next(i)
 
-        readoffset = -(inoffset+1)
+        outoffset = 0
+        if count%4:
+            remainingbitscount = count%4
+            outdata[-2], outdata[-1] = \
+                sum(next(itms)<<(remainingbitscount-1-bitnum) for
+                    bitnum in range(remainingbitscount))<<4|\
+                    sum(next(itdi)<<(remainingbitscount-1-bitnum) for
+                        bitnum in range(remainingbitscount)),\
+                sum(next(itdo)<<(remainingbitscount-1-bitnum) for
+                    bitnum in range(remainingbitscount))<<4|\
+                    ((1<<remainingbitscount)-1)
+            outoffset = -2
+
+        if count%8 > 4:
+            outdata[outoffset-2], outdata[outoffset-1],\
+                       = (get4bits(itms)<<4)|get4bits(itdi), \
+                       (get4bits(itdo)<<4)|0x0F
+
+        offset = count//8 - 1
         # This is done this way because breaking these into variables
-        # blows up the runtime. Thanks to mekarpeles for finding this.
-        # Bit shifts and readoffset increased performance slightly.
-        # Encoding 16777216 bits takes 3.2s, down from 80s (on 2.9 GHZ i7-3520M)
-        for i in range(len(tmsbytes)-inoffset):#range(len(outdata)//4):
-            outdata[(i<<2)+outbaseindex], outdata[(i<<2)+1+outbaseindex], \
-                outdata[(i<<2)+2+outbaseindex], outdata[(i<<2)+3+outbaseindex] \
-                = \
-                ((tmsbytes[readoffset-i]&0x0F)<<4)|(tdibytes[readoffset-i]&0x0F), \
-                ((tdobytes[readoffset-i]&0x0F)<<4)|0x0F,\
-                (tmsbytes[readoffset-i]&0xF0)|(tdibytes[readoffset-i]>>4), \
-                (tdobytes[readoffset-i]&0xF0)|0x0F
+        # blows up the runtime. Thanks to mekarpeles for finding this
+        for i in range(count//8):#range((count-(count%4))//8):
+            outdata[((offset-i)<<2)+2], outdata[((offset-i)<<2)+3], \
+                outdata[(offset-i)<<2], outdata[((offset-i)<<2)+1],\
+                = (get4bits(itms)<<4)|get4bits(itdi), \
+                (get4bits(itdo)<<4)|0x0F, \
+                (get4bits(itms)<<4)|get4bits(itdi), \
+                (get4bits(itdo)<<4)|0x0F
 
-
-        print("XPCU1 byte blocks 2 Data Prepare Time:", time()-t)
+        print("XPCU1 byte blocks 3 Data Prepare Time:", time()-t)
 
         #print("LENGTH OF OUTDATA", len(outdata))
-        return self.xpcu_GPIO_transfer(adjusted_count, outdata,
+        return self.xpcu_GPIO_transfer(count, outdata,
                     bit_return_count=bit_return_count)
 
     def transfer_bits_single(self, count, TMS, TDI, TDO=False):
