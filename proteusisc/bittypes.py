@@ -276,8 +276,8 @@ class NoCareBitarray(collections.Sequence):
         pass
 
     def _easy_mergable(self, other):
-        return type(other) == NoCareBitarray or \
-            (type(other) == ConstantBitarray and other._val is False)
+        return isinstance(other, (NoCareBitarray, PreferFalseBitarray,
+                                  ConstantBitarray))
 
 class PreferFalseBitarray(collections.Sequence):
     def __init__(self, length):
@@ -327,7 +327,7 @@ class PreferFalseBitarray(collections.Sequence):
         if len(other) == 0:
             return self
 
-        if isinstance(other, PreferFalseBitarray):
+        if isinstance(other, (PreferFalseBitarray, NoCareBitarray)):
             return PreferFalseBitarray(self._length+other._length)
         if isinstance(other, ConstantBitarray):
             if not other._val:
@@ -345,6 +345,8 @@ class PreferFalseBitarray(collections.Sequence):
         if len(other) == 0:
             return self
 
+        if isinstance(other, (PreferFalseBitarray, NoCareBitarray)):
+            return PreferFalseBitarray(self._length+other._length)
         if isinstance(other, ConstantBitarray):
             if not other._val:
                 return ConstantBitarray(False, self._length+other._length)
@@ -380,8 +382,9 @@ class PreferFalseBitarray(collections.Sequence):
         pass
 
     def _easy_mergable(self, other):
-        return type(other) == NoCareBitarray or \
-            (type(other) == ConstantBitarray and other._val is False)
+        return isinstance(other, (NoCareBitarray, PreferFalseBitarray))\
+            or (isinstance(other, ConstantBitarray) and\
+                other._val is False)
 
 
 class CompositeBitarray(collections.Sequence):
@@ -410,35 +413,50 @@ class CompositeBitarray(collections.Sequence):
     """
     #@profile
     def __init__(self, component1=None, component2=None,
-                 *, offset=0, tailoffset=0):
+                 *, offset=0, _tailoffset=0):
         """Create a bitarray object that stores its components by reference).
 
         Args:
             *components: Any number of bitarray instances to store in this composition.
         """
         #TODO Check if this lookup structure causes slowdown.
-        self._llhead = None
-        self._lltail = None
-        self._length = -offset-tailoffset
-        self._offset = offset
-        self._tailoffset = tailoffset
-
+        if component1 is None and component2 is None:
+            raise ValueError("At least one component required")
         if component1 is None and component2 is not None:
             component1 = component2
             component2 = None
 
-        if component1 is None:
-            return
-        elif isinstance(component1, CompositeBitarray):
-            self._length += len(component1)
+        self._llhead = None
+        self._lltail = None
+        self._length = 0
+        self._offset = offset
+
+        if isinstance(component1, CompositeBitarray):
+            self._tailbitsused = len(component1._lltail.value)-_tailoffset
+            self._length += len(component1)-self._offset-\
+                            (len(component1._lltail.value)-\
+                             self._tailbitsused)
             if self._offset == len(component1._llhead.value):
                 self._llhead = component1._llhead.next
             else:
                 self._llhead = component1._llhead
             self._lltail = component1._lltail
             self._offset += component1._offset
+            #TODO Do something with the tailbitsused
+        elif isinstance(component1, _DLLNode):
+            self._tailbitsused = len(component1.value)-_tailoffset
+            self._llhead = component1
+            self._lltail = component1
+            self._length += self._tailbitsused
+            if self._offset + self._tailbitsused > len(component1.value):
+                raise Exception("Invalid offset and tailbitsused")
+            if component2 is not None:
+                raise Exception("A CompositeBitarray created with a "
+                                "_DLLNode can not currently have a "
+                                "2nd component")
         else:
-            self._length += len(component1)
+            self._tailbitsused = len(component1)-_tailoffset
+            self._length += self._tailbitsused
             self._llhead = _DLLNode(component1)
             self._lltail = self._llhead
 
@@ -446,22 +464,35 @@ class CompositeBitarray(collections.Sequence):
             oldtail = self._lltail
             if isinstance(component2, CompositeBitarray):
                 if self._lltail is component2._llhead:
-                    assert component1._tailoffset + component2._offset ==\
-                        len(component1._lltail.value),\
+                    #assert component1._tailoffset + component2._offset ==\
+                    #    len(component1._lltail.value),\
+                    #    "Linkedlist pieces recombined not along seam."
+                    assert component1._tailbitsused == component2._offset,\
                         "Linkedlist pieces recombined not along seam."
                     self._lltail = component2._lltail
-                    self._tailoffset = component2._tailoffset
+                    self._tailbitsused = component2._tailbitsused
                     self._length = len(component1)+len(component2)
                 else:
                     self._length += len(component2)
                     self._lltail.next = component2._llhead
                     self._lltail = component2._lltail
+                    self._tailbitsused = component2._tailbitsused
             else:
-                self._length += len(component2)
+                self._tailbitsused = len(component2)
+                self._length += self._tailbitsused
                 node = _DLLNode(component2)
                 node.prev = self._lltail
                 self._lltail = node
 
+            #WHEN IT IS OK TO MERGE
+            #oldtail can merge right if (oldtail is not head or offset is 0) and (oldtail.next is not tail or tailbitsused is len of node) and data is combinable. Do it recursive?
+            #Merging can happen right until can't. Move back node and merge until can't. Repeat till new left node is incompatible.
+            #if merging with the tail node, the tail node is fully used
+            #if oldtail is not self._llhead or self._offset == 0:
+            #    headend = self._llhead if self._offset == 0 else self._llhead.next
+            #    tailend = self.__lltail if
+            #    for mergebase in oldtail.iterprevtill(headend):
+            #        mergetarget = mergebase.next
             #if oldtail.next.value._easy_mergable(oldtail.value):
             #    #Merge two links in the chain
             #    oldtail._value += oldtail.next.value
@@ -500,11 +531,10 @@ class CompositeBitarray(collections.Sequence):
         if index == slice(1, None, None):
             return CompositeBitarray(self, offset=1)
         if index in (slice(None, 1), slice(0, 1)):
-            res = CompositeBitarray()
+            res = CompositeBitarray(
+                self._llhead,
+                _tailoffset=len(self._llhead.value)-1)
             res._length = 1
-            res._llhead = self._llhead
-            res._lltail = self._llhead
-            res._tailoffset = len(res._lltail.value)-1
             return res
         raise TypeError("%s indices must be slices, not %s"%
                         (type(self), type(index)))
@@ -515,7 +545,7 @@ class CompositeBitarray(collections.Sequence):
                          else ('1' if b else '0'))
                         for elem in self._iter_components()
                         for b in elem])\
-                            [self._offset:-self._tailoffset or None]
+                            [self._offset:-(len(self._lltail.value)-self._tailbitsused) or None]
     def __repr__(self):
         return "<CMP: %s (%s)>"%\
             (str(self), self._length)# pragma: no cover
@@ -535,7 +565,7 @@ class CompositeBitarray(collections.Sequence):
         return NotImplemented
 
     def __iter__(self):
-        #TODO Not handling a single item with offset and tailoffset
+        #TODO Not handling a single item with offset and tailbitsused
         node = self._llhead
         for bit in islice(node.value, self._offset, None):
             yield bit
@@ -549,17 +579,18 @@ class CompositeBitarray(collections.Sequence):
             for bit in node.value:
                 yield bit
 
-        for bit in islice(node.value, None, -self._tailoffset or None):
+        for bit in islice(node.value, None,
+                          self._tailbitsused or None):
             yield bit
 
     def __reversed__(self):
-        #TODO Not handling a single item with offset and tailoffset
+        #TODO Not handling a single item with offset and tailbitsused
         node = self._lltail
         ptiter = reversed(node.value)
-        for _ in range(self._tailoffset):
+        for _ in range(len(self._lltail.value)-self._tailbitsused):
             next(ptiter)
         #if node is self._llhead:
-        #    for _ in range(self._tailoffset,
+        #    for _ in range(len(self._lltail.value)-self._tailbitsused),
         #                   len(node.value)-self._offset):
         #        yield next(ptiter)
         #    return
