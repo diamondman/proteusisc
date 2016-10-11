@@ -3,8 +3,8 @@ import json
 import re
 import fnmatch
 import numbers
+from bitarray import bitarray
 
-from .bittypes import Bitarray
 from .jtagUtils import manufacturer_lookup
 from .utils import memoized
 from .jtagDeviceDescriptionNetResolver import get_sid, get_details, decode_bsdl
@@ -117,7 +117,7 @@ class JTAGDeviceDescription(object):
         self._ir_length = ir_length
 
         #TODO Add checks to make sure the instruction lengths are sane
-        self._instructions = {k:Bitarray(v) for k,v in instruction_opcodes.items()}
+        self._instructions = {k:bitarray(v) for k,v in instruction_opcodes.items()}
 
         self._registers = registers
         self._instruction_register_map = instruction_register_map

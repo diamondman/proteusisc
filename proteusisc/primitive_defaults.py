@@ -3,7 +3,7 @@ import time
 from .frame import Frame, FrameSequence
 from .primitive import Level3Primitive, Level2Primitive, DeviceTarget,\
     Executable, DataRW, ExpandRequiresTAP
-from .bittypes import Bitarray, ConstantBitarray, NoCareBitarray
+from .bittypes import bitarray, ConstantBitarray, NoCareBitarray
 from .contracts import ZERO, ONE, ARBITRARY, CONSTANT, NOCARE
 from .promise import TDOPromise, TDOPromiseCollection
 from .errors import ProteusISCError
@@ -47,7 +47,7 @@ class RunInstruction(Level3Primitive, DeviceTarget):
             Frame(chain, *(
                 rw_dev_ir(dev=d, _synthetic=frame[i]._synthetic,
                     _chain=chain,
-                    data=Bitarray(d._desc._instructions[frame[i].insname])
+                    data=bitarray(d._desc._instructions[frame[i].insname])
                 ) for i, d in enumerate(devs))))
         sm.state = "UPDATEIR"
 

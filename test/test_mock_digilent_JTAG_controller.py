@@ -3,7 +3,7 @@ import pytest
 import struct
 from usb1 import USBErrorPipe, USBErrorOverflow
 
-from proteusisc import Bitarray
+from proteusisc.bittypes import bitarray
 from proteusisc.jtagUtils import blen2Blen, buff2Blen,\
     build_byte_align_buff
 from proteusisc.test_utils import FakeUSBDev, FakeDevHandle,\
@@ -153,7 +153,7 @@ def test_controller_jtag_on_off():
 
 
 def test_controller_write_tms():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'))
     h = FakeDevHandle(d0)
 
     #ENABLE JTAG
@@ -166,7 +166,7 @@ def test_controller_write_tms():
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
-    data = Bitarray('001011111')
+    data = bitarray('001011111')
     h.bulkWrite(3, build_byte_align_buff(data).tobytes()[::-1])
     assert d0.tapstate == "SHIFTDR"
 
@@ -181,12 +181,12 @@ def test_controller_write_tms():
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
-    data = Bitarray('1'+('0'*31))
+    data = bitarray('1'+('0'*31))
     h.bulkWrite(3, build_byte_align_buff(data).tobytes()[::-1])
     assert d0.tapstate == "EXIT1DR"
 
     tdo_bytes = h.bulkRead(4, buff2Blen(data))[::-1]
-    tdo_bits = Bitarray()
+    tdo_bits = bitarray()
     tdo_bits.frombytes(tdo_bytes)
     tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(data):]
     assert tdo_bits == d0.idcode
@@ -196,7 +196,7 @@ def test_controller_write_tms():
     assert res == b'\t\xc0\x20\x00\x00\x00\x20\x00\x00\x00'
 
 def test_controller_write_tms_tdi():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'))
     h = FakeDevHandle(d0)
 
     #ENABLE JTAG
@@ -209,9 +209,9 @@ def test_controller_write_tms_tdi():
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
-    tmsdata = Bitarray('001011111')
-    tdidata = Bitarray('000000000')
-    data = Bitarray([val for pair in zip(tmsdata, tdidata)
+    tmsdata = bitarray('001011111')
+    tdidata = bitarray('000000000')
+    data = bitarray([val for pair in zip(tmsdata, tdidata)
                      for val in pair])
     h.bulkWrite(3, build_byte_align_buff(data).tobytes()[::-1])
     assert d0.tapstate == "SHIFTDR"
@@ -227,15 +227,15 @@ def test_controller_write_tms_tdi():
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
-    tmsdata = Bitarray('1'+('0'*31))
-    tdidata = Bitarray('0'*32)
-    data = Bitarray([val for pair in zip(tmsdata, tdidata)
+    tmsdata = bitarray('1'+('0'*31))
+    tdidata = bitarray('0'*32)
+    data = bitarray([val for pair in zip(tmsdata, tdidata)
                      for val in pair])
     h.bulkWrite(3, build_byte_align_buff(data).tobytes()[::-1])
     assert d0.tapstate == "EXIT1DR"
 
     tdo_bytes = h.bulkRead(4, buff2Blen(data))[::-1]
-    tdo_bits = Bitarray()
+    tdo_bits = bitarray()
     tdo_bits.frombytes(tdo_bytes)
     tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(tmsdata):]
     assert tdo_bits == d0.idcode
@@ -245,7 +245,7 @@ def test_controller_write_tms_tdi():
     assert res == b'\t\xc0\x20\x00\x00\x00\x20\x00\x00\x00'
 
 def test_controller_write_tdi():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'))
     h = FakeDevHandle(d0)
 
     #ENABLE JTAG
@@ -258,7 +258,7 @@ def test_controller_write_tdi():
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
-    data = Bitarray('001011111')
+    data = bitarray('001011111')
     h.bulkWrite(3, build_byte_align_buff(data).tobytes()[::-1])
     assert d0.tapstate == "SHIFTDR"
 
@@ -273,12 +273,12 @@ def test_controller_write_tdi():
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
-    data = Bitarray('0'*32)
+    data = bitarray('0'*32)
     h.bulkWrite(3, build_byte_align_buff(data).tobytes()[::-1])
     assert d0.tapstate == "SHIFTDR"
 
     tdo_bytes = h.bulkRead(4, buff2Blen(data))[::-1]
-    tdo_bits = Bitarray()
+    tdo_bits = bitarray()
     tdo_bits.frombytes(tdo_bytes)
     tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(data):]
     assert tdo_bits == d0.idcode
@@ -288,7 +288,7 @@ def test_controller_write_tdi():
     assert res == b'\t\xc0\x20\x00\x00\x00\x20\x00\x00\x00'
 
 def test_controller_read_tdo():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'))
     h = FakeDevHandle(d0)
 
     #ENABLE JTAG
@@ -301,7 +301,7 @@ def test_controller_read_tdo():
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
-    data = Bitarray('001011111')
+    data = bitarray('001011111')
     h.bulkWrite(3, build_byte_align_buff(data).tobytes()[::-1])
     assert d0.tapstate == "SHIFTDR"
 
@@ -319,7 +319,7 @@ def test_controller_read_tdo():
     assert d0.tapstate == "SHIFTDR"
 
     tdo_bytes = h.bulkRead(4, 4)[::-1]
-    tdo_bits = Bitarray()
+    tdo_bits = bitarray()
     tdo_bits.frombytes(tdo_bytes)
     tdo_bits = tdo_bits[(8*len(tdo_bytes)) - 32:]
     assert tdo_bits == d0.idcode
@@ -329,7 +329,7 @@ def test_controller_read_tdo():
     assert res == b'\t\xc0\x20\x00\x00\x00\x20\x00\x00\x00'
 
 def test_controller_clock_tick():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'))
     h = FakeDevHandle(d0)
 
     #ENABLE JTAG

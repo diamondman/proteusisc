@@ -2,17 +2,17 @@
 import pytest
 
 from proteusisc.bittypes import CompositeBitarray, ConstantBitarray,\
-    NoCareBitarray, Bitarray
+    NoCareBitarray, bitarray, PreferFalseBitarray
 
 def test_nocare():
     bits = NoCareBitarray(7)
     assert len(list(bits)) == 7
     assert not bits.all()
     assert not bits.any()
-    assert bits[0] == False
-    assert bits[-1] == False
-    assert bits[-7] == False
-    assert bits[6] == False
+    assert bool(bits[0]) == False
+    assert bool(bits[-1]) == False
+    assert bool(bits[-7]) == False
+    assert bool(bits[6]) == False
     with pytest.raises(IndexError):
         bits[7]
     with pytest.raises(IndexError):
@@ -86,13 +86,11 @@ def test_constant_constant_add():
     bits2 = ConstantBitarray(False, 5)
     bits = bits1 + bits2
     assert len(bits) == 9
-    assert all(bits[:4])
-    assert not any(bits[4:])
+    assert bitarray(bits) == bitarray('111100000')
 
     bits = bits2 + bits1
     assert len(bits) == 9
-    assert not any(bits[:5])
-    assert all(bits[5:])
+    assert bitarray(bits) == bitarray('000001111')
 
 def test_constant_nocare_add():
     #FOR FALSE
@@ -122,42 +120,38 @@ def test_constant_nocare_add():
     assert bits.all()
 
 def test_nocare_bitarray_add():
-    bits1 = Bitarray('1001')
+    bits1 = bitarray('1001')
     bits2 = NoCareBitarray(5)
     bits = bits1 + bits2
     assert len(list(bits)) == 9
-    assert bits[:4] == bits1
+    assert bitarray(bits) == bitarray('100100000')
 
     bits = bits2 + bits1
     assert len(bits) == 9
-    assert bits[5:] == bits1
+    assert bitarray(bits) == bitarray('000001001')
 
 def test_constant_bitarray_add():
     #FOR TRUE
-    bits1 = Bitarray('1001')
+    bits1 = bitarray('1001')
     bits2 = ConstantBitarray(True, 5)
     bits = bits1 + bits2
     assert len(list(bits)) == 9
-    assert bits[:4] == bits1
-    assert all(bits[5:])
+    assert bitarray(bits) == bitarray('100111111')
 
     bits = bits2 + bits1
     assert len(bits) == 9
-    assert bits[5:] == bits1
-    assert all(bits[:4])
+    assert bitarray(bits) == bitarray('111111001')
 
     #FOR FALSE
-    bits1 = Bitarray('1001')
+    bits1 = bitarray('1001')
     bits2 = ConstantBitarray(False, 5)
     bits = bits1 + bits2
     assert len(bits) == 9
-    assert bits[:4] == bits1
-    assert not any(bits[5:])
+    assert bitarray(bits) == bitarray('100100000')
 
     bits = bits2 + bits1
     assert len(bits) == 9
-    assert bits[5:] == bits1
-    assert not any(bits[:4])
+    assert bitarray(bits) == bitarray('000001001')
 
 def test_nocare_slice():
     bits = NoCareBitarray(7)
@@ -222,12 +216,12 @@ def test_constant_count():
     assert bits.count(val=True) == 0
 
 def test_constant_eq():
-    assert ConstantBitarray(True, 7) == Bitarray('1111111')
-    assert ConstantBitarray(True, 7) != Bitarray('111111')
-    assert ConstantBitarray(True, 7) != Bitarray('0000000')
-    assert ConstantBitarray(False, 4) == Bitarray('0000')
-    assert ConstantBitarray(False, 4) != Bitarray('000')
-    assert ConstantBitarray(False, 4) != Bitarray('1111')
+    assert ConstantBitarray(True, 7) == bitarray('1111111')
+    assert ConstantBitarray(True, 7) != bitarray('111111')
+    assert ConstantBitarray(True, 7) != bitarray('0000000')
+    assert ConstantBitarray(False, 4) == bitarray('0000')
+    assert ConstantBitarray(False, 4) != bitarray('000')
+    assert ConstantBitarray(False, 4) != bitarray('1111')
 
     assert ConstantBitarray(False, 2) == ConstantBitarray(False, 2)
     assert ConstantBitarray(True, 2) == ConstantBitarray(True, 2)
@@ -244,37 +238,43 @@ def test_composite_general():
     assert len(comp) == 9
     assert comp.__repr__() == "<CMP: TTTT????? (9)>"
 
-    c3 = Bitarray('1001')
+    c3 = bitarray('1001')
     comp2 = CompositeBitarray(comp, c3)
     assert len(comp2) == 13
     assert comp2.__repr__() == "<CMP: TTTT?????1001 (13)>"
 
     #NOT TESTING __getitem__ much BECAUSE NOT USED
     #Does not respect nocare combining with prims...
-    for i, bit in enumerate(Bitarray('1111000001001')):
-        assert comp2[i] == bit
+    assert comp2 == bitarray('1111000001001')
+    #for i, bit in enumerate(bitarray('1111000001001')):
+    #    assert comp2[i] == bit
 
-    with pytest.raises(IndexError):
+    #TODO Add new index error check
+    with pytest.raises(TypeError):
         comp2[99]
 
     with pytest.raises(TypeError):
         comp2['INVALID']
 
-    assert comp2.prepare() == Bitarray('1111111111001')
+    assert comp2.prepare() == bitarray('1111111111001')
+    comp2 = CompositeBitarray(comp, c3)
+    assert bitarray(comp2.prepare()) == bitarray('1111111111001')
+    comp2 = CompositeBitarray(comp, c3)
     assert comp2.prepare(preserve_history=True) == \
-        Bitarray('1111111111001')
+        bitarray('1111111111001')
 
-def test_composite_general_nocare_preserve():
+def test_composite_general_preferfalse():
     c1 = ConstantBitarray(True, 4)
-    c2 = NoCareBitarray(5, _preserve=True)
-    c3 = Bitarray('1001')
-    comp = CompositeBitarray(c1, c2, c3)
+    c2 = PreferFalseBitarray(5)
+    c3 = bitarray('1001')
+    comp = c1 + c2 + c3
+    assert isinstance(comp, CompositeBitarray)
     assert len(comp) == 13
     assert comp.__repr__() == "<CMP: TTTT?????1001 (13)>"
 
-    assert comp.prepare() == Bitarray('1111111111001')
+    assert comp.prepare() == bitarray('1111111111001')
     assert comp.prepare(preserve_history=True) == \
-        Bitarray('1111000001001')
+        bitarray('1111000001001')
 
 def test_composite_invalid_add():
     c1 = NoCareBitarray(7)
@@ -292,16 +292,16 @@ def test_composite_composite_add():
     comp2 = CompositeBitarray(c2)
 
     comp3 = comp + comp2
-    assert comp3.prepare() == Bitarray('11111111111')
+    assert comp3.prepare() == bitarray('11111111111')
     #PRESERVE
-    c1 = NoCareBitarray(7, _preserve=True)
+    c1 = PreferFalseBitarray(7)
     comp = CompositeBitarray(c1)
 
     c2 = ConstantBitarray(True, 4)
     comp2 = CompositeBitarray(c2)
 
     comp3 = comp + comp2
-    assert comp3.prepare(preserve_history=True) == Bitarray('00000001111')
+    assert comp3.prepare(preserve_history=True) == bitarray('00000001111')
 
 def test_composite_any_all_count():
     c1 = NoCareBitarray(7)
@@ -310,7 +310,7 @@ def test_composite_any_all_count():
     assert comp.any()
     assert not comp.all() #Maybe this will change later.
 
-    c1 = Bitarray('111')
+    c1 = bitarray('111')
     c2 = ConstantBitarray(True, 3)
     comp = CompositeBitarray(c1, c2)
     assert comp.any()
@@ -329,7 +329,7 @@ def test_composite_count():
     assert comp.count(False) == c1.count(False)+c2.count(False)
     assert comp.count(True) == c1.count(True)+c2.count(True)
 
-    c1 = Bitarray('111')
+    c1 = bitarray('111')
     c2 = ConstantBitarray(True, 3)
     comp = CompositeBitarray(c1, c2)
     assert comp.count(False) == c1.count(False)+c2.count(False)

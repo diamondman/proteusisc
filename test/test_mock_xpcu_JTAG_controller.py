@@ -2,7 +2,7 @@
 import pytest
 from usb1 import USBErrorPipe, USBErrorOverflow
 
-from proteusisc import Bitarray
+from proteusisc.bittypes import bitarray
 from proteusisc.jtagUtils import blen2Blen, buff2Blen,\
     build_byte_align_buff
 from proteusisc.test_utils import FakeUSBDev, FakeXPCU1Handle,\
@@ -64,7 +64,7 @@ def test_controller_control_messages():
     h.close()
 
 def test_jtag_transfer_simple_tms():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'))
     h = FakeXPCU1Handle(d0)
     h.controlWrite(0x40, 0xB0, 0x18, 0, b'')
 
@@ -73,7 +73,7 @@ def test_jtag_transfer_simple_tms():
     assert d0.tapstate == "SHIFTDR"
 
 def test_jtag_transfer_simple_read_tro():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'))
     h = FakeXPCU1Handle(d0)
     h.controlWrite(0x40, 0xB0, 0x18, 0, b'')
 
@@ -84,12 +84,12 @@ def test_jtag_transfer_simple_read_tro():
     h.controlWrite(0x40, 0xb0, 0xa6, 32-1, b'')
     h.bulkWrite(2, b'\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF')
     res = h.bulkRead(6, 4)
-    bits = Bitarray()
+    bits = bitarray()
     bits.frombytes(res[::-1])
     assert bits == d0._idcode
 
 def test_jtag_transfer_adv():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'))
     h = FakeXPCU1Handle(d0)
     h.controlWrite(0x40, 0xB0, 0x18, 0, b'')
 
@@ -97,17 +97,17 @@ def test_jtag_transfer_adv():
     h.controlWrite(0x40, 0xb0, 0xa6, 32+16-1, b'')
     h.bulkWrite(2, b'\xF0\x0F\x50\x0F\x00\x01\x00\x00\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF')
     res = h.bulkRead(6, 4)
-    bits = Bitarray()
+    bits = bitarray()
     bits.frombytes(res[::-1])
     assert bits == d0._idcode
 
 def test_jtag_transfer_adv_large():
     #Controller has special behavior for reading bits around the
     #boundaries of 32 bit boundaries. Check that it works with 64 bits
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
-                    idcode=Bitarray('00000110110101001000000010010011'))
-    d1 = MockPhysicalJTAGDevice(name="D1", status=Bitarray('11111100'),
-                    idcode=Bitarray('11110110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
+                    idcode=bitarray('00000110110101001000000010010011'))
+    d1 = MockPhysicalJTAGDevice(name="D1", status=bitarray('11111100'),
+                    idcode=bitarray('11110110110101001000000010010011'))
     h = FakeXPCU1Handle(d0, d1)
     h.controlWrite(0x40, 0xB0, 0x18, 0, b'')
 
@@ -115,14 +115,14 @@ def test_jtag_transfer_adv_large():
     h.controlWrite(0x40, 0xb0, 0xa6, 32+32+16-1, b'')
     h.bulkWrite(2, b'\xF0\x0F\x50\x0F\x00\x01\x00\x00\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF\x00\xFF')
     res = h.bulkRead(6, 4)
-    bits = Bitarray()
+    bits = bitarray()
     bits.frombytes(res[::-1])
     assert bits == d0._idcode+d1._idcode
 
 def test_jtag_transfer_adv_large_uneven():
     #Controller has special behavior for reading bits around the
     #boundaries of 32 bit boundaries. Check that it works with 64 bits
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'))
     h = FakeXPCU1Handle(d0)
     h.controlWrite(0x40, 0xB0, 0x18, 0, b'')
 
@@ -135,12 +135,12 @@ def test_jtag_transfer_adv_large_uneven():
     res = h.bulkRead(6, 4)
     #Fills up little endian shift register to 32 bits, then starts another one.
     assert res == b'\x93\x80\xd4\x06\x00\x00'
-    #bits = Bitarray()
+    #bits = bitarray()
     #bits.frombytes(res[::-1])
     #assert bits == d0._idcode
 
 def test_jtag_transfer_errors():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'))
     h = FakeXPCU1Handle(d0)
     h.controlWrite(0x40, 0xB0, 0x18, 0, b'')
 

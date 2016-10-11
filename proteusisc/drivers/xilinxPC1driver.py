@@ -19,7 +19,7 @@ from proteusisc.contracts import NOCARE, ZERO, ONE, CONSTANT, ARBITRARY
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGNotEnabledError
 from proteusisc.bittypes import ConstantBitarray, CompositeBitarray,\
-    Bitarray
+    bitarray
 
 #PROG = 8
 #TCK = 4
@@ -133,19 +133,20 @@ class XilinxPC1Driver(CableDriver):
         itdo = iter(TDO)
         #@profile
         def get4bits(i):
-            return next(i)<<3 | next(i)<<2 | next(i)<<1 | next(i)
+            return bool(next(i))<<3 | bool(next(i))<<2 | \
+                bool(next(i))<<1 | bool(next(i))
 
         outoffset = 0
         if count%4:
             remainingbitscount = count%4
             outdata[-2], outdata[-1] = \
-                sum(next(itms)<<(remainingbitscount-1-bitnum) for
-                    bitnum in range(remainingbitscount))<<4|\
-                    sum(next(itdi)<<(remainingbitscount-1-bitnum) for
-                        bitnum in range(remainingbitscount)),\
-                sum(next(itdo)<<(remainingbitscount-1-bitnum) for
-                    bitnum in range(remainingbitscount))<<4|\
-                    ((1<<remainingbitscount)-1)
+                sum(bool(next(itms))<<(remainingbitscount-1-bitnum)
+                    for bitnum in range(remainingbitscount))<<4|\
+                sum(bool(next(itdi))<<(remainingbitscount-1-bitnum)
+                    for bitnum in range(remainingbitscount)),\
+                sum(bool(next(itdo))<<(remainingbitscount-1-bitnum)
+                    for bitnum in range(remainingbitscount))<<4|\
+                ((1<<remainingbitscount)-1)
             outoffset = -2
 
         if count%8 > 4:
@@ -174,15 +175,15 @@ class XilinxPC1Driver(CableDriver):
         if not self._jtagon:
             raise JTAGNotEnabledError()
         if isinstance(TMS, (numbers.Number, bool)):
-            TMS = Bitarray(count*('1' if TMS else '0'))
+            TMS = bitarray(count*(bool(TMS),))
         if isinstance(TDI, (numbers.Number, bool)):
-            TDI = Bitarray(count*('1' if TDI else '0'))
+            TDI = bitarray(count*(bool(TDI),))
         #if isinstance(TDO, (numbers.Number, bool)):
-        #    TDO = Bitarray(count*('1' if TDO else '0'))
+        #    TDO = bitarray(count*(bool(TDO),))
         if self._scanchain:
             self._scanchain._tap_transition_driver_trigger(TMS)
         #self.xpcu_single_read()
-        outbits = Bitarray()
+        outbits = bitarray()
         TMS.reverse()
         TDI.reverse()
 
@@ -201,15 +202,16 @@ class XilinxPC1Driver(CableDriver):
         if not self._jtagon:
             raise JTAGNotEnabledError()
         if isinstance(TMS, (numbers.Number, bool)):
-            TMS = Bitarray(count*('1' if TMS else '0'))
+            TMS = bitarray(count*(bool(TMS),))
         if isinstance(TDI, (numbers.Number, bool)):
-            TDI = Bitarray(count*('1' if TDI else '0'))
+            TDI = bitarray(count*(bool(TDI),))
         #if isinstance(TDO, (numbers.Number, bool)):
-        #    TDO = Bitarray(count*('1' if TDO else '0'))
+        #    TDO = bitarray(count*(bool(TDO),))
+        #    TDO = bitarray(count*('1' if TDO else '0'))
         if self._scanchain:
             self._scanchain._tap_transition_driver_trigger(TMS)
         #self.xpcu_single_read()
-        outbits = Bitarray()
+        outbits = bitarray()
         TMS.reverse()
         TDI.reverse()
 
@@ -338,12 +340,12 @@ class XilinxPC1Driver(CableDriver):
         fullgroups = [bytes(elem[::-1]) for elem in
                       zip(retiter, retiter, retiter, retiter)][::-1]
         other=ret[final_group_index:][::-1]
-        other_bits = Bitarray()
+        other_bits = bitarray()
         other_bits.frombytes(other)
         other_bits = other_bits[:bit_return_count-(8*final_group_index)]
 
         reordered_data = b"".join(fullgroups)
-        raw_bits = Bitarray()
+        raw_bits = bitarray()
         raw_bits.frombytes(reordered_data)
         raw_bits = other_bits + raw_bits
 

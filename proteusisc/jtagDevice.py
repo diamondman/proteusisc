@@ -1,6 +1,6 @@
 import struct
+from bitarray import bitarray
 
-from . import Bitarray
 from .jtagDeviceDescription import JTAGDeviceDescription
 
 class JTAGDeviceBase(object):
@@ -24,7 +24,7 @@ class JTAGDeviceBase(object):
                 fail = True
             else:
                 self._id = idcode
-        elif isinstance(idcode, Bitarray):
+        elif isinstance(idcode, bitarray):
             if len(idcode) is not 32:
                 fail = True
             else:
@@ -41,7 +41,7 @@ class JTAGDeviceBase(object):
         if fail:
             raise ValueError("JTAGDevice idcode parameter must be a 32 "
                              "bit int, a string of length 4, or a "
-                             "Bitarray of 32 bits (%s len: %s)"%\
+                             "bitarray of 32 bits (%s len: %s)"%\
                              (idcode,len(idcode)))
 
         if not self._id & 1:

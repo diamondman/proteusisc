@@ -3,7 +3,8 @@ import operator
 import collections
 
 from .promise import TDOPromise, TDOPromiseCollection
-from .bittypes import ConstantBitarray, NoCareBitarray, Bitarray
+from .bittypes import CompositeBitarray, ConstantBitarray, \
+    NoCareBitarray, bitarray, PreferFalseBitarray
 from .contracts import NOCARE
 
 class Primitive(object):
@@ -33,7 +34,7 @@ class Primitive(object):
         for v in vars(self):
             if v not in {"dev", "_promise", "_synthetic"}:
                 value = getattr(self, v)
-                if isinstance(value, Bitarray):
+                if isinstance(value, bitarray):#TODO fix this for compba
                     value = value.to01()
                     if len(value) > 30:
                         value = str(value)[:30]+"...(%s)"%len(value)
@@ -94,7 +95,10 @@ class DataRW(Primitive):
     def __init__(self, *args, data=None, bitcount=None, read=False,
                  _promise=None, **kwargs):
         super(DataRW, self).__init__(*args, **kwargs)
-        self.data = data
+        if isinstance(data, bitarray):
+            self.data = CompositeBitarray(data)
+        else:
+            self.data = data
         self.bitcount = bitcount
         self.read = read
         #If promise must be used during init, please read the comment
@@ -137,7 +141,10 @@ class Level1Primitive(Primitive):
     def __init__(self, *args, count=None, tms=None, tdi=None, tdo=None,
                  _promise=None, reqef, **kwargs):
         super(Level1Primitive, self).__init__(*args, **kwargs)
-        _tms, _tdi, _tdo = tms, tdi, tdo
+        _tms, _tdi, _tdo =\
+            CompositeBitarray(tms) if isinstance(tms, bitarray) else tms,\
+            CompositeBitarray(tdi) if isinstance(tdi, bitarray) else tdi,\
+            CompositeBitarray(tdo) if isinstance(tdo, bitarray) else tdo
 
         self.reqef = reqef
         self._promise = _promise
@@ -160,7 +167,7 @@ class Level1Primitive(Primitive):
         elif not isinstance(_tdi, collections.Iterable):
             _tdi = ConstantBitarray(_tdi, count)
         if _tdo is None:
-            _tdo = NoCareBitarray(count, _preserve=False)
+            _tdo = PreferFalseBitarray(count)
         elif not isinstance(_tdo, collections.Iterable):
             _tdo = ConstantBitarray(_tdo, count)
 
@@ -184,56 +191,65 @@ class Level1Primitive(Primitive):
     _BIT_READ_GROUP_SIZE = 1
     _BIT_PAYLOAD_GROUP_SIZE = 1
 
-    @property
-    def score(self):
-        readenabled = self.tdo.any() or\
-                      (self._TDO.single and self._TDO.value)
-        readcount = self.tdo.count() if self._TDO.arbitrary else\
-                    (self.count if (self._TDO.value or self.tdo.any())\
-                     else 0)
-        tdosendcount = len(self.tdo)*self._TDO.arbitrary
-        tmssendcount = len(self.tms)*self._TMS.arbitrary
-        tdisendcount = len(self.tdi)*self._TDI.arbitrary
+    @classmethod
+    def _calc_score(cls, count, reqef, tdo_count, *, debug=False):
+        readenabled = (cls._TDO.single and cls._TDO.value) or\
+                      tdo_count > 0
 
-        if self.debug:
+        readcount = tdo_count if cls._TDO.arbitrary else\
+                    (count if (cls._TDO.value or (tdo_count > 0))\
+                     else 0)
+        tdosendcount = count*cls._TDO.arbitrary
+        tmssendcount = count*cls._TMS.arbitrary
+        tdisendcount = count*cls._TDI.arbitrary
+
+        if debug:
             print("Reading",readenabled, "Readnum",readcount,
                   "tmsnum", tmssendcount, "tdinum",tdisendcount)
 
-        SEND_COEFF = (self._COST_PAYLOAD_BIT_GROUP+
-                       self._BIT_PAYLOAD_GROUP_SIZE-1)//\
-                       self._BIT_PAYLOAD_GROUP_SIZE
-        RECV_COEFF = (self._COST_READ_BIT_GROUP+
-                      self._BIT_READ_GROUP_SIZE-1)//\
-                      self._BIT_READ_GROUP_SIZE
+        SEND_COEFF = (cls._COST_PAYLOAD_BIT_GROUP+
+                       cls._BIT_PAYLOAD_GROUP_SIZE-1)//\
+                       cls._BIT_PAYLOAD_GROUP_SIZE
+        RECV_COEFF = (cls._COST_READ_BIT_GROUP+
+                      cls._BIT_READ_GROUP_SIZE-1)//\
+                      cls._BIT_READ_GROUP_SIZE
 
-        readenablecost = (readenabled*self._COST_READ_MSG)
+        readenablecost = (readenabled*cls._COST_READ_MSG)
         readbitcost = readcount*RECV_COEFF
         readbitreqcost = tdosendcount*SEND_COEFF
         writetmscost = tmssendcount*SEND_COEFF
         writetdicost =  tdisendcount*SEND_COEFF
 
-        if self.debug:
-            print("Base cost        ", self._COST_PRIM)
+        if debug:
+            print("Base cost        ", cls._COST_PRIM)
             print("Read Enable Cost ", readenablecost)
             print("Read Bit Req Cost", readbitreqcost)
             print("Read Bit Cost    ", readbitcost)
             print("Write tms Cost   ", writetmscost)
             print("Write tdi Cost   ", writetdicost)
 
-        return self._COST_PRIM + readenablecost +\
+        return cls._COST_PRIM + readenablecost +\
             readbitreqcost + readbitcost + writetmscost + writetdicost
 
+
+    @property
+    def score(self):
+        return type(self)._calc_score(self.count,self.reqef,
+                                      self.tdo.count(True),
+                                      debug=self.debug)
+
     def __repr__(self):
+        #Make work with CompositeBitarray
         tms = self.tms
         tdi = self.tdi
         tdo = self.tdo
-        if isinstance(self.tdi, Bitarray):
+        if isinstance(self.tdi, bitarray):
             if len(self.tdi)>30:
                 tdi = "%s...(%s bits)"%(tdi[0:30], len(tdi))
-        if isinstance(self.tms, Bitarray):
+        if isinstance(self.tms, bitarray):
             if len(self.tms)>30:
                 tms = "%s...(%s bits)"%(tms[0:30], len(tms))
-        if isinstance(self.tdo, Bitarray):
+        if isinstance(self.tdo, bitarray):
             if len(self.tdo)>30:
                 tdo = "%s...(%s bits)"%(tdo[0:30], len(tdo))
         return "<%s(TMS:%s; TDI:%s; TDO:%s)>"%\
@@ -249,35 +265,33 @@ class Level1Primitive(Primitive):
                   target,'\033[0m')
 
         newcount = target.count+self.count
-
         reqef = tuple(map(operator.add, self.reqef, target.reqef))
-
-        newtms = target.tms+self.tms
-        newtdi = target.tdi+self.tdi
-        newtdo = target.tdo+self.tdo
 
         if self.debug:
             print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),
                   "CONBINED",'\033[0m')
 
         possible_prims = self._chain.get_compatible_lv1_prims(reqef)
-        best_prim = None
+        best_prim_cls = None
         best_score = self.score + target.score
+        tdo_count = target.tdo.count(True)+self.tdo.count(True)
         for prim_cls in possible_prims:
-            tmp_prim = prim_cls(count=newcount,
-                                tms=newtms, tdi=newtdi,
-                                tdo=newtdo, reqef=reqef,
-                                _chain=self._chain)#, _promise=promise)
-
+            prim_score = prim_cls._calc_score(newcount, reqef, tdo_count,
+                                              debug=self.debug)
             if self.debug:
-                print(tmp_prim.score, tmp_prim)
-            if tmp_prim.score < best_score:
-                best_prim = tmp_prim
-                best_score = tmp_prim.score
-        if self.debug:
-            print("PICKED", best_prim, "\n")
+                print(prim_score, prim_cls)
+            if prim_score < best_score:
+                best_prim_cls = prim_cls
+                best_score = prim_score
 
-        if best_prim:
+        if self.debug:
+            print("PICKED", best_prim_cls, "\n")
+
+        if best_prim_cls:
+            newtms = target.tms+self.tms
+            newtdi = target.tdi+self.tdi
+            newtdo = target.tdo+self.tdo
+
             if not self._promise and not target._promise:
                 promise = None
             elif self._promise and not target._promise:
@@ -290,11 +304,10 @@ class Level1Primitive(Primitive):
                 promise.add(target._promise, 0)
                 promise.add(self._promise, target.count)
 
-            #This is a bit of a hack. It is difficult to undo
-            #subpromises. If primitives later use the promise
-            #during init, this must change
-            best_prim._promise = promise
-        return best_prim
+            return best_prim_cls(count=newcount,
+                                 tms=newtms, tdi=newtdi,
+                                 tdo=newtdo, reqef=reqef,
+                                 _chain=self._chain, _promise=promise)
 
     def expand(self, chain, sm):
         return None

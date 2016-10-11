@@ -16,7 +16,7 @@ from proteusisc.jtagUtils import blen2Blen, buff2Blen,\
 from proteusisc.cabledriver import CableDriver
 from proteusisc.primitive import Level1Primitive, Executable
 from proteusisc.bittypes import ConstantBitarray, NoCareBitarray,\
-    CompositeBitarray, Bitarray
+    CompositeBitarray, bitarray, PreferFalseBitarray
 from proteusisc.contracts import NOCARE, ZERO, ONE, CONSTANT, ARBITRARY
 from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGControlError, JTAGNotEnabledError
@@ -86,14 +86,23 @@ class DigilentWriteTMSPrimitive(Level1Primitive, Executable):
     _driver_function_name = 'write_tms_bits'
     _TMS, _TDI, _TDO = ARBITRARY, CONSTANT, CONSTANT
     def _get_args(self):
+        print("TDO IS", self.tdo.__repr__())
         if isinstance(self.tdo, CompositeBitarray):
             self.tdo = self.tdo.prepare()
+            if self.tdo.all():
+                self.tdo = True
+            elif not self.tdo.any():
+                self.tdo = False
+            else:
+                raise Exception("Arbitrary data not allowed for TDO:%s"%
+                                self.tdo)
         if isinstance(self.tdo, ConstantBitarray):
             tdo = self.tdo._val
-        elif isinstance(self.tdo, NoCareBitarray):
+        elif isinstance(self.tdo, (NoCareBitarray, PreferFalseBitarray)):
             tdo = False
         else:
             raise ValueError("TDO can not be %s. CompilerError."%type(self.tdo).__name__)
+
         if isinstance(self.tdi, ConstantBitarray):
             tdi = self.tdi._val
         elif isinstance(self.tdi, NoCareBitarray):
@@ -112,7 +121,7 @@ class DigilentWriteTDIPrimitive(Level1Primitive, Executable):
             self.tdo = self.tdo.prepare()
         if isinstance(self.tdo, ConstantBitarray):
             tdo = self.tdo._val
-        elif isinstance(self.tdo, NoCareBitarray):
+        elif isinstance(self.tdo, (NoCareBitarray, PreferFalseBitarray)):
             tdo = False
         else:
             raise ValueError("TDO can not be %s. CompilerError."%type(self.tdo).__name__)
@@ -134,7 +143,7 @@ class DigilentWriteTMSTDIPrimitive(Level1Primitive, Executable):
             self.tdo = self.tdo.prepare()
         if isinstance(self.tdo, ConstantBitarray):
             tdo = self.tdo._val
-        elif isinstance(self.tdo, NoCareBitarray):
+        elif isinstance(self.tdo, (NoCareBitarray, PreferFalseBitarray)):
             tdo = False
 
         return [self.tms, self.tdi], {'return_tdo':tdo}
@@ -177,7 +186,6 @@ class DigilentClockTickPrimitive(Level1Primitive, Executable):
             tdi = False
         else:
             raise ValueError("TDI can not be %s. CompilerError."%type(self.tdi).__name__)
-
 
         return [self.count], {'TMS': tms, 'TDI': tdi}
 
@@ -247,10 +255,10 @@ class DigilentAdeptController(CableDriver):
         before this function is called will return useless data or fail.
 
         Usage:
-            >>> from proteusisc import getAttachedControllers, Bitarray
+            >>> from proteusisc import getAttachedControllers, bitarray
             >>> c = getAttachedControllers()[0]
             >>> c.jtag_enable()
-            >>> c.write_tms_bits(Bitarray("001011111"), return_tdo=True)
+            >>> c.write_tms_bits(bitarray("001011111"), return_tdo=True)
             >>> c.jtag_disable()
         """
         h_ = self._handle
@@ -271,10 +279,10 @@ class DigilentAdeptController(CableDriver):
         immediately after this function will return useless data or fail.
 
         Usage:
-            >>> from proteusisc import getAttachedControllers, Bitarray
+            >>> from proteusisc import getAttachedControllers, bitarray
             >>> c = getAttachedControllers()[0]
             >>> c.jtag_enable()
-            >>> c.write_tms_bits(Bitarray("001011111"), return_tdo=True)
+            >>> c.write_tms_bits(bitarray("001011111"), return_tdo=True)
             >>> c.jtag_disable()
         """
 
@@ -325,27 +333,27 @@ class DigilentAdeptController(CableDriver):
         back from scan the chain.
 
         Args:
-            data - bits to send over TMS line of scan chain (Bitarray)
-            return_tdo (bool) - return the devices Bitarray response
-            TDI (bool) - whether TDI should send a Bitarray of all 0's
+            data - bits to send over TMS line of scan chain (bitarray)
+            return_tdo (bool) - return the devices bitarray response
+            TDI (bool) - whether TDI should send a bitarray of all 0's
                          of same length as `data` (i.e False) or all 1's
                          (i.e. True)
 
         Returns:
-            None by default or the (Bitarray) response of the device
+            None by default or the (bitarray) response of the device
             after receiving data, if return_tdo is True.
 
         Usage:
-            >>> from proteusisc import getAttachedControllers, Bitarray
+            >>> from proteusisc import getAttachedControllers, bitarray
             >>> c = getAttachedControllers()[0]
             >>> c.jtag_enable()
-            >>> c.write_tms_bits(Bitarray("001011111"), return_tdo=True)
+            >>> c.write_tms_bits(bitarray("001011111"), return_tdo=True)
             >>> c.jtag_disable()
         """
         if not self._jtagon:
             raise JTAGNotEnabledError()
-        if self._scanchain:
-            self._scanchain._tap_transition_driver_trigger(data)
+        #if self._scanchain:
+        #    self._scanchain._tap_transition_driver_trigger(data)
 
         self._handle.bulkWrite(self._cmdout_interface,
                                _BMSG_WRITE_TMS +\
@@ -364,7 +372,7 @@ class DigilentAdeptController(CableDriver):
         if return_tdo:
             tdo_bytes = self._handle.bulkRead(self._datin_interface,
                                         buff2Blen(data))[::-1]
-            tdo_bits = Bitarray()
+            tdo_bits = bitarray()
             tdo_bits.frombytes(tdo_bytes)
             tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(data):]
 
@@ -380,28 +388,28 @@ class DigilentAdeptController(CableDriver):
         back from scan the chain.
 
         Args:
-            data - bits to send over TDI line of scan chain (Bitarray)
-            return_tdo (bool) - return the devices Bitarray response
-            TMS (bool) - whether TMS should send a Bitarray of all 0's
+            data - bits to send over TDI line of scan chain (bitarray)
+            return_tdo (bool) - return the devices bitarray response
+            TMS (bool) - whether TMS should send a bitarray of all 0's
                          of same length as `data` (i.e False) or all 1's
                          (i.e. True)
 
         Returns:
-            None by default or the (Bitarray) response of the device
+            None by default or the (bitarray) response of the device
             after receiving data, if return_tdo is True.
 
         Usage:
-            >>> from proteusisc import getAttachedControllers, Bitarray
+            >>> from proteusisc import getAttachedControllers, bitarray
             >>> c = getAttachedControllers()[0]
             >>> c.jtag_enable()
-            >>> c.write_tdi_bits(Bitarray("11111"), return_tdo=True)
+            >>> c.write_tdi_bits(bitarray("11111"), return_tdo=True)
             >>> c.jtag_disable()
         """
         if not self._jtagon:
             raise JTAGNotEnabledError()
-        tms_bits = Bitarray(('1' if TMS else '0')*len(buff))
-        if self._scanchain:
-            self._scanchain._tap_transition_driver_trigger(tms_bits)
+        tms_bits = bitarray(('1' if TMS else '0')*len(buff))
+        #if self._scanchain:
+        #    self._scanchain._tap_transition_driver_trigger(tms_bits)
 
         self._handle.bulkWrite(self._cmdout_interface,
                                _BMSG_WRITE_TDI +\
@@ -420,7 +428,7 @@ class DigilentAdeptController(CableDriver):
         if return_tdo is True:
             tdo_bytes = self._handle.bulkRead(self._datin_interface,
                                               buff2Blen(buff))[::-1]
-            tdo_bits = Bitarray()
+            tdo_bits = bitarray()
             tdo_bits.frombytes(tdo_bytes)
             tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(buff):]
 
@@ -435,30 +443,30 @@ class DigilentAdeptController(CableDriver):
         from the scan chain.
 
         Args:
-            tmsdata - bits to send over TMS line of scan chain (Bitarray)
+            tmsdata - bits to send over TMS line of scan chain (bitarray)
                       must be the same length ad tdidata
-            tdidata - bits to send over TDI line of scan chain (Bitarray)
+            tdidata - bits to send over TDI line of scan chain (bitarray)
                       must be the same length ad tmsdata
-            return_tdo (bool) - return the devices Bitarray response
+            return_tdo (bool) - return the devices bitarray response
 
         Returns:
-            None by default or the (Bitarray) response of the device
+            None by default or the (bitarray) response of the device
             after receiving data, if return_tdo is True.
 
         Usage:
-            >>> from proteusisc import getAttachedControllers, Bitarray
+            >>> from proteusisc import getAttachedControllers, bitarray
             >>> c = getAttachedControllers()[0]
             >>> c.jtag_enable()
-            >>> c.write_tms_tdi_bits(Bitarray("00001"),
-                                     Bitarray("11111"), return_tdo=True)
+            >>> c.write_tms_tdi_bits(bitarray("00001"),
+                                     bitarray("11111"), return_tdo=True)
             >>> c.jtag_disable()
         """
         if not self._jtagon:
             raise JTAGNotEnabledError()
         if len(tmsdata) != len(tdidata):
             raise Exception("TMSdata and TDIData must be the same length")
-        if self._scanchain:
-            self._scanchain._tap_transition_driver_trigger(tmsdata)
+        #if self._scanchain:
+        #    self._scanchain._tap_transition_driver_trigger(tmsdata)
 
         self._handle.bulkWrite(self._cmdout_interface,
                                _BMSG_WRITE_TMS_TDI +\
@@ -468,7 +476,7 @@ class DigilentAdeptController(CableDriver):
         if res[1] != 0:
             raise JTAGControlError("Uknown Issue writing TMS bits: %s", res)
 
-        data = Bitarray([val for pair in zip(tmsdata, tdidata)
+        data = bitarray([val for pair in zip(tmsdata, tdidata)
                          for val in pair])
         self._handle.bulkWrite(self._datout_interface,
                                build_byte_align_buff(data).tobytes()[::-1])
@@ -477,7 +485,7 @@ class DigilentAdeptController(CableDriver):
         if return_tdo:
             tdo_bytes = self._handle.bulkRead(self._datin_interface,
                                               buff2Blen(data))[::-1]
-            tdo_bits = Bitarray()
+            tdo_bits = bitarray()
             tdo_bits.frombytes(tdo_bytes)
             tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(tmsdata):]
 
@@ -500,7 +508,7 @@ class DigilentAdeptController(CableDriver):
                          from TDO.
 
         Returns:
-            Returns the response (Bitarray) from the physical scanchain's
+            Returns the response (bitarray) from the physical scanchain's
             TDO line.
 
         Usage:
@@ -512,9 +520,9 @@ class DigilentAdeptController(CableDriver):
         """
         if not self._jtagon:
             raise JTAGNotEnabledError()
-        if self._scanchain:
-            bits = ConstantBitarray(bool(TMS), count)
-            self._scanchain._tap_transition_driver_trigger(bits)
+        #if self._scanchain:
+        #    bits = ConstantBitarray(bool(TMS), count)
+        #    self._scanchain._tap_transition_driver_trigger(bits)
 
         #START REQUEST
         self._handle.bulkWrite(self._cmdout_interface,
@@ -529,7 +537,7 @@ class DigilentAdeptController(CableDriver):
         #READ TDO DATA BACK
         tdo_bytes = self._handle.bulkRead(self._datin_interface,
                                           blen2Blen(count))[::-1]
-        tdo_bits = Bitarray()
+        tdo_bits = bitarray()
         tdo_bits.frombytes(tdo_bytes)
         tdo_bits = tdo_bits[(8*len(tdo_bytes)) - count:]
         #GET BACK STATS
@@ -541,9 +549,9 @@ class DigilentAdeptController(CableDriver):
     def tick_clock(self, count, TMS=True, TDI=False):
         if not self._jtagon:
             raise JTAGNotEnabledError()
-        if self._scanchain:
-            bits = ConstantBitarray(bool(TMS), count)
-            self._scanchain._tap_transition_driver_trigger(bits)
+        #if self._scanchain:
+        #    bits = ConstantBitarray(bool(TMS), count)
+        #    self._scanchain._tap_transition_driver_trigger(bits)
 
         #START REQUEST
         self._handle.bulkWrite(self._cmdout_interface,

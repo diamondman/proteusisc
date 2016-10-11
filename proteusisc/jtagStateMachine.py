@@ -1,4 +1,4 @@
-from .bittypes import Bitarray
+from .bittypes import bitarray
 
 class JTAGStateMachine(object):
     """A software implementation of the JTAG TAP state machine.
@@ -80,7 +80,7 @@ class JTAGStateMachine(object):
         for node in path[1:]:
             steps.append(cls.states.get(last_node).index(node))
             last_node = node
-        return Bitarray(steps)
+        return bitarray(steps)
 
     _lookup_cache = {}
     def calc_transition_to_state(self, newstate):
@@ -90,10 +90,10 @@ class JTAGStateMachine(object):
             newstate: A str state name to calculate the path to.
 
         Returns:
-            A Bitarray containing the bits that would transition this
+            A bitarray containing the bits that would transition this
             state machine to the target state. The bits read from right
-            to left. For efficiency, this retulting Bitarray is cached.
-            Do not edit this Bitarray, or it will cause undefined
+            to left. For efficiency, this retulting bitarray is cached.
+            Do not edit this bitarray, or it will cause undefined
             behavior.
         """
         cached_val = JTAGStateMachine._lookup_cache.\

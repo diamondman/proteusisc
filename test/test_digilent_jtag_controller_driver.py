@@ -4,7 +4,7 @@ import pytest
 from proteusisc.controllerManager import getDriverInstanceForDevice
 from proteusisc.test_utils import FakeUSBDev, FakeDevHandle,\
     MockPhysicalJTAGDevice
-from proteusisc.primitive import ConstantBitarray, Bitarray
+from proteusisc.bittypes import ConstantBitarray, bitarray
 from proteusisc.drivers.digilentdriver import DigilentWriteTMSPrimitive,\
     DigilentWriteTDIPrimitive, DigilentWriteTMSTDIPrimitive,\
     DigilentReadTDOPrimitive, DigilentClockTickPrimitive
@@ -21,14 +21,14 @@ def test_jtag_onoff():
     assert not ctrl.jtagon
 
 def test_write_tms_bits():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
-                    idcode=Bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
+                    idcode=bitarray('00000110110101001000000010010011'))
     ctrl = FakeDevHandle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
 
     #RESET TAP AND TRANS TO SHIFTDR
-    c.write_tms_bits(Bitarray('001011111'))
+    c.write_tms_bits(bitarray('001011111'))
     assert d0.tapstate == "SHIFTDR"
 
     #READ 32 BITS OF DATA
@@ -47,15 +47,15 @@ def test_write_tms_bits():
     assert bits == ConstantBitarray(True, 32)
 
 def test_write_tdi_bits():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
-                    idcode=Bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
+                    idcode=bitarray('00000110110101001000000010010011'))
     ctrl = FakeDevHandle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
 
     #RESET TAP AND TRANS TO SHIFTDR
-    for bit in reversed(Bitarray('001011111')):
-        c.write_tdi_bits(Bitarray('0'), TMS=bit)
+    for bit in reversed(bitarray('001011111')):
+        c.write_tdi_bits(bitarray('0'), TMS=bit)
     assert d0.tapstate == "SHIFTDR"
 
     #READ 32 BITS OF DATA
@@ -74,18 +74,18 @@ def test_write_tdi_bits():
     assert bits == ConstantBitarray(True, 32)
 
 def test_write_tms_tdi_bits():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
-                    idcode=Bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
+                    idcode=bitarray('00000110110101001000000010010011'))
     ctrl = FakeDevHandle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
 
     #RESET TAP AND TRANS TO SHIFTDR
-    c.write_tms_tdi_bits(Bitarray('001011111'), ConstantBitarray(False, 9))
+    c.write_tms_tdi_bits(bitarray('001011111'), ConstantBitarray(False, 9))
     assert d0.tapstate == "SHIFTDR"
 
     #READ 32 BITS OF DATA
-    next_read_bits = Bitarray('11001010001101011100101000110101')
+    next_read_bits = bitarray('11001010001101011100101000110101')
     bits = c.write_tms_tdi_bits(ConstantBitarray(False, 32), next_read_bits,
                                 return_tdo=True)
     assert d0.tapstate == "SHIFTDR"
@@ -98,14 +98,14 @@ def test_write_tms_tdi_bits():
     assert bits == next_read_bits
 
 def test_read_tdo_bits():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
-                    idcode=Bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
+                    idcode=bitarray('00000110110101001000000010010011'))
     ctrl = FakeDevHandle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
 
     #RESET TAP AND TRANS TO SHIFTDR
-    for bit in reversed(Bitarray('001011111')):
+    for bit in reversed(bitarray('001011111')):
         c.read_tdo_bits(1, TMS=bit, TDI=False)
     assert d0.tapstate == "SHIFTDR"
 
@@ -125,14 +125,14 @@ def test_read_tdo_bits():
     assert bits == ConstantBitarray(True, 32)
 
 def test_tick_clock():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
-                    idcode=Bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
+                    idcode=bitarray('00000110110101001000000010010011'))
     ctrl = FakeDevHandle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
 
     #RESET TAP AND TRANS TO SHIFTDR
-    for bit in reversed(Bitarray('001011111')):
+    for bit in reversed(bitarray('001011111')):
         c.tick_clock(1, TMS=bit, TDI=False)
     assert d0.tapstate == "SHIFTDR"
 
@@ -156,14 +156,14 @@ def test_tick_clock():
 
 
 def test_write_tms_bits_primitive():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
-                    idcode=Bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
+                    idcode=bitarray('00000110110101001000000010010011'))
     ctrl = FakeDevHandle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
 
     #RESET TAP AND TRANS TO SHIFTDR
-    prim = DigilentWriteTMSPrimitive(tms=Bitarray('001011111'),
+    prim = DigilentWriteTMSPrimitive(tms=bitarray('001011111'),
                                      reqef=(), _chain=None)
     c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
@@ -179,14 +179,14 @@ def test_write_tms_bits_primitive():
     assert promise() == d0._idcode
 
 def test_write_tdi_bits_primitive():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
-                    idcode=Bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
+                    idcode=bitarray('00000110110101001000000010010011'))
     ctrl = FakeDevHandle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
 
     #RESET TAP AND TRANS TO SHIFTDR
-    for bit in reversed(Bitarray('001011111')):
+    for bit in reversed(bitarray('001011111')):
         prim = DigilentWriteTDIPrimitive(
             tdi=ConstantBitarray(False, 1),
             tms=ConstantBitarray(bit, 1),
@@ -209,15 +209,15 @@ def test_write_tdi_bits_primitive():
     assert promise() == d0._idcode
 
 def test_write_tms_tdi_bits_primitive():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
-                    idcode=Bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
+                    idcode=bitarray('00000110110101001000000010010011'))
     ctrl = FakeDevHandle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
 
     #RESET TAP AND TRANS TO SHIFTDR
     prim = DigilentWriteTMSTDIPrimitive(
-        tms=Bitarray('001011111'),
+        tms=bitarray('001011111'),
         tdi=ConstantBitarray(False, 9),
         reqef=(), _chain=None
     )
@@ -237,14 +237,14 @@ def test_write_tms_tdi_bits_primitive():
     assert promise() == d0._idcode
 
 def test_read_tdo_primitie():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
-                    idcode=Bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
+                    idcode=bitarray('00000110110101001000000010010011'))
     ctrl = FakeDevHandle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
 
     #RESET TAP AND TRANS TO SHIFTDR
-    for bit in reversed(Bitarray('001011111')):
+    for bit in reversed(bitarray('001011111')):
         prim = DigilentReadTDOPrimitive(
             tdi=False, tms=bit,
             reqef=(), _chain=None
@@ -263,14 +263,14 @@ def test_read_tdo_primitie():
     assert promise() == d0._idcode
 
 def test_clock_tick_primitive():
-    d0 = MockPhysicalJTAGDevice(name="D0", status=Bitarray('11111100'),
-                    idcode=Bitarray('00000110110101001000000010010011'))
+    d0 = MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100'),
+                    idcode=bitarray('00000110110101001000000010010011'))
     ctrl = FakeDevHandle(d0)
     c = getDriverInstanceForDevice(FakeUSBDev(ctrl))
     c.jtag_enable()
 
     #RESET TAP AND TRANS TO SHIFTDR
-    for bit in reversed(Bitarray('001011111')):
+    for bit in reversed(bitarray('001011111')):
         prim = DigilentClockTickPrimitive(
             tdi=False, tms=bit,
             reqef=(), _chain=None
