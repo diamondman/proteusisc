@@ -9,10 +9,10 @@ def test_nocare():
     assert len(list(bits)) == 7
     assert not bits.all()
     assert not bits.any()
-    assert bool(bits[0]) == False
-    assert bool(bits[-1]) == False
-    assert bool(bits[-7]) == False
-    assert bool(bits[6]) == False
+    assert bool(bits[0]) is False
+    assert bool(bits[-1]) is False
+    assert bool(bits[-7]) is False
+    assert bool(bits[6]) is False
     with pytest.raises(IndexError):
         bits[7]
     with pytest.raises(IndexError):
@@ -35,10 +35,10 @@ def test_preferfalse():
     assert len(list(bits)) == 7
     assert not bits.all()
     assert not bits.any()
-    assert bool(bits[0]) == False
-    assert bool(bits[-1]) == False
-    assert bool(bits[-7]) == False
-    assert bool(bits[6]) == False
+    assert bool(bits[0]) is False
+    assert bool(bits[-1]) is False
+    assert bool(bits[-7]) is False
+    assert bool(bits[6]) is False
     with pytest.raises(IndexError):
         bits[7]
     with pytest.raises(IndexError):
@@ -71,10 +71,10 @@ def test_constant():
     assert len(arr) == 3
     assert not any(arr)
 
-    assert bits[0] == False
-    assert bits[-1] == False
-    assert bits[-3] == False
-    assert bits[2] == False
+    assert bits[0] is False
+    assert bits[-1] is False
+    assert bits[-3] is False
+    assert bits[2] is False
     with pytest.raises(IndexError):
         bits[3]
     with pytest.raises(IndexError):
@@ -275,13 +275,14 @@ def test_composite_general():
     #for i, bit in enumerate(bitarray('1111000001001')):
     #    assert comp2[i] == bit
 
-    #TODO Add new index error check
-    with pytest.raises(TypeError):
+    with pytest.raises(IndexError):
         comp2[99]
 
     with pytest.raises(TypeError):
         comp2['INVALID']
 
+    c3 = bitarray('1001')
+    comp2 = CompositeBitarray(comp, c3)
     assert comp2.prepare() == bitarray('1111111111001')
     comp2 = CompositeBitarray(c1, c2) + c3
     assert bitarray(comp2.prepare()) == bitarray('1111111111001')
@@ -295,6 +296,42 @@ def test_composite_general():
     assert len(comp) == 9
     assert comp.__repr__() == "<CMP: TTTT!!!!! (9)>"
 
+    #Check __getitem__
+    bits = bitarray((comp[i] for i in range(len(comp))))
+    assert bits == bitarray('111100000')
+
+def test_composite_prepare_preferfalse_nopreserve():
+    bits = ConstantBitarray(True, 4) + PreferFalseBitarray(5)
+    assert len(bits) == 9
+    assert bitarray(iter(bits)) == bitarray('111100000')
+    assert bitarray(iter(bits.prepare(preserve_history=False))) ==\
+        bitarray('111111111')
+
+    #Have to recreate it. Prepare edits the object's underlying data.
+    bits = ConstantBitarray(True, 4) + PreferFalseBitarray(5)
+    assert bitarray(iter(bits.prepare(preserve_history=True))) ==\
+        bitarray('111100000')
+
+def test_composite_split():
+    ab = (ConstantBitarray(True, 2) + ConstantBitarray(False, 1)) +\
+         (PreferFalseBitarray(3) + ConstantBitarray(True, 1))
+    assert bitarray(ab) == bitarray('1100001')
+    l, r = ab.split(1)
+    assert bitarray(l) == bitarray('1')
+    assert bitarray(r) == bitarray('100001')
+    assert l._lltail is r._llhead
+
+def test_composite_rejoin_split():
+    ab = (ConstantBitarray(True, 2) + ConstantBitarray(False, 1)) +\
+         (PreferFalseBitarray(3) + ConstantBitarray(True, 1))
+    l, r = ab.split(1)
+
+    #assert rejoin
+    tmpnode = l._lltail
+    lr = l+r
+    assert bitarray(lr) == bitarray('1100001')
+    assert lr._llhead is tmpnode
+    assert lr._offset == 0
 
 def test_composite_general_preferfalse():
     c1 = ConstantBitarray(True, 4)

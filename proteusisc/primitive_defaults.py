@@ -95,7 +95,7 @@ class RunInstruction(Level3Primitive, DeviceTarget):
             dev=dev, read=False,
             insname="BYPASS",
             execute=self.execute,
-            data=None if self.data == None else NoCareBitarray(1),
+            data=None if self.data is None else NoCareBitarray(1),
             _synthetic=True)
         assert self._group_type == tmp._group_type
         return tmp
@@ -356,11 +356,12 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
                     ONE if self.read else NOCARE #TDO
                 )
                 write_data = self._chain.get_fitted_lv1_prim(reqef)
-                res.append(write_data(tms=False, tdi=data[1:],
+                data, datar = data.split(1)
+                res.append(write_data(tms=False, tdi=datar,
                                       tdo=self.read or None,
                                       _promise=rest))
 
-            newdata = data[:1]
+            newdata = data
             reqef = (
                 ONE, #TMS
                 ONE if all(newdata) else ZERO, #TDI

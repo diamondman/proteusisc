@@ -35,7 +35,7 @@ def test_promise_subpromises():
 
     pro = TDOPromise(chain, 0, 1)
     rest, tail = pro.split_to_subpromises()
-    assert rest == None
+    assert rest is None
     assert tail == pro
 
 def test_promise_fulfill():

@@ -49,7 +49,7 @@ def test_set_desired_speed():
     c = getDriverInstanceForDevice(usbdev)
     chain = JTAGScanChain(c)
 
-    assert c.speed == None
+    assert c.speed is None
     chain.jtag_enable()
     assert c.speed == 4000000
     chain.jtag_disable()

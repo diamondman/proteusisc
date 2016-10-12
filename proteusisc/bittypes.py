@@ -138,10 +138,13 @@ class ConstantBitarray(collections.Sequence):
     def reverse(self):
         pass
 
+    def split(self, bitindex):
+        return self[:bitindex], self[bitindex:]
+
     def _easy_mergable(self, other):
         return isinstance(other, NoCareBitarray) or\
             (isinstance(other, PreferFalseBitarray) and\
-             self._val == False) or\
+             self._val is False) or\
             (isinstance(other, ConstantBitarray) and\
                  other._val == self._val)
 
@@ -279,6 +282,9 @@ class NoCareBitarray(collections.Sequence):
     def reverse(self):
         pass
 
+    def split(self, bitindex):
+        return self[:bitindex], self[bitindex:]
+
     def _easy_mergable(self, other):
         return isinstance(other, (NoCareBitarray, PreferFalseBitarray,
                                   ConstantBitarray))
@@ -385,6 +391,9 @@ class PreferFalseBitarray(collections.Sequence):
     def reverse(self):
         pass
 
+    def split(self, bitindex):
+        return self[:bitindex], self[bitindex:]
+
     def _easy_mergable(self, other):
         return isinstance(other, (NoCareBitarray, PreferFalseBitarray))\
             or (isinstance(other, ConstantBitarray) and\
@@ -468,10 +477,7 @@ class CompositeBitarray(collections.Sequence):
             oldtail = self._lltail
             if isinstance(component2, CompositeBitarray):
                 if self._lltail is component2._llhead:
-                    #assert component1._tailoffset + component2._offset ==\
-                    #    len(component1._lltail.value),\
-                    #    "Linkedlist pieces recombined not along seam."
-                    assert component1._tailbitsused == component2._offset,\
+                    assert component1._tailbitsused==component2._offset,\
                         "Linkedlist pieces recombined not along seam."
                     self._lltail = component2._lltail
                     self._tailbitsused = component2._tailbitsused
@@ -536,37 +542,23 @@ class CompositeBitarray(collections.Sequence):
 
     def __len__(self):
         return self._length
+
     def __getitem__(self, index):
-        """Get a value at an index from the composite bitarray
+        if isinstance(index, int):
+            print("GETTING", index)
+            index = len(self)-abs(index) if index < 0 else index
+            if (index < self._length and index >= 0):
+                index += self._offset
+                for elem in self._iter_components():
+                    if index < len(elem):
+                        return elem[index]
+                    index -= len(elem)
+                raise IndexError("Iteration finished before index found.")
+            raise IndexError("%s index out of range"%type(self))
 
-        Since the actual bit values are stored in an array of arrays,
-        the array of components has to be searched to find the correct
-        sub array (and its offset) to look for the index.
-
-        This functions is used exceedingly rarely, since most data
-        extraction is done with 'prepare'. If this method starts being
-        used more, it will be necessary to change the underlying data
-        type to some kind of tree, or support an efficient iterator.
-
-        Args:
-            index: An int bit number to look up in the combined bits of all components.
-
-        Return:
-            A boolean value of the bit looked up.
-
-        """
-        #import ipdb
-        #ipdb.set_trace()
-        if index == slice(1, None, None):
-            return CompositeBitarray(self, offset=1)
-        if index in (slice(None, 1), slice(0, 1)):
-            res = CompositeBitarray(
-                self._llhead,
-                _tailoffset=len(self._llhead.value)-1)
-            res._length = 1
-            return res
-        raise TypeError("%s indices must be slices, not %s"%
-                        (type(self), type(index)))
+        raise TypeError("%s indices must be int, not %s"%
+                        (type(self), type(index))
+        )
     def __str__(self):
         return "".join(['?' if isinstance(elem, NoCareBitarray) else
                         ('!' if isinstance(elem, PreferFalseBitarray) else
@@ -575,7 +567,8 @@ class CompositeBitarray(collections.Sequence):
                          else ('1' if b else '0')))
                         for elem in self._iter_components()
                         for b in elem])\
-                            [self._offset:-(len(self._lltail.value)-self._tailbitsused) or None]
+                            [self._offset:-(len(self._lltail.value)-\
+                                            self._tailbitsused) or None]
     def __repr__(self):
         return "<CMP: %s (%s)>"%\
             (str(self), self._length)# pragma: no cover
@@ -595,12 +588,15 @@ class CompositeBitarray(collections.Sequence):
         return NotImplemented
 
     def __iter__(self):
-        #TODO Not handling a single item with offset and tailbitsused
         node = self._llhead
-        for bit in islice(node.value, self._offset, None):
-            yield bit
-        if node is self._lltail:
+        if self._llhead is self._lltail:
+            for bit in islice(node.value, self._offset,
+                              self._offset+self._tailbitsused):
+                yield bit
             return
+        else:
+            for bit in islice(node.value, self._offset, None):
+                yield bit
 
         while True:
             node = node.next
@@ -614,7 +610,6 @@ class CompositeBitarray(collections.Sequence):
             yield bit
 
     def __reversed__(self):
-        #TODO Not handling a single item with offset and tailbitsused
         node = self._lltail
         ptiter = reversed(node.value)
         for _ in range(len(self._lltail.value)-self._tailbitsused):
@@ -671,6 +666,19 @@ class CompositeBitarray(collections.Sequence):
 
     def all(self):
         return all((elem.all() for elem in self._iter_components()))
+
+    def split(self, bitindex):
+        if bitindex == 0:
+            return None, self
+        if bitindex == len(self):
+            return self, None
+        if bitindex == 1:
+            left = CompositeBitarray(
+                self._llhead,
+                _tailoffset=len(self._llhead.value)-1)
+            left._length = 1
+            return left, CompositeBitarray(self, offset=1)
+        raise NotImplementedError()
 
     def prepare(self, *, preserve_history=False):
         """Extract the composite array's data into a usable bitarray based on if NoCare bits should be rendered as True or False.
