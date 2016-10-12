@@ -494,33 +494,40 @@ class CompositeBitarray(collections.Sequence):
             #if merging with the tail node, the tail node is fully used
             #Merge will start at seam, or have nothing to do.
             if oldtail is not self._llhead or self._offset == 0:
-                headend = self._llhead if self._offset == 0 else \
-                          self._llhead.next
-                tailend = self._lltail if self._tailbitsused ==\
-                          len(self._lltail.value) else self._lltail.prev
-                if headend is tailend:
-                    return #Skip if only one node in merge list.
-                for mergebase in oldtail.iterprevtill(headend):
-                    anymerges = False
-                    mergetarget = mergebase.next
-                    while True:
-                        if mergebase.value._easy_mergable(mergetarget.value):
-                            #Merge two links in the chain
-                            anymerges = True
-                            mergebase._value += mergetarget.value
-                            mergebase.next = mergetarget.next
-                            if mergetarget is self._lltail:
-                                self._lltail = mergebase
-                                self._tailbitsused = len(mergebase._value)
-                        else:
-                            break
+                self._do_merge(oldtail)
 
-                        if mergetarget is tailend:
-                            break
-                        mergetarget = mergetarget.next
+    def _do_merge(self, startpoint=None, stoponfail=True):
+        headend = self._llhead if self._offset == 0 else \
+                  self._llhead.next
+        tailend = self._lltail if self._tailbitsused ==\
+                  len(self._lltail.value) else self._lltail.prev
+        if not startpoint:
+            startpoint = tailend.prev
 
-                    if not anymerges:
-                        break
+        if headend is tailend:
+            return #Skip if only one node in merge list.
+        for mergebase in startpoint.iterprevtill(headend):
+            anymerges = False
+            mergetarget = mergebase.next
+            while True:
+                if mergebase.value._easy_mergable(mergetarget.value):
+                    #Merge two links in the chain
+                    anymerges = True
+                    mergebase._value += mergetarget.value
+                    mergebase.next = mergetarget.next
+                    if mergetarget is self._lltail:
+                        self._lltail = mergebase
+                        self._tailbitsused = len(mergebase._value)
+                else:
+                    break
+
+                if mergetarget is tailend:
+                    tailend = mergebase
+                    break
+                mergetarget = mergetarget.next
+
+            if not anymerges and stoponfail:
+                break
 
 
     def _iter_components(self):
@@ -679,24 +686,51 @@ class CompositeBitarray(collections.Sequence):
             A bitarray that is the combined result of all the composite bitarray's components.
 
         """
+        #print("DATA", self)
+        #print("ORIG", ["%s(%s:%s)"%
+        #       (type(elem.value).__name__,
+        #        elem.value._val if isinstance(elem.value,
+        #                                      ConstantBitarray)\
+        #        else "_", len(elem.value))
+        #       for elem in self._llhead.iternexttill(self._lltail)])
+
         if preserve_history:
             for elem in self._llhead.iternexttill(self._lltail):
                 if isinstance(elem.value, PreferFalseBitarray):
                     elem._value = ConstantBitarray(False, len(elem.value))
+        else:
+            for elem in self._llhead.iternexttill(self._lltail):
+                if isinstance(elem.value, PreferFalseBitarray):
+                    elem._value = NoCareBitarray(len(elem.value))
 
-        #for elem in self._llhead.iternexttill(self._lltail):
-        #    if isinstance(elem.value, NoCareBitarray):
-        #        elem._value = ConstantBitarray(False, len(elem.value))
+        #print("TRAN", ["%s(%s:%s)"%
+        #       (type(elem.value).__name__,
+        #        elem.value._val if isinstance(elem.value,
+        #                                      ConstantBitarray)\
+        #        else "_", len(elem.value))
+        #       for elem in self._llhead.iternexttill(self._lltail)])
 
 
-        types = ["%s(%s:%s)"%
-                 (type(elem.value).__name__,
-                  elem.value._val if isinstance(elem.value,
-                                                ConstantBitarray)\
-                  else "_", len(elem.value))
-                 for elem in self._llhead.iternexttill(self._lltail)]
-        print(types)
+
+        if self._lltail is not self._llhead and\
+           (self._lltail.next is not self._llhead or\
+            (self.offset == 0 and self._tailbitsused == \
+             len(self._lltail.value))
+            ):
+            self._do_merge(stoponfail=False)
+
+       # print("POST", ["%s(%s:%s)"%
+       #        (type(elem.value).__name__,
+       #         elem.value._val if isinstance(elem.value,
+       #                                       ConstantBitarray)\
+       #         else "_", len(elem.value))
+       #        for elem in self._llhead.iternexttill(self._lltail)])
+        if self._lltail is self._llhead and self._offset == 0 and\
+           self._tailbitsused == len(self._lltail.value):
+            print("RETURNING", self._llhead.value)
+            return self._llhead.value
         return self
+
 
     ##@profile
     #def tobytes(self):

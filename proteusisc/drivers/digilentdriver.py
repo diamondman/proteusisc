@@ -89,11 +89,7 @@ class DigilentWriteTMSPrimitive(Level1Primitive, Executable):
         print("TDO IS", self.tdo.__repr__())
         if isinstance(self.tdo, CompositeBitarray):
             self.tdo = self.tdo.prepare()
-            if self.tdo.all():
-                self.tdo = True
-            elif not self.tdo.any():
-                self.tdo = False
-            else:
+            if isinstance(self.tdo, CompositeBitarray):
                 raise Exception("Arbitrary data not allowed for TDO:%s"%
                                 self.tdo)
         if isinstance(self.tdo, ConstantBitarray):
@@ -119,6 +115,9 @@ class DigilentWriteTDIPrimitive(Level1Primitive, Executable):
     def _get_args(self):
         if isinstance(self.tdo, CompositeBitarray):
             self.tdo = self.tdo.prepare()
+            if isinstance(self.tdo, CompositeBitarray):
+                raise Exception("Arbitrary data not allowed for TDO:%s"%
+                                self.tdo)
         if isinstance(self.tdo, ConstantBitarray):
             tdo = self.tdo._val
         elif isinstance(self.tdo, (NoCareBitarray, PreferFalseBitarray)):
@@ -141,6 +140,9 @@ class DigilentWriteTMSTDIPrimitive(Level1Primitive, Executable):
     def _get_args(self):
         if isinstance(self.tdo, CompositeBitarray):
             self.tdo = self.tdo.prepare()
+            if isinstance(self.tdo, CompositeBitarray):
+                raise Exception("Arbitrary data not allowed for TDO:%s"%
+                                self.tdo)
         if isinstance(self.tdo, ConstantBitarray):
             tdo = self.tdo._val
         elif isinstance(self.tdo, (NoCareBitarray, PreferFalseBitarray)):

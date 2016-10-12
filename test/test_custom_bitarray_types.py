@@ -280,6 +280,8 @@ def test_composite_general_preferfalse():
     assert comp.__repr__() == "<CMP: TTTT!!!!!1001 (13)>"
 
     assert comp.prepare() == bitarray('1111111111001')
+
+    comp = c1 + c2 + c3
     assert comp.prepare(preserve_history=True) == \
         bitarray('1111000001001')
 

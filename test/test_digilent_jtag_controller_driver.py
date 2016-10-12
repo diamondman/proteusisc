@@ -69,7 +69,8 @@ def test_write_tdi_bits():
     assert bits == ConstantBitarray(False, 32)
 
     #Read out the TDI value shifted in
-    bits = c.write_tdi_bits(ConstantBitarray(False, 32), return_tdo=True)
+    bits = c.write_tdi_bits(ConstantBitarray(False, 32), return_tdo=True,
+                            TMS=False)
     assert d0.tapstate == "SHIFTDR"
     assert bits == ConstantBitarray(True, 32)
 
