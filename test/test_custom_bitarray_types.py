@@ -30,6 +30,32 @@ def test_nocare_nocare_add():
     assert len(bits) == 9,\
         "Combining doesn't work in reerse"
 
+def test_preferfalse():
+    bits = PreferFalseBitarray(7)
+    assert len(list(bits)) == 7
+    assert not bits.all()
+    assert not bits.any()
+    assert bool(bits[0]) == False
+    assert bool(bits[-1]) == False
+    assert bool(bits[-7]) == False
+    assert bool(bits[6]) == False
+    with pytest.raises(IndexError):
+        bits[7]
+    with pytest.raises(IndexError):
+        bits[-8]
+
+def test_preferfalse_preferfalse_add():
+    bits1 = PreferFalseBitarray(4)
+    bits2 = PreferFalseBitarray(5)
+    bits = bits1 + bits2
+    assert isinstance(bits, PreferFalseBitarray)
+    assert len(bits) == 9
+
+    bits = bits2 + bits1
+    assert isinstance(bits, PreferFalseBitarray)
+    assert len(bits) == 9,\
+        "Combining doesn't work in reerse"
+
 def test_constant():
     bits = ConstantBitarray(True, 9)
     assert bits.all()
@@ -349,3 +375,78 @@ def test_composite_count():
     comp = CompositeBitarray(c1, c2)
     assert comp.count(False) == 10
     assert comp.count(True) == 0
+
+def test_Constant_tobytes():
+    c1 = ConstantBitarray(True, 17)
+    b1 = c1.tobytes()
+    assert b1 == b'\xff\xff\x80'
+
+    c1 = ConstantBitarray(False, 17)
+    b1 = c1.tobytes()
+    assert b1 == b'\x00\x00\x00'
+
+    c1 = ConstantBitarray(True, 8)
+    b1 = c1.tobytes()
+    assert b1 == b'\xff'
+
+    c1 = ConstantBitarray(True, 0)
+    b1 = c1.tobytes()
+    assert b1 == b''
+
+def test_NoCare_tobytes():
+    assert NoCareBitarray(17).tobytes() == b'\x00\x00\x00'
+    assert NoCareBitarray(8).tobytes() == b'\x00'
+    assert NoCareBitarray(0).tobytes() == b''
+
+def test_PreferFalse_tobytes():
+    assert PreferFalseBitarray(17).tobytes() == b'\x00\x00\x00'
+    assert PreferFalseBitarray(8).tobytes() == b'\x00'
+    assert PreferFalseBitarray(0).tobytes() == b''
+
+def test_Composite_tobytes():
+    c1 = CompositeBitarray(bitarray('0110'))
+    assert c1.tobytes() == b'\x60'
+
+    c1 = CompositeBitarray(bitarray('0110'), ConstantBitarray(True, 9))
+    assert c1.tobytes() == b'\x6f\xf8'
+
+    c1 = CompositeBitarray(bitarray('01101100'),
+                           ConstantBitarray(True, 9))
+    assert c1.tobytes() == b'\x6C\xFF\x80'
+
+    c1 = CompositeBitarray(bitarray('01101100'),
+                           ConstantBitarray(True, 19))
+    assert c1.tobytes() == b'\x6C\xFF\xFF\xE0'
+
+def test_Constant_iter():
+    c1 = ConstantBitarray(True, 3)
+    assert list(iter(c1)) == [True]*3
+    assert list(reversed(c1)) == [True]*3
+
+    c1 = ConstantBitarray(False, 3)
+    assert list(iter(c1)) == [False]*3
+    assert list(reversed(c1)) == [False]*3
+
+def test_NoCare_iter():
+    c1 = NoCareBitarray(3)
+    assert list(iter(c1)) == [None]*3
+    assert list(reversed(c1)) == [None]*3
+
+def test_PreferFalse_iter():
+    c1 = PreferFalseBitarray(3)
+    assert list(iter(c1)) == [None]*3
+    assert list(reversed(c1)) == [None]*3
+
+def test_Composite_iter():
+    c1 = CompositeBitarray(bitarray('0110'))
+    assert bitarray(iter(c1)) == bitarray('0110')
+    assert bitarray(reversed(c1)) == bitarray('0110')
+
+    c1 = CompositeBitarray(ConstantBitarray(True, 3), bitarray('0110'))
+    assert bitarray(iter(c1)) == bitarray('1110110')
+    assert bitarray(reversed(c1)) == bitarray('0110111')
+
+    c1 = CompositeBitarray(ConstantBitarray(True, 3), bitarray('0110'))
+    c1 += NoCareBitarray(4)
+    assert bitarray(iter(c1)) == bitarray('11101100000')
+    assert bitarray(reversed(c1)) == bitarray('00000110111')

@@ -619,14 +619,14 @@ class CompositeBitarray(collections.Sequence):
         ptiter = reversed(node.value)
         for _ in range(len(self._lltail.value)-self._tailbitsused):
             next(ptiter)
-        #if node is self._llhead:
-        #    for _ in range(len(self._lltail.value)-self._tailbitsused),
-        #                   len(node.value)-self._offset):
-        #        yield next(ptiter)
-        #    return
-        #else:
-        for bit in ptiter:
-            yield bit
+        if node is self._llhead:
+            for _ in range(len(self._lltail.value)-self._tailbitsused,
+                           len(node.value)-self._offset):
+                yield next(ptiter)
+            return
+        else:
+            for bit in ptiter:
+                yield bit
 
         while True:
             node = node.prev
@@ -714,17 +714,20 @@ class CompositeBitarray(collections.Sequence):
 
         if self._lltail is not self._llhead and\
            (self._lltail.next is not self._llhead or\
-            (self.offset == 0 and self._tailbitsused == \
+            (self._offset == 0 and self._tailbitsused == \
              len(self._lltail.value))
             ):
             self._do_merge(stoponfail=False)
 
-       # print("POST", ["%s(%s:%s)"%
-       #        (type(elem.value).__name__,
-       #         elem.value._val if isinstance(elem.value,
-       #                                       ConstantBitarray)\
-       #         else "_", len(elem.value))
-       #        for elem in self._llhead.iternexttill(self._lltail)])
+        #print("\033[1mPOST", " ".join(["%s%s(%s:%s)'\033[0m'"%
+        #       ('\033[91m' if isinstance(elem.value, bitarray) else
+        #        ('\033[94m' if isinstance(elem.value,
+        #                            (NoCareBitarray, PreferFalseBitarray))
+        #         else '\033[92m'),type(elem.value).__name__,
+        #        elem.value._val if isinstance(elem.value,
+        #                                      ConstantBitarray)\
+        #        else "_", len(elem.value))
+        #       for elem in self._llhead.iternexttill(self._lltail)]))
         if self._lltail is self._llhead and self._offset == 0 and\
            self._tailbitsused == len(self._lltail.value):
             print("RETURNING", self._llhead.value)
@@ -792,6 +795,7 @@ class CompositeBitarray(collections.Sequence):
     def tobytes(self):
         data = bytearray(math.ceil(len(self)/8))
         it = iter(self)
+        i = -1
         for i in range((len(self)//8)//2):
             data[i<<1], data[(i<<1)+1] = \
                 bitarray((next(it), next(it), next(it), next(it),
