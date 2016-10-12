@@ -139,7 +139,11 @@ class ConstantBitarray(collections.Sequence):
         pass
 
     def _easy_mergable(self, other):
-        return type(other) is ConstantBitarray and other._val == self._val
+        return isinstance(other, NoCareBitarray) or\
+            (isinstance(other, PreferFalseBitarray) and\
+             self._val == False) or\
+            (isinstance(other, ConstantBitarray) and\
+                 other._val == self._val)
 
 class NoCareBitarray(collections.Sequence):
     """A bitarray type with no preference on its bit values.
@@ -488,17 +492,35 @@ class CompositeBitarray(collections.Sequence):
             #oldtail can merge right if (oldtail is not head or offset is 0) and (oldtail.next is not tail or tailbitsused is len of node) and data is combinable. Do it recursive?
             #Merging can happen right until can't. Move back node and merge until can't. Repeat till new left node is incompatible.
             #if merging with the tail node, the tail node is fully used
-            #if oldtail is not self._llhead or self._offset == 0:
-            #    headend = self._llhead if self._offset == 0 else self._llhead.next
-            #    tailend = self.__lltail if
-            #    for mergebase in oldtail.iterprevtill(headend):
-            #        mergetarget = mergebase.next
-            #if oldtail.next.value._easy_mergable(oldtail.value):
-            #    #Merge two links in the chain
-            #    oldtail._value += oldtail.next.value
-            #    oldtail.next = oldtail.next.next
-            #    if oldtail.next is self._lltail and oldtail.next.next:
-            #        self._lltail = oldtail
+            #Merge will start at seam, or have nothing to do.
+            if oldtail is not self._llhead or self._offset == 0:
+                headend = self._llhead if self._offset == 0 else \
+                          self._llhead.next
+                tailend = self._lltail if self._tailbitsused ==\
+                          len(self._lltail.value) else self._lltail.prev
+                if headend is tailend:
+                    return #Skip if only one node in merge list.
+                for mergebase in oldtail.iterprevtill(headend):
+                    anymerges = False
+                    mergetarget = mergebase.next
+                    while True:
+                        if mergebase.value._easy_mergable(mergetarget.value):
+                            #Merge two links in the chain
+                            anymerges = True
+                            mergebase._value += mergetarget.value
+                            mergebase.next = mergetarget.next
+                            if mergetarget is self._lltail:
+                                self._lltail = mergebase
+                                self._tailbitsused = len(mergebase._value)
+                        else:
+                            break
+
+                        if mergetarget is tailend:
+                            break
+                        mergetarget = mergetarget.next
+
+                    if not anymerges:
+                        break
 
 
     def _iter_components(self):
@@ -540,9 +562,10 @@ class CompositeBitarray(collections.Sequence):
                         (type(self), type(index)))
     def __str__(self):
         return "".join(['?' if isinstance(elem, NoCareBitarray) else
+                        ('!' if isinstance(elem, PreferFalseBitarray) else
                         (('T' if b else 'F') if isinstance(elem,
                                                     ConstantBitarray)
-                         else ('1' if b else '0'))
+                         else ('1' if b else '0')))
                         for elem in self._iter_components()
                         for b in elem])\
                             [self._offset:-(len(self._lltail.value)-self._tailbitsused) or None]
@@ -775,7 +798,8 @@ class _DLLNode(object):
         if self is node:
             raise ValueError("Invalid next node. Infinite Loop")
         self._next = node
-        node._prev = self
+        if node is not None:
+            node._prev = self
 
     @property
     def prev(self):
@@ -785,7 +809,8 @@ class _DLLNode(object):
         if self is node:
             raise ValueError("Invalid prev node. Infinite Loop")
         self._prev = node
-        node._next = self
+        if node is not None:
+            node._next = self
 
     @property
     def value(self):

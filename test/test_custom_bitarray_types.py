@@ -236,16 +236,16 @@ def test_composite_general():
     c2 = NoCareBitarray(5)
     comp = CompositeBitarray(c1, c2)
     assert len(comp) == 9
-    assert comp.__repr__() == "<CMP: TTTT????? (9)>"
+    assert comp.__repr__() == "<CMP: TTTTTTTTT (9)>"
 
     c3 = bitarray('1001')
     comp2 = CompositeBitarray(comp, c3)
     assert len(comp2) == 13
-    assert comp2.__repr__() == "<CMP: TTTT?????1001 (13)>"
+    assert comp2.__repr__() == "<CMP: TTTTTTTTT1001 (13)>"
 
     #NOT TESTING __getitem__ much BECAUSE NOT USED
     #Does not respect nocare combining with prims...
-    assert comp2 == bitarray('1111000001001')
+    assert comp2 == bitarray('1111111111001')
     #for i, bit in enumerate(bitarray('1111000001001')):
     #    assert comp2[i] == bit
 
@@ -257,11 +257,18 @@ def test_composite_general():
         comp2['INVALID']
 
     assert comp2.prepare() == bitarray('1111111111001')
-    comp2 = CompositeBitarray(comp, c3)
+    comp2 = CompositeBitarray(c1, c2) + c3
     assert bitarray(comp2.prepare()) == bitarray('1111111111001')
-    comp2 = CompositeBitarray(comp, c3)
+    comp2 = CompositeBitarray(c1, c2) + c3
     assert comp2.prepare(preserve_history=True) == \
         bitarray('1111111111001')
+
+    c1 = ConstantBitarray(True, 4)
+    c2 = PreferFalseBitarray(5)
+    comp = CompositeBitarray(c1, c2)
+    assert len(comp) == 9
+    assert comp.__repr__() == "<CMP: TTTT!!!!! (9)>"
+
 
 def test_composite_general_preferfalse():
     c1 = ConstantBitarray(True, 4)
@@ -270,7 +277,7 @@ def test_composite_general_preferfalse():
     comp = c1 + c2 + c3
     assert isinstance(comp, CompositeBitarray)
     assert len(comp) == 13
-    assert comp.__repr__() == "<CMP: TTTT?????1001 (13)>"
+    assert comp.__repr__() == "<CMP: TTTT!!!!!1001 (13)>"
 
     assert comp.prepare() == bitarray('1111111111001')
     assert comp.prepare(preserve_history=True) == \
@@ -308,7 +315,7 @@ def test_composite_any_all_count():
     c2 = ConstantBitarray(True, 3)
     comp = CompositeBitarray(c1, c2)
     assert comp.any()
-    assert not comp.all() #Maybe this will change later.
+    assert comp.all()
 
     c1 = bitarray('111')
     c2 = ConstantBitarray(True, 3)
@@ -326,8 +333,8 @@ def test_composite_count():
     c1 = NoCareBitarray(7)
     c2 = ConstantBitarray(True, 3)
     comp = CompositeBitarray(c1, c2)
-    assert comp.count(False) == c1.count(False)+c2.count(False)
-    assert comp.count(True) == c1.count(True)+c2.count(True)
+    assert comp.count(False) == 0
+    assert comp.count(True) == 10
 
     c1 = bitarray('111')
     c2 = ConstantBitarray(True, 3)
@@ -338,5 +345,5 @@ def test_composite_count():
     c1 = NoCareBitarray(7)
     c2 = ConstantBitarray(False, 3)
     comp = CompositeBitarray(c1, c2)
-    assert comp.count(False) == c1.count(False)+c2.count(False)
-    assert comp.count(True) == c1.count(True)+c2.count(True)
+    assert comp.count(False) == 10
+    assert comp.count(True) == 0
