@@ -6,6 +6,7 @@ ProteusISC is a Linux JTAG controller abstraction library and driver framework. 
 [![CircleCI](https://circleci.com/gh/diamondman/proteusisc.svg?style=shield)](https://circleci.com/gh/diamondman/proteusisc)
 [![codecov](https://codecov.io/gh/diamondman/proteusisc/branch/master/graph/badge.svg)](https://codecov.io/gh/diamondman/proteusisc)
 [![Downloads](https://img.shields.io/pypi/diamondman/proteusisc.svg)](https://pypi.python.org/pypi/proteusisc)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/00c07105d4e44e96935875533c673288)](https://www.codacy.com/app/jessy-diamondman/proteusisc?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=diamondman/proteusisc&amp;utm_campaign=Badge_Grade)
 
 The main benefits of proteusisc are:
 * Use any supported JTAG Controller to talk to any JTAG Device, regardless of manufacturer.

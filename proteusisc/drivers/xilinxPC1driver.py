@@ -38,12 +38,15 @@ class XPC1TransferPrimitive(Level1Primitive, Executable):
         from time import time
         t = time()
         print("TMS", type(self.tms).__name__)
+        #print(self.tms)
         if isinstance(self.tms, CompositeBitarray):
             self.tms = self.tms.prepare()
         print("TDI", type(self.tdi).__name__)
+        #print(self.tdi)
         if isinstance(self.tdi, CompositeBitarray):
             self.tdi = self.tdi.prepare()
         print("TDO", type(self.tdo).__name__)
+        #print(self.tdo)
         if isinstance(self.tdo, CompositeBitarray):
             self.tdo = self.tdo.prepare(preserve_history=True)
         print("DRIVER FUNCTION ARGUMENT PREPARE TIME", time()-t)
@@ -329,7 +332,7 @@ class XilinxPC1Driver(CableDriver):
     @staticmethod
     def _decode_tdo_bits(ret, *, bit_return_count=None, bit_count=None):
         if bit_return_count is None:
-            bit_return_count = XilinxPC1Driver._count_tdo_bits(data,
+            bit_return_count = XilinxPC1Driver._count_tdo_bits(ret,
                                                                bit_count)
 
         bytes_wanted = int(math.ceil(bit_return_count/8.0))

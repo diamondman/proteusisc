@@ -181,7 +181,7 @@ class FakeXPCU1Handle(object):
     def _decode_transfer_bits(data, transfer_bit_count):
         #Deal with issue of bitarray not accepting bytearrays
         if isinstance(data, bytearray):
-            data = bytes(data)
+            data = bytes(data) #pragma: no cover
         bitsin = bitarray()
         bitsin.frombytes(data)
         bitiniter = iter(bitsin)
@@ -201,7 +201,7 @@ class FakeXPCU1Handle(object):
         return tms, tdi, tdo, tck
 
     @staticmethod
-    def hexstr_to_bitdata(s, l):
+    def hexstr_to_bitdata(s, l):#pragma: no cover
         if isinstance(s, str):
             s = bytes.fromhex(s)
         tms, tdi, tdo, tck = FakeXPCU1Handle._decode_transfer_bits(s, l)
@@ -519,7 +519,7 @@ class FakeDevHandle(object):
         self._blk_read_buffer.append(b'\x01\x00')
     def _handle_blk_WRITE_TMS_TDI_stage2(self, data, bitcount, read_tdo):
         if isinstance(data, bytearray):
-            data = bytes(data)
+            data = bytes(data) # pragma: no cover
         bits = bitarray()
         bits.frombytes(data[::-1])
         bits = bits[(8*len(data)) - (bitcount*2):]
@@ -542,7 +542,7 @@ class FakeDevHandle(object):
     def _handle_blk_WRITE_TMS_stage2(self, data, bitcount,
                                      read_tdo, *, tdi):
         if isinstance(data, bytearray):
-            data = bytes(data)
+            data = bytes(data) # pragma: no cover
         bits = bitarray()
         bits.frombytes(data[::-1])
         tms = bits[(8*len(data)) - (bitcount):]
@@ -578,7 +578,7 @@ class FakeDevHandle(object):
     def _handle_blk_WRITE_TDI_stage2(self, data, bitcount,
                                      read_tdo, *, tms):
         if isinstance(data, bytearray):
-            data = bytes(data)
+            data = bytes(data) # pragma: no cover
         bits = bitarray()
         bits.frombytes(data[::-1])
         tdi = bits[(8*len(data)) - (bitcount):]

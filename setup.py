@@ -55,4 +55,16 @@ setup(
     description="Driver framework for In System Configureation (ISC) Controllers (for example, JTAG)",
     long_description=open(os.path.join(os.path.dirname(__file__),
                                        'README.md')).read(),
+    classifiers=[
+        'Development Status :: 2 - Pre-Alpha',
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: GNU Lesser General Public License v2 (LGPLv2)",
+        "Programming Language :: Python :: 3 :: Only",
+        "Programming Language :: Python :: 3.5",
+        "Natural Language :: English",
+        "Operating System :: POSIX :: Linux",
+        "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+        "Topic :: Software Development :: Embedded Systems",
+        "Topic :: System :: Hardware",
+    ],
 )
