@@ -3,6 +3,7 @@ import pytest
 
 from proteusisc.bittypes import CompositeBitarray, ConstantBitarray,\
     NoCareBitarray, bitarray, PreferFalseBitarray
+from proteusisc import errors
 
 def test_nocare():
     bits = NoCareBitarray(7)
@@ -282,6 +283,7 @@ def test_composite_general():
         comp2['INVALID']
 
     c3 = bitarray('1001')
+    comp = CompositeBitarray(c1, c2)
     comp2 = CompositeBitarray(comp, c3)
     assert comp2.prepare() == bitarray('1111111111001')
     comp2 = CompositeBitarray(c1, c2) + c3
@@ -299,18 +301,6 @@ def test_composite_general():
     #Check __getitem__
     bits = bitarray((comp[i] for i in range(len(comp))))
     assert bits == bitarray('111100000')
-
-def test_composite_prepare_preferfalse_nopreserve():
-    bits = ConstantBitarray(True, 4) + PreferFalseBitarray(5)
-    assert len(bits) == 9
-    assert bitarray(iter(bits)) == bitarray('111100000')
-    assert bitarray(iter(bits.prepare(preserve_history=False))) ==\
-        bitarray('111111111')
-
-    #Have to recreate it. Prepare edits the object's underlying data.
-    bits = ConstantBitarray(True, 4) + PreferFalseBitarray(5)
-    assert bitarray(iter(bits.prepare(preserve_history=True))) ==\
-        bitarray('111100000')
 
 def test_composite_split():
     ab = (ConstantBitarray(True, 2) + ConstantBitarray(False, 1)) +\
@@ -332,6 +322,97 @@ def test_composite_rejoin_split():
     assert bitarray(lr) == bitarray('1100001')
     assert lr._llhead is tmpnode
     assert lr._offset == 0
+
+def test_composite_rejoin_split_reverse():
+    ab = (ConstantBitarray(True, 2) + ConstantBitarray(False, 1)) +\
+         (PreferFalseBitarray(3) + ConstantBitarray(True, 1))
+    l, r = ab.split(1)
+
+    with pytest.raises(errors.ProteusDataJoinError):
+        lr = r+l
+
+def test_composite_split_join_bad_seam():
+    ab = (ConstantBitarray(True, 2) + ConstantBitarray(False, 1)) +\
+         (PreferFalseBitarray(3) + ConstantBitarray(True, 1))
+    l, r = ab.split(1)
+
+    with pytest.raises(errors.ProteusDataJoinError):
+        lr = l+NoCareBitarray(5)
+
+def test_composite_split_prepare_preferfalse_nopreserve():
+    bits = ConstantBitarray(True, 4) + PreferFalseBitarray(5)
+    assert len(bits) == 9
+    assert bitarray(iter(bits)) == bitarray('111100000')
+    assert bitarray(iter(bits.prepare(preserve_history=False))) ==\
+        bitarray('111111111')
+
+    #Have to recreate it. Prepare edits the object's underlying data.
+    bits = ConstantBitarray(True, 4) + PreferFalseBitarray(5)
+    assert bitarray(iter(bits.prepare(preserve_history=True))) ==\
+        bitarray('111100000')
+
+def test_composite_split_prepare_clip_edge_preserve():
+    ab = PreferFalseBitarray(2) + (ConstantBitarray(True, 1)+PreferFalseBitarray(3))
+    l,r = ab.split(1)
+    prepl = l.prepare(preserve_history=True)
+    prepr = r.prepare(preserve_history=True)
+    assert isinstance(prepl, ConstantBitarray)
+    assert prepl == ConstantBitarray(False, 1)
+    assert bitarray(prepr) == bitarray('01000')
+
+def test_composite_split_prepare_clip_edge_no_preserve():
+    ab = PreferFalseBitarray(2) + (ConstantBitarray(True, 1)+PreferFalseBitarray(3))
+    l,r = ab.split(1)
+    prepl = l.prepare(preserve_history=False)
+    prepr = r.prepare(preserve_history=False)
+    assert isinstance(prepl, NoCareBitarray)
+    assert len(prepl) == 1
+    assert isinstance(prepr, ConstantBitarray)
+    assert bitarray(prepr) == bitarray('11111')
+
+def test_composite_split_prepare_clip_edge_no_preserve_and_preserve():
+    ab = PreferFalseBitarray(2) + (ConstantBitarray(True, 1)+PreferFalseBitarray(3))
+    l,r = ab.split(1)
+    #TODO Consider improving tis once split is full featured
+    #Try adding a constant True to the left and watch the ? cange
+    #based on the preserve_history value.
+    prepl = l.prepare(preserve_history=False)
+    prepr = r.prepare(preserve_history=True)
+    assert isinstance(prepl, NoCareBitarray)
+    assert len(prepl) == 1
+    assert bitarray(prepr) == bitarray('01000')
+
+    ab = PreferFalseBitarray(2) + (ConstantBitarray(True, 1)+PreferFalseBitarray(3))
+    l,r = ab.split(1)
+    #TODO Consider improving tis once split is full featured
+    #Try adding a constant True to the left and watch the ? cange
+    #based on the preserve_history value.
+    prepl = l.prepare(preserve_history=True)
+    prepr = r.prepare(preserve_history=False)
+    assert isinstance(prepl, ConstantBitarray)
+    assert prepl == ConstantBitarray(False, 1)
+    assert bitarray(prepr) == bitarray('11111')
+
+def test_composite_split_prepare_no_clip():
+    #At the time of writing, bitarays will never be clipped.
+    #This test is mostly just checking that things do not break
+    #with bitarrays.
+    ab = CompositeBitarray(bitarray('1001')) + \
+         (ConstantBitarray(True, 1)+PreferFalseBitarray(3))
+    l, r = ab.split(1)
+    prepl = l.prepare(preserve_history=False)
+    prepr = r.prepare(preserve_history=False)
+    assert bitarray(prepl) == bitarray('1')
+    assert bitarray(prepr) == bitarray('0011111')
+
+    ab = CompositeBitarray(bitarray('1001')) + \
+         (ConstantBitarray(True, 1)+PreferFalseBitarray(3))
+    l, r = ab.split(1)
+    prepl = l.prepare(preserve_history=True)
+    prepr = r.prepare(preserve_history=True)
+    assert bitarray(prepl) == bitarray('1')
+    assert bitarray(prepr) == bitarray('0011000')
+
 
 def test_composite_general_preferfalse():
     c1 = ConstantBitarray(True, 4)

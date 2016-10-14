@@ -22,3 +22,10 @@ class JTAGTooManyDevicesError(ProteusISCError):
 #Unknown if this should be kept around
 class JTAGControlError(ProteusISCError):
     pass
+
+class ProteusDataJoinError(ProteusISCError):
+    def __init__(self, *args):
+        super(ProteusDataJoinError, self).__init__(
+            "Linkedlist pieces recombined not along seam.",
+            *args
+        )

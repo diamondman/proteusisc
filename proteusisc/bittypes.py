@@ -4,6 +4,8 @@ import collections
 from bitarray import bitarray as _bitarray
 import math
 
+from .errors import ProteusDataJoinError
+
 class bitarray(_bitarray):
     def _easy_mergable(self, other):
         return False #Consider merging single bit bitarrays.
@@ -85,11 +87,11 @@ class ConstantBitarray(collections.Sequence):
         return NotImplemented
 
     def __iter__(self):
-        for bit in range(self._length):
+        for _ in range(self._length):
             yield self._val
 
     def __reversed__(self):
-        for bit in range(self._length):
+        for _ in range(self._length):
             yield self._val
 
     def __eq__(self, other):
@@ -477,17 +479,26 @@ class CompositeBitarray(collections.Sequence):
             oldtail = self._lltail
             if isinstance(component2, CompositeBitarray):
                 if self._lltail is component2._llhead:
-                    assert component1._tailbitsused==component2._offset,\
-                        "Linkedlist pieces recombined not along seam."
+                    if  component1._tailbitsused != component2._offset:
+                        raise ProteusDataJoinError()
                     self._lltail = component2._lltail
                     self._tailbitsused = component2._tailbitsused
                     self._length = len(component1)+len(component2)
                 else:
+                    if component2._llhead.prev is not None or\
+                       self._llhead is component2._lltail:
+                        #Will not catch everything. Good enough to
+                        #prevent most accidents. A 'perfect' version
+                        #would require walking the whole tree. No way.
+                        raise ProteusDataJoinError()
                     self._length += len(component2)
                     self._lltail.next = component2._llhead
                     self._lltail = component2._lltail
                     self._tailbitsused = component2._tailbitsused
             else:
+                if self._tailbitsused != self._taillen or\
+                   self._lltail.next is not None:
+                    raise ProteusDataJoinError()
                 self._tailbitsused = len(component2)
                 self._length += self._tailbitsused
                 node = _DLLNode(component2)
@@ -506,7 +517,7 @@ class CompositeBitarray(collections.Sequence):
         headend = self._llhead if self._offset == 0 else \
                   self._llhead.next
         tailend = self._lltail if self._tailbitsused ==\
-                  len(self._lltail.value) else self._lltail.prev
+                  self._taillen else self._lltail.prev
         if not startpoint:
             startpoint = tailend.prev
 
@@ -545,7 +556,7 @@ class CompositeBitarray(collections.Sequence):
 
     def __getitem__(self, index):
         if isinstance(index, int):
-            print("GETTING", index)
+            print("GETTING", index, "WARNING, SLOW!")
             index = len(self)-abs(index) if index < 0 else index
             if (index < self._length and index >= 0):
                 index += self._offset
@@ -567,8 +578,8 @@ class CompositeBitarray(collections.Sequence):
                          else ('1' if b else '0')))
                         for elem in self._iter_components()
                         for b in elem])\
-                            [self._offset:-(len(self._lltail.value)-\
-                                            self._tailbitsused) or None]
+                            [self._offset:-self._tailoffset or None]
+
     def __repr__(self):
         return "<CMP: %s (%s)>"%\
             (str(self), self._length)# pragma: no cover
@@ -612,10 +623,10 @@ class CompositeBitarray(collections.Sequence):
     def __reversed__(self):
         node = self._lltail
         ptiter = reversed(node.value)
-        for _ in range(len(self._lltail.value)-self._tailbitsused):
+        for _ in range(self._tailoffset):
             next(ptiter)
         if node is self._llhead:
-            for _ in range(len(self._lltail.value)-self._tailbitsused,
+            for _ in range(self._tailoffset,
                            len(node.value)-self._offset):
                 yield next(ptiter)
             return
@@ -641,9 +652,7 @@ class CompositeBitarray(collections.Sequence):
             i1 = iter(self)
             i2 = iter(other)
             def checkwithnone(a, b):
-                print(a, b)
                 if a is None or b is None:
-                    print("ONE WAS NONE")
                     return True
                 return a == b
 
@@ -673,11 +682,10 @@ class CompositeBitarray(collections.Sequence):
         if bitindex == len(self):
             return self, None
         if bitindex == 1:
-            left = CompositeBitarray(
-                self._llhead,
-                _tailoffset=len(self._llhead.value)-1)
-            left._length = 1
-            return left, CompositeBitarray(self, offset=1)
+            return \
+                CompositeBitarray(
+                    self._llhead, _tailoffset=len(self._llhead.value)-1),\
+                CompositeBitarray(self, offset=1)
         raise NotImplementedError()
 
     def prepare(self, *, preserve_history=False):
@@ -702,6 +710,45 @@ class CompositeBitarray(collections.Sequence):
         #        else "_", len(elem.value))
         #       for elem in self._llhead.iternexttill(self._lltail)])
 
+        #import ipdb
+        #ipdb.set_trace()
+        if self._offset or self._tailoffset:
+            if self._lltail is self._llhead:
+                if isinstance(self._llhead.value, (ConstantBitarray,
+                                             NoCareBitarray,
+                                             PreferFalseBitarray)):
+                    oldnode = self._llhead
+                    if self._offset == 0:
+                        oldnode.prev = None
+                    if self._tailoffset == 0:
+                        oldnode.next = None
+
+                    self._llhead = _DLLNode(
+                        oldnode.value[self._offset:
+                                      self._offset+self._tailbitsused])
+                    self._lltail = self._llhead
+                    self._offset = 0
+                    self._tailbitsused = self._taillen
+
+            else:
+                if self._offset and isinstance(
+                        self._llhead.value, (ConstantBitarray, NoCareBitarray,
+                                       PreferFalseBitarray)):
+                    oldhead = self._llhead
+                    self._llhead = _DLLNode(oldhead.value[self._offset:])
+                    self._llhead.next = oldhead.next
+                    oldhead.next = None
+                    self._offset = 0
+                if self._tailoffset and isinstance(
+                        self._lltail.value, (ConstantBitarray, NoCareBitarray,
+                                       PreferFalseBitarray)):
+                    oldtail = self._lltail
+                    self._lltail = _DLLNode(
+                        oldtail.value[:self._tailbitsused])
+                    self._lltail.prev = oldhead.prev
+                    oldhead.prev = None
+                    self._tailbitsused = self._taillen
+
         if preserve_history:
             for elem in self._llhead.iternexttill(self._lltail):
                 if isinstance(elem.value, PreferFalseBitarray):
@@ -722,8 +769,7 @@ class CompositeBitarray(collections.Sequence):
 
         if self._lltail is not self._llhead and\
            (self._lltail.next is not self._llhead or\
-            (self._offset == 0 and self._tailbitsused == \
-             len(self._lltail.value))
+            (self._offset == 0 and self._tailbitsused == self._taillen)
             ):
             self._do_merge(stoponfail=False)
 
@@ -737,11 +783,17 @@ class CompositeBitarray(collections.Sequence):
         #        else "_", len(elem.value))
         #       for elem in self._llhead.iternexttill(self._lltail)]))
         if self._lltail is self._llhead and self._offset == 0 and\
-           self._tailbitsused == len(self._lltail.value):
-            print("RETURNING", self._llhead.value)
+           self._tailbitsused == self._taillen:
             return self._llhead.value
         return self
 
+    @property
+    def _taillen(self):
+        return len(self._lltail.value)
+
+    @property
+    def _tailoffset(self):
+        return self._taillen-self._tailbitsused
 
     ##@profile
     #def tobytes(self):
