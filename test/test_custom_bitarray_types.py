@@ -494,6 +494,38 @@ def test_composite_count():
     assert comp.count(False) == 10
     assert comp.count(True) == 0
 
+def test_composite_byteiter_aligned():
+    comp = CompositeBitarray(bitarray('10010011'), bitarray('00110110'))\
+           + ConstantBitarray(True,5)
+    assert bytes(comp.byteiter()) == b'\x93\x36\xF8'
+
+def test_composite_byteiter_aligned_floating():
+    comp = CompositeBitarray(bitarray('10010011'), bitarray('00110110'))\
+           + ConstantBitarray(False,4)+ConstantBitarray(True,1)\
+           +ConstantBitarray(False,1)+ConstantBitarray(True,1)
+    assert bytes(comp.byteiter()) == b'\x93\x36\x0A'
+
+def test_composite_byteiter_aligned_floating_realign_aligned():
+    comp = CompositeBitarray(bitarray('10010011'), bitarray('00110110'))\
+           + ConstantBitarray(False,4)+ConstantBitarray(True,1)\
+           +ConstantBitarray(False,1)+bitarray('10')+\
+           ConstantBitarray(True,1)
+    assert bytes(comp.byteiter()) == b'\x93\x36\x0A\x80'
+
+def test_composite_byteiter_aligned_misaligned_multibyte_realign():
+    comp = CompositeBitarray(bitarray('10010011'), bitarray('00110110'))\
+           + ConstantBitarray(False,3) + ConstantBitarray(True,21)
+    assert bytes(comp.byteiter()) == b'\x93\x36\x1F\xFF\xFF'
+
+def test_composite_byteiter_misaligned_lastout_spans_2_bytes():
+    abc = ConstantBitarray(False,2) + ConstantBitarray(True, 25) +\
+          bitarray('0110')
+    assert bytes(abc.byteiter()) == b'\x3F\xFF\xFF\xEC'
+
+def test_composite_byteiter_misaligned_lastout_needs_only_1_byte():
+    abc = ConstantBitarray(False,7) + ConstantBitarray(True, 16)
+    assert bytes(abc.byteiter()) == b'\x01\xFF\xFE'
+
 def test_Constant_tobytes():
     c1 = ConstantBitarray(True, 17)
     b1 = c1.tobytes()

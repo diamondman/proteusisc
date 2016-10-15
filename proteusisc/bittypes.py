@@ -10,6 +10,11 @@ class bitarray(_bitarray):
     def _easy_mergable(self, other):
         return False #Consider merging single bit bitarrays.
 
+    def byteiter(self):
+        data = self.tobytes()
+        for byte in data:
+            yield byte
+
 class ConstantBitarray(collections.Sequence):
     """A bitarray type where all bits are the same value.
 
@@ -149,6 +154,14 @@ class ConstantBitarray(collections.Sequence):
              self._val is False) or\
             (isinstance(other, ConstantBitarray) and\
                  other._val == self._val)
+
+    def byteiter(self):
+        if self._val:
+            for _ in range(math.ceil(len(self)/8)):
+                yield 0xFF
+        else:
+            for _ in range(math.ceil(len(self)/8)):
+                yield 0
 
 class NoCareBitarray(collections.Sequence):
     """A bitarray type with no preference on its bit values.
@@ -291,6 +304,10 @@ class NoCareBitarray(collections.Sequence):
         return isinstance(other, (NoCareBitarray, PreferFalseBitarray,
                                   ConstantBitarray))
 
+    def byteiter(self):
+        for _ in range(math.ceil(len(self)/8)):
+            yield 0
+
 class PreferFalseBitarray(collections.Sequence):
     def __init__(self, length):
         self._length = length
@@ -400,6 +417,11 @@ class PreferFalseBitarray(collections.Sequence):
         return isinstance(other, (NoCareBitarray, PreferFalseBitarray))\
             or (isinstance(other, ConstantBitarray) and\
                 other._val is False)
+
+    def byteiter(self):
+        for _ in range(math.ceil(len(self)/8)):
+            yield 0
+
 
 
 class CompositeBitarray(collections.Sequence):
@@ -773,7 +795,7 @@ class CompositeBitarray(collections.Sequence):
             ):
             self._do_merge(stoponfail=False)
 
-        #print("\033[1mPOST", " ".join(["%s%s(%s:%s)'\033[0m'"%
+        #print("\033[1mPOST", "+ ".join(["%s%s(%s:%s)\033[0m"%
         #       ('\033[91m' if isinstance(elem.value, bitarray) else
         #        ('\033[94m' if isinstance(elem.value,
         #                            (NoCareBitarray, PreferFalseBitarray))
@@ -795,92 +817,83 @@ class CompositeBitarray(collections.Sequence):
     def _tailoffset(self):
         return self._taillen-self._tailbitsused
 
-    ##@profile
-    #def tobytes(self):
-    #    data = bytearray(math.ceil(len(self)/8))
-    #    it = iter(self)
-    #    for i in range(len(self)//(8*4)):
-    #        data[i<<2], data[(i<<2)+1], data[(i<<2)+2], data[(i<<2)+3]\
-    #            =\
-    #            (next(it)<<7 | next(it)<<6 | next(it)<<5 | next(it)<<4 |\
-    #             next(it)<<3 | next(it)<<2 | next(it)<<1 | next(it)),\
-    #            (next(it)<<7 | next(it)<<6 | next(it)<<5 | next(it)<<4 |\
-    #             next(it)<<3 | next(it)<<2 | next(it)<<1 | next(it)),\
-    #            (next(it)<<7 | next(it)<<6 | next(it)<<5 | next(it)<<4 |\
-    #             next(it)<<3 | next(it)<<2 | next(it)<<1 | next(it)),\
-    #            (next(it)<<7 | next(it)<<6 | next(it)<<5 | next(it)<<4 |\
-    #             next(it)<<3 | next(it)<<2 | next(it)<<1 | next(it))
-    #
-    #    i2 = (i+1)<<2
-    #    if (len(self)/8)%4 >= 2:
-    #        data[i2], data[i2+1] =\
-    #            (next(it)<<7 | next(it)<<6 | next(it)<<5 | next(it)<<4 |\
-    #             next(it)<<3 | next(it)<<2 | next(it)<<1 | next(it)),\
-    #            (next(it)<<7 | next(it)<<6 | next(it)<<5 | next(it)<<4 |\
-    #             next(it)<<3 | next(it)<<2 | next(it)<<1 | next(it))
-    #        i2 += 2
-    #
-    #    if (len(self)/8)%2 >= 1:
-    #        data[i2] =\
-    #            (next(it)<<7 | next(it)<<6 | next(it)<<5 | next(it)<<4 |\
-    #             next(it)<<3 | next(it)<<2 | next(it)<<1 | next(it))
-    #        i2 += 1
-    #
-    #    if (len(self)/8)%1 >= 0:
-    #        offset = 7
-    #        tmp = 0
-    #        for b in it:
-    #            tmp |= b<<offset
-    #            offset -= 1
-    #        data[-1] = tmp
-    #    return data
-    #    #tmpba = bitarray(self)
-    #    #return tmpba.tobytes()
-    #def tobytes(self):
-    #    data = bytearray(math.ceil(len(self)/8))
-    #    it = iter(self)
-    #    for i in range(len(self)//8):
-    #        data[i] = \
-    #            next(it)<<7 | next(it)<<6 | next(it)<<5 | next(it)<<4 |\
-    #            next(it)<<3 | next(it)<<2 | next(it)<<1 | next(it)
-    #    offset = 7
-    #    tmp = 0
-    #    for b in it:
-    #        tmp |= b<<offset
-    #        offset -= 1
-    #    data[-1] = tmp
-    #    return data
-    #    #tmpba = bitarray(self)
-    #    #return tmpba.tobytes()
     def tobytes(self):
+        def bnext(iterator):
+            return bool(next(iterator))
         data = bytearray(math.ceil(len(self)/8))
         it = iter(self)
         i = -1
         for i in range((len(self)//8)//2):
             data[i<<1], data[(i<<1)+1] = \
-                bitarray((next(it), next(it), next(it), next(it),
-                          next(it), next(it), next(it), next(it),
-                          next(it), next(it), next(it), next(it),
-                          next(it), next(it), next(it), next(it)))\
+                bitarray((bnext(it), bnext(it), bnext(it), bnext(it),
+                          bnext(it), bnext(it), bnext(it), bnext(it),
+                          bnext(it), bnext(it), bnext(it), bnext(it),
+                          bnext(it), bnext(it), bnext(it), bnext(it)))\
                           .tobytes()
         i2 = (i+1)<<1
 
         if (len(self)/8)%2 >= 1:
             data[i2] =\
-                (next(it)<<7 | next(it)<<6 | next(it)<<5 | next(it)<<4 |\
-                 next(it)<<3 | next(it)<<2 | next(it)<<1 | next(it))
+                (bnext(it)<<7 | bnext(it)<<6 | bnext(it)<<5 | bnext(it)<<4 |\
+                 bnext(it)<<3 | bnext(it)<<2 | bnext(it)<<1 | bnext(it))
             i2 += 1
 
         offset = 7
         tmp = 0
         for b in it:
-            tmp |= b<<offset
+            tmp |= bool(b)<<offset
             offset -= 1
         data[-1] = tmp
         return data
         #tmpba = bitarray(self)
         #return tmpba.tobytes()
 
+    def byteiter(self):
+        #import ipdb
+        #ipdb.set_trace()
+        offset = 0
+        res = 0
+        for elem in self._iter_components():
+            ielem = elem.byteiter()
+            if offset == 0:
+                for _ in range(len(elem)//8):
+                    yield next(ielem)
+                offset = len(elem)%8
+                if offset:
+                    res = next(ielem)&(0x100-(1<<(8-offset)))
+            else:
+                if len(elem) < 8-offset:
+                    tmp2 = next(ielem)&(0x100-(1<<(8-len(elem))))
+                    res |= tmp2 >> offset
+                    offset += len(elem)
+                elif len(elem) == 8-offset:
+                    res |= next(ielem) >> offset
+                    offset = 0
+                    yield res
+                else:
+                    offsetinv = 8-offset
+                    for _ in range((offset+len(elem))//8):
+                        tmp2 = next(ielem)
+                        yield (res | (tmp2>>offset))&0xFF
+                        res = tmp2 << offsetinv
+
+                    if (offset+len(elem))%8 == 0:
+                        #If offset plus number of bits is divisible by 8.
+                        #ONLY HAPPENS WHEN LAST BYTE PERFECTLY LINED UP
+                        offset = 0
+                    elif (offset+len(elem))%8 > offset:
+                        #NEED MORE BITS
+                        res |= next(ielem) >> offset
+                        offset = (offset+len(elem))%8
+                        res &= (0x100-(1<<(8-offset)))
+                    else:
+                        #NO MORE BITS NEEDED FOR CURRENT BYTE
+                        res |= tmp2 >> offset
+                        offset = (offset+len(elem))%8
+                        res &= (0x100-(1<<(8-offset)))
+
+        if offset:
+            yield res
 
 class _DLLNode(object):
     def __init__(self, value):
