@@ -193,7 +193,7 @@ class CommandQueue(collections.MutableSequence):
                 self._fsm = sm
             assert self._fsm == sm, "Target %s != Actual %s"%\
                 (self._fsm.state, sm.state)
-            print("FINAL TARGET IS", self._fsm.state)
+            #print("FINAL TARGET IS", self._fsm.state)
 
             if debug:#pragma: no cover
                 stages.append(ingested_chain.snapshot())
@@ -367,7 +367,7 @@ class CommandQueue(collections.MutableSequence):
                           stagenames=self.stagenames)
         else:
             self._compile()
-        print("END STATE", self._fsm.state)
+        #print("END STATE", self._fsm.state)
         print("COMPILE TIME", time()-t)
         if self.debug:
             print("ABOUT TO EXEC", self.queue)

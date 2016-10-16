@@ -1,54 +1,216 @@
+    def transfer_bits(self, count, *, TMS=True, TDI=False, TDO=False):
+        if not self._jtagon:
+            raise JTAGNotEnabledError('JTAG Must be enabled first')
+        if count < 1:
+            raise ValueError()
+        if count > 0xFFFFFF+1:
+            raise ValueError("Too many transactions. Max 16777216.")
+
+        if isinstance(TMS, (numbers.Number, bool)):
+            TMS = ConstantBitarray(bool(TMS), count)
+        if isinstance(TDI, (numbers.Number, bool)):
+            TDI = ConstantBitarray(bool(TDI), count)
+        if isinstance(TDO, (numbers.Number, bool)):
+            TDO = ConstantBitarray(bool(TDO), count)
+
+        adjusted_count = math.ceil(count/4)*4
+        outbaseindex = 0
+        inoffset = 0
+
         t = time()
-        outbits = bitarray(int(math.ceil(count/4.0))*16)
-        for i in range((count-(count%4))//4):
-            outbits[i*16:(i*16)+4] = bitarray(TMS[i*4:(i+1)*4])
-            outbits[(i*16)+4:(i*16)+8] = bitarray(TDI[i*4:(i+1)*4])
-            outbits[(i*16)+8:(i*16)+12] = bitarray(TDO[i*4:(i+1)*4])
-            outbits[(i*16)+12:(i*16)+16] = True
-        if count%4:
-            offset = 4-(count%4)
-            outbits[offset-16:-12] = bitarray(TMS[offset-4:count])
-            outbits[offset-12:-8] = bitarray(TDI[offset-4:count])
-            outbits[offset-8:-4] = bitarray(TDO[offset-4:count])
-            outbits[offset-4:] = True
+	bit_return_count = TDO.count(True)
+        print("BIT RETURN COUNT CALCULATION TIME", time()-t)
+        print("BIT RETURN COUNT", bit_return_count, "COUNT", count)
 
-        print("XPCU1 bitarray ranges Data Prepare Time:", time()-t)
-
-
-
-
-
-
-
-
-
-
+        def nibbleiter(bits):
+            for byte in bits.byteiter():
+                yield byte & 0xF0
+                yield byte & 0x0F
+        itmsnib = nibbleiter(TMS)
+        itdinib = nibbleiter(TDI)
+        itdonib = nibbleiter(TDO)
 
         outdata = bytearray(int(math.ceil(count/4.0))*2)
-        TMS.reverse()
-        tmsbytes = TMS.tobytes()
-        TDI.reverse()
-        tdibytes = TDI.tobytes()
-        TDO.reverse()
-        tdobytes = TDO.tobytes()
+        t = time()
+        off = 2*((count%8-4>-1)+(count%4>0))
+        for i in reversed(range(count//8)):
+            outdata[off+(i<<2)+2], outdata[off+(i<<2)+3], \
+                outdata[off+(i<<2)], outdata[off+(i<<2)+1],\
+                = (next(itmsnib))|(next(itdinib)>>4), \
+                (next(itdonib))|0x0F, \
+                (next(itmsnib)<<4)|next(itdinib), \
+                (next(itdonib)<<4)|0x0F
 
-        print("TMS", tmsbytes)
-        print("TDI", tdibytes)
-        print("TDO", tdobytes)
+        if count%8-4>-1:
+            #0xAa 0xBb 0xCc 0xDd = 0xab 0xcd
+            outdata[(count%4>0)<<1], outdata[((count%4>0)<<1)+1]\
+                = (next(itmsnib))|(next(itdinib)>>4), \
+                (next(itdonib))|0xF
 
-        import ipdb
-        ipdb.set_trace()
+        if count%4:
+            if count%8-4>-1:
+                #0xAa 0xBb 0xCc 0xDd = 0xAB 0xCD
+                outdata[0], outdata[1]\
+                    = (next(itmsnib)<<4)|next(itdinib), \
+                    (next(itdonib)<<4)|(0xF-((1<<(4-(count%4)))-1))
+            else:
+                #0xAa 0xBb 0xCc 0xDd = 0xAB 0xCD
+                outdata[0], outdata[1]\
+                    = (next(itmsnib))|(next(itdinib)>>4), \
+                    (next(itdonib))|(0xF-((1<<(4-(count%4)))-1))
+        print("XPCU1 byte blocks 3 NEW Data Prepare Time:", time()-t)
 
+        #print("LENGTH OF OUTDATA", len(outdata))
+        return self.xpcu_GPIO_transfer(adjusted_count, outdata,
+                    bit_return_count=bit_return_count)
+
+
+
+    def transfer_bits(self, count, *, TMS=True, TDI=False, TDO=False):
+        if not self._jtagon:
+            raise JTAGNotEnabledError('JTAG Must be enabled first')
+        if count < 1:
+            raise ValueError()
+        if count > 0xFFFFFF+1:
+            raise ValueError("Too many transactions. Max 16777216.")
+
+        if isinstance(TMS, (numbers.Number, bool)):
+            TMS = ConstantBitarray(bool(TMS), count)
+        if isinstance(TDI, (numbers.Number, bool)):
+            TDI = ConstantBitarray(bool(TDI), count)
+        if isinstance(TDO, (numbers.Number, bool)):
+            TDO = ConstantBitarray(bool(TDO), count)
+
+        t = time()
+        bit_return_count = TDO.count(True)
+        print("BIT RETURN COUNT CALCULATION TIME", time()-t)
+        print("BIT RETURN COUNT", bit_return_count, "COUNT", count)
+
+        t = time()
+        outdata = bytearray(int(math.ceil(count/4.0))*2)
+        tmsbytes = bytes(TMS.byteiter())
+        tdibytes = bytes(TDI.byteiter())
+        tdobytes = bytes(TDO.byteiter())
+        print("XPCU1 TMS/TDI/TDO Buffer Prepare Time TYPE 3:", time()-t)
+        #print(tmsbytes)
+
+        t = time()
+        adjusted_count = math.ceil(count/4)*4
+        outbaseindex = 0
+        inoffset = 0
+        if count%8-4>0:
+            #0xAa 0xBb 0xCc 0xDd = 0xab 0xcd
+            outdata[0], outdata[1] = \
+                ((tmsbytes[-1]<<4)&0xF0)|(tdibytes[-1]&0xF), \
+                ((tdobytes[-1]<<4)&0xF0)|(0xF<<(4-(count%4)))&0xF
+            outbaseindex = 2
+        if count%8:
+            #0xAa 0xBb 0xCc 0xDd = 0xAB 0xCD
+            outdata[outbaseindex], outdata[outbaseindex+1] = \
+                (tmsbytes[-1]&0xF0)|(tdibytes[-1]>>4), \
+                (tdobytes[-1]&0xF0)|(0xFF<<(4-min(4, count%8)))&0xF
+            outbaseindex += 2
+            inoffset = 1
+
+        readoffset = -(inoffset+1)
         # This is done this way because breaking these into variables
-        # blows up the runtime. Thanks to mekarpeles for finding this
-        for i in range(len(outdata)//4):#range((count-(count%4))//8):
-            outdata[i*4], outdata[i*4+1], outdata[i*4+2], outdata[i*4+3] \
-                = (tmsbytes[i]&0xF0)|(tdibytes[i]>>4), \
-                (tdobytes[i]&0xF0)|0x0F, \
-                ((tmsbytes[i]&0x0F)<<4)|(tdibytes[i]&0xFF), \
-                ((tdobytes[i]&0x0F)<<4)|0x0F
+        # blows up the runtime. Thanks to mekarpeles for finding this.
+        # Bit shifts and readoffset increased performance slightly.
+        # Encoding 16777216 bits takes 3.2s, down from 80s (on 2.9 GHZ i7-3520M)
+        for i in range(len(tmsbytes)-inoffset):#range(len(outdata)//4):
+            outdata[(i<<2)+outbaseindex], outdata[(i<<2)+1+outbaseindex], \
+                outdata[(i<<2)+2+outbaseindex], outdata[(i<<2)+3+outbaseindex]\
+                =\
+                ((tmsbytes[readoffset-i]&0x0F)<<4)|(tdibytes[readoffset-i]&0x0F),\
+                ((tdobytes[readoffset-i]&0x0F)<<4)|0x0F,\
+                (tmsbytes[readoffset-i]&0xF0)|(tdibytes[readoffset-i]>>4),\
+                (tdobytes[readoffset-i]&0xF0)|0x0F
 
-        #if len(outdata)%4:
-        #    outdata[-2], outdata[-1] = \
-        #        (tmsbytes[i+1]&0xF0)|(tdibytes[i+1]>>4), \
-        #        (tdobytes[i+1]&0xF0)|0x0F
+        print("XPCU1 byte blocks 2 Data Prepare Time:", time()-t)
+
+
+        #print("LENGTH OF OUTDATA", len(outdata))
+        return self.xpcu_GPIO_transfer(adjusted_count, outdata,
+                    bit_return_count=bit_return_count)
+
+
+    def transfer_bits(self, count, *, TMS=True, TDI=False, TDO=False):
+        #5 Sec
+        if not self._jtagon:
+            raise JTAGNotEnabledError('JTAG Must be enabled first')
+        if count < 1:
+            raise ValueError()
+        if count > 0xFFFFFF+1:
+            raise ValueError("Too many transactions. Max 16777216.")
+
+        if isinstance(TMS, (numbers.Number, bool)):
+            TMS = ConstantBitarray(bool(TMS), count)
+        if isinstance(TDI, (numbers.Number, bool)):
+            TDI = ConstantBitarray(bool(TDI), count)
+        if isinstance(TDO, (numbers.Number, bool)):
+            TDO = ConstantBitarray(bool(TDO), count)
+
+        #if self._scanchain:
+        #    t = time()
+        #    self._scanchain._tap_transition_driver_trigger(TMS)
+        #    print("XPCU1 Sync State Machine Time:", time()-t)
+
+        adjusted_count = math.ceil(count/4)*4
+        outbaseindex = 0
+        inoffset = 0
+
+        t = time()
+        bit_return_count = TDO.count(True)
+        print("BIT RETURN COUNT CALCULATION TIME", time()-t)
+        print("BIT RETURN COUNT", bit_return_count, "COUNT", count)
+
+        def nibbleiter(bits):
+            for byte in bits.byteiter():
+                yield byte & 0xF0
+                yield byte & 0x0F
+        itmsnib = nibbleiter(TMS)
+        itdinib = nibbleiter(TDI)
+        itdonib = nibbleiter(TDO)
+        itms = TMS.byteiter()
+        itdi = TDI.byteiter()
+        itdo = TDO.byteiter()
+
+        outdata2 = bytearray(int(math.ceil(count/4.0))*2)
+        t = time()
+        off = 2*((count%8-4>-1)+(count%4>0))
+        for i in reversed(range(count//8)):
+            #data = (next(itms), next(itdi), next(itdo))
+            outdata2[off+(i<<2)+2], outdata2[off+(i<<2)+3], \
+                outdata2[off+(i<<2)], outdata2[off+(i<<2)+1],\
+                = [ ((_tms&0xF0)|(_tdi>>4),
+                     (_tdo&0xF0)|0x0F,
+                     ((_tms<<4)&0xF0)|(_tdi&0x0F),
+                     ((_tdo<<4)&0xF0)|0x0F)
+                    for _tms, _tdi, _tdo in
+                    ((next(itms), next(itdi), next(itdo)),)
+                ][0]
+
+        if count%8-4>-1:
+            #0xAa 0xBb 0xCc 0xDd = 0xab 0xcd
+            _tms, _tdi, _tdo = next(itms), next(itdi), next(itdo)
+            outdata2[(count%4>0)<<1], outdata2[((count%4>0)<<1)+1]\
+                = ((_tms&0xF0)|(_tdi>>4),
+                   (_tdo&0xF0)|0x0F)
+            if count%4:
+                #0xAa 0xBb 0xCc 0xDd = 0xAB 0xCD
+                outdata2[0], outdata2[1]\
+                   = (((_tms&0x0F)<<4)|(_tdi&0x0F),
+                      ((_tdo&0x0F)<<4)|(0xF-((1<<(4-(count%4)))-1)))
+        elif count%4:
+            #0xAa 0xBb 0xCc 0xDd = 0xAB 0xCD
+            _tms, _tdi, _tdo = next(itms), next(itdi), next(itdo)
+            outdata2[0], outdata2[1]\
+                = ((_tms&0xF0)|(_tdi>>4),
+                   (_tdo&0xF0)|(0xF-((1<<(4-(count%4)))-1)))
+        print("XPCU1 byte blocks 3 NEW Data Prepare Time:", time()-t)
+
+        #assert outdata == outdata2
+
+        #print("LENGTH OF OUTDATA", len(outdata))
+        return self.xpcu_GPIO_transfer(adjusted_count, outdata2,
+                    bit_return_count=bit_return_count)
