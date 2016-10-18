@@ -104,6 +104,8 @@ class DigilentWriteTMSPrimitive(Level1Primitive, Executable):
         elif isinstance(self.tdi, NoCareBitarray):
             tdi = False
         else:
+            print("   TDI", self.tdi)
+            print(self.tdi._lltail)
             raise ValueError("TDI can not be %s. CompilerError."%type(self.tdi).__name__)
 
         return [self.tms], {'return_tdo':tdo, 'TDI': tdi}
@@ -372,8 +374,9 @@ class DigilentAdeptController(CableDriver):
 
         tdo_bits = None
         if return_tdo:
-            tdo_bytes = self._handle.bulkRead(self._datin_interface,
-                                        buff2Blen(data))[::-1]
+            tdo_bytes = bytes(self._handle.bulkRead(
+                self._datin_interface,
+                buff2Blen(data))[::-1])
             tdo_bits = bitarray()
             tdo_bits.frombytes(tdo_bytes)
             tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(data):]
@@ -428,8 +431,9 @@ class DigilentAdeptController(CableDriver):
 
         tdo_bits = None
         if return_tdo is True:
-            tdo_bytes = self._handle.bulkRead(self._datin_interface,
-                                              buff2Blen(buff))[::-1]
+            tdo_bytes = bytes(self._handle.bulkRead(
+                self._datin_interface,
+                buff2Blen(buff))[::-1])
             tdo_bits = bitarray()
             tdo_bits.frombytes(tdo_bytes)
             tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(buff):]
@@ -485,8 +489,9 @@ class DigilentAdeptController(CableDriver):
 
         tdo_bits = None
         if return_tdo:
-            tdo_bytes = self._handle.bulkRead(self._datin_interface,
-                                              buff2Blen(data))[::-1]
+            tdo_bytes = bytes(
+                self._handle.bulkRead(self._datin_interface,
+                                      buff2Blen(data))[::-1])
             tdo_bits = bitarray()
             tdo_bits.frombytes(tdo_bytes)
             tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(tmsdata):]
@@ -537,8 +542,8 @@ class DigilentAdeptController(CableDriver):
             raise JTAGControlError("Uknown Issue reading TDO bits: %s", res)
 
         #READ TDO DATA BACK
-        tdo_bytes = self._handle.bulkRead(self._datin_interface,
-                                          blen2Blen(count))[::-1]
+        tdo_bytes = bytes(self._handle.bulkRead(self._datin_interface,
+                                                blen2Blen(count))[::-1])
         tdo_bits = bitarray()
         tdo_bits.frombytes(tdo_bytes)
         tdo_bits = tdo_bits[(8*len(tdo_bytes)) - count:]

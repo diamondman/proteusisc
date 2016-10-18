@@ -13,7 +13,7 @@
 import codecs
 import os
 import re
-from setuptools import setup
+from setuptools import setup, Extension
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -42,6 +42,7 @@ setup(
     packages=[
         'proteusisc',
         'proteusisc/drivers',
+        'proteusisc/drivers/xilinxPC1driver',
         'proteusisc/test_utils'
         ],
     platforms='any',
@@ -51,6 +52,12 @@ setup(
         'bitarray >= 0.8.1',
         'bs4 >= 0.0.1',
         'requests >= 2.11.1',
+    ],
+    ext_modules = [
+        Extension(
+            'proteusisc.drivers.xilinxPC1driver._xpcu1utils',
+            sources = ['proteusisc/drivers/xilinxPC1driver/_xpcu1utils.c']
+        )
     ],
     description="Driver framework for In System Configureation (ISC) Controllers (for example, JTAG)",
     long_description=open(os.path.join(os.path.dirname(__file__),

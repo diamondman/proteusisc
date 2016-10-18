@@ -20,6 +20,7 @@ from proteusisc.errors import JTAGEnableFailedError,\
     JTAGAlreadyEnabledError, JTAGNotEnabledError
 from proteusisc.bittypes import ConstantBitarray, CompositeBitarray,\
     bitarray
+from . import _xpcu1utils
 
 #PROG = 8
 #TCK = 4
@@ -118,12 +119,6 @@ class XilinxPC1Driver(CableDriver):
             bit_return_count = TDO.count(True)
             print("BIT RETURN COUNT CALCULATION TIME", time()-t)
 
-        #if self._scanchain:
-        #    t = time()
-        #    self._scanchain._tap_transition_driver_trigger(TMS)
-        #    print("XPCU1 Sync State Machine Time:", time()-t)
-
-        outdata = bytearray(int(math.ceil(count/4.0))*2)
         adjusted_count = math.ceil(count/4)*4
         outbaseindex = 0
         inoffset = 0
@@ -135,34 +130,9 @@ class XilinxPC1Driver(CableDriver):
         itdo = TDO.byteiter()
 
         t = time()
-        off = 2*((count%8-4>-1)+(count%4>0))
-        for i in reversed(range(count//8)):
-            _tms, _tdi, _tdo = (next(itms), next(itdi), next(itdo))
-            outdata[off+(i<<2)+2], outdata[off+(i<<2)+3], \
-                outdata[off+(i<<2)], outdata[off+(i<<2)+1],\
-                = ((_tms&0xF0)|(_tdi>>4),
-                   (_tdo&0xF0)|0x0F,
-                   ((_tms<<4)&0xF0)|(_tdi&0x0F),
-                   ((_tdo<<4)&0xF0)|0x0F)
-
-        if count%8-4>-1:
-            #0xAa 0xBb 0xCc 0xDd = 0xab 0xcd
-            _tms, _tdi, _tdo = next(itms), next(itdi), next(itdo)
-            outdata[(count%4>0)<<1], outdata[((count%4>0)<<1)+1]\
-                = ((_tms&0xF0)|(_tdi>>4),
-                   (_tdo&0xF0)|0x0F)
-            if count%4:
-                #0xAa 0xBb 0xCc 0xDd = 0xAB 0xCD
-                outdata[0], outdata[1]\
-                   = (((_tms&0x0F)<<4)|(_tdi&0x0F),
-                      ((_tdo&0x0F)<<4)|(0xF-((1<<(4-(count%4)))-1)))
-        elif count%4:
-            #0xAa 0xBb 0xCc 0xDd = 0xAB 0xCD
-            _tms, _tdi, _tdo = next(itms), next(itdi), next(itdo)
-            outdata[0], outdata[1]\
-                = ((_tms&0xF0)|(_tdi>>4),
-                   (_tdo&0xF0)|(0xF-((1<<(4-(count%4)))-1)))
-        print("XPCU1 byte blocks 3 NEW Data Prepare Time:", time()-t)
+        #Returns int(math.ceil(count/4.0))*2) bytes
+        outdata = _xpcu1utils.test(count, itms, itdi, itdo)
+        print("XPCU1 byte blocks C Prepare Time:", time()-t)
 
         #print("LENGTH OF OUTDATA", len(outdata))
         return self.xpcu_GPIO_transfer(adjusted_count, outdata,
@@ -275,7 +245,8 @@ class XilinxPC1Driver(CableDriver):
                                   bit_count_low, b'')
 
         #print("DATA OUT", data)
-
+        print(type(data))
+        #data = bytearray(data)
         t = time()
         bytec = self._handle.bulkWrite(2, data, timeout=120000)
         print("TRANSFER time              ", time()-t)
@@ -301,7 +272,7 @@ class XilinxPC1Driver(CableDriver):
                       " ".join((hex(data)[2:].zfill(2)for data in ret)))
 
             raw_bits = XilinxPC1Driver._decode_tdo_bits(
-                ret, bit_return_count=bit_return_count)
+                bytes(ret), bit_return_count=bit_return_count)
 
             assert len(raw_bits) == bit_return_count, \
                 "WRONG BIT NUM CALCULATED; returned: %s; expected: %s"%\
