@@ -112,8 +112,8 @@ class XilinxPC1Driver(CableDriver):
         if isinstance(TDI, (numbers.Number, bool)):
             TDI = ConstantBitarray(bool(TDI), count)
         if isinstance(TDO, (numbers.Number, bool)):
+            bit_return_count = count*bool(TDO)
             TDO = ConstantBitarray(bool(TDO), count)
-            bit_return_count = count
         else:
             t = time()
             bit_return_count = TDO.count(True)

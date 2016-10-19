@@ -1,7 +1,7 @@
 #-*- coding: utf-8 -*-
 import pytest
-from bitarray import bitarray
 
+from proteusisc.bittypes import bitarray
 from proteusisc.controllerManager import getDriverInstanceForDevice
 from proteusisc.test_utils import FakeUSBDev, FakeXPCU1Handle,\
     MockPhysicalJTAGDevice
