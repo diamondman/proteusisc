@@ -1,0 +1,39 @@
+for r in reqef:
+    for c in cls:
+        ct, rt = c[1], r[1]
+        attribs = []
+        if not c[1].satisfies(r[1]):
+            attribs.append("CE")
+        else:
+            if rt == ZERO or ct == ARBITRARY or (rt == NOCARE and ct == ZERO):
+                attribs.append("\033[91mAPF\033[0m")
+            else:
+                attribs.append("\033[95mIPF\033[0m")
+            if rt == ZERO or (rt == NOCARE and ct == ZERO):
+               attribs.append("\033[94mTBF\033[0m")
+            if rt == ONE or (rt == NOCARE and ct == ONE):
+               attribs.append("\033[93mTBT\033[0m")
+        print(c[0], r[0], " ".join(attribs))
+    print("---------")
+    
+A A APF
+C A CE
+1 A CE
+0 A CE
+---------
+A / APF
+C / IPF
+1 / IPF TBT
+0 / APF TBF
+---------
+A 1 APF TBT
+C 1 IPF TBT
+1 1 IPF TBT
+0 1 CE
+---------
+A 0 APF TBF
+C 0 APF TBF
+1 0 CE
+0 0 APF TBF
+---------
+

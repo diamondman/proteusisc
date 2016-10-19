@@ -1,6 +1,7 @@
 import types
 import operator
 import collections
+from abc import ABCMeta, abstractmethod
 
 from .promise import TDOPromise, TDOPromiseCollection
 from .bittypes import CompositeBitarray, ConstantBitarray, \
@@ -83,8 +84,8 @@ class Primitive(object):
             return self._chain._debug
         return False
 
-
-class Executable(Primitive):
+class Executable(metaclass=ABCMeta):
+    @abstractmethod
     def execute(self):
         raise NotImplementedError()
 
@@ -314,3 +315,78 @@ class Level1Primitive(Primitive):
 
     def get_promise(self):
         return self._promise
+
+    def execute(self, controller):
+        print("\nRunning %s bits; Type: %s" % \
+              (self.count, type(self)._driver_function_name))
+        self.prepare_args()
+        func = getattr(controller, self._driver_function_name, None)
+        if not func:
+            raise Exception(
+                "Registered function %s not found on class %s"%\
+                (self._driver_function_name, controller.__class__))
+
+        from time import time
+        t = time()
+        args, kwargs = self.get_args()
+        print("DRIVER FUNCTION ARGUMENT PREPARE TIME", time()-t)
+
+        res = func(*args, **kwargs)
+        if res and self._promise:
+            if self._chain and self._chain._debug:#pragma: no cover
+                print("RAW DATA GOING TO PROMISE", res, len(res))
+            self._promise._fulfill(
+                res, ignore_nonpromised_bits=self._TDO.isarbitrary)
+
+    def prepare_args(self):
+        if len(self.tms) != self.count:
+            raise Exception("TMS is wrong length")
+        if len(self.tdi) != self.count:
+            raise Exception("TDI is wrong length")
+        if len(self.tdo) != self.count:
+            raise Exception("TDO is wrong length")
+
+        if not isinstance(self.tms, CompositeBitarray):
+            self.tms = CompositeBitarray(self.tms)
+        self.tms = self.tms.prepare(
+            primef=self._TMS, reqef=self.reqef[0])
+
+        if not isinstance(self.tdi, CompositeBitarray):
+            self.tdi = CompositeBitarray(self.tdi)
+        self.tdi = self.tdi.prepare(
+            primef=self._TDI, reqef=self.reqef[1])
+
+        if not isinstance(self.tdo, CompositeBitarray):
+            self.tdo = CompositeBitarray(self.tdo)
+        self.tdo = self.tdo.prepare(
+            primef=self._TDO, reqef=self.reqef[2])
+
+        if not self._TMS.isarbitrary:
+            if isinstance(self.tms, (NoCareBitarray,
+                                     PreferFalseBitarray)):
+                self.tms = False
+            elif isinstance(self.tms, ConstantBitarray):
+                self.tms = self.tms._val
+
+        if not self._TDI.isarbitrary:
+            if isinstance(self.tdi, (NoCareBitarray,
+                                     PreferFalseBitarray)):
+                self.tdi = False
+            elif isinstance(self.tdi, ConstantBitarray):
+                self.tdi = self.tdi._val
+
+        if not self._TDO.isarbitrary:
+            if isinstance(self.tdo, (NoCareBitarray,
+                                     PreferFalseBitarray)):
+                self.tdo = False
+            elif isinstance(self.tdo, ConstantBitarray):
+                self.tdo = self.tdo._val
+
+    def get_args(self):
+        if not hasattr(self, '_args'):
+            raise Exception('Primitive class does not provide _args')
+        if not hasattr(self, '_kwargs'):
+            raise Exception('Primitive class does not provide _kwargs')
+        args = [getattr(self, attr) for attr in self._args]
+        kwargs = {k:getattr(self, v) for k,v in self._kwargs.items()}
+        return args, kwargs

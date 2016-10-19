@@ -35,25 +35,8 @@ class XPC1TransferPrimitive(Level1Primitive, Executable):
     _driver_function_name = 'transfer_bits'#_single'#_cpld_upgrade'
     _max_bits = 65536
     _TMS, _TDI, _TDO = ARBITRARY, ARBITRARY, ARBITRARY
-    def _get_args(self):
-        from time import time
-        t = time()
-        print("TMS", type(self.tms).__name__)
-        #print(self.tms)
-        if isinstance(self.tms, CompositeBitarray):
-            self.tms = self.tms.prepare()
-        print("TDI", type(self.tdi).__name__)
-        #print(self.tdi)
-        if isinstance(self.tdi, CompositeBitarray):
-            self.tdi = self.tdi.prepare()
-        print("TDO", type(self.tdo).__name__)
-        #print(self.tdo)
-        if isinstance(self.tdo, CompositeBitarray):
-            self.tdo = self.tdo.prepare(preserve_history=True)
-        print("DRIVER FUNCTION ARGUMENT PREPARE TIME", time()-t)
-
-        return [self.count], {"TMS":self.tms, "TDI":self.tdi,
-                              'TDO': self.tdo}
+    _args = ['count']
+    _kwargs = {'TMS': 'tms', 'TDI': 'tdi', 'TDO': 'tdo'}
 
 class XilinxPC1Driver(CableDriver):
     _primitives = [XPC1TransferPrimitive]

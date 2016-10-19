@@ -5,6 +5,7 @@ from bitarray import bitarray as _bitarray
 import math
 
 from .errors import ProteusDataJoinError
+from .contracts import ZERO, ONE, NOCARE, ARBITRARY
 
 class bitarray(_bitarray):
     def _easy_mergable(self, other):
@@ -338,7 +339,7 @@ class PreferFalseBitarray(collections.Sequence):
             yield None#False
 
     def __repr__(self):
-        return "<F!: (%s)>"%self._length # pragma: no cover
+        return "<F*: (%s)>"%self._length # pragma: no cover
 
     def __add__(self, other):
         """Handles combining different bitarray types.
@@ -710,7 +711,7 @@ class CompositeBitarray(collections.Sequence):
                 CompositeBitarray(self, offset=1)
         raise NotImplementedError()
 
-    def prepare(self, *, preserve_history=False):
+    def prepare(self, *, primef, reqef):
         """Extract the composite array's data into a usable bitarray based on if NoCare bits should be rendered as True or False.
 
         This method does the heavy lifting of producing a bitarray
@@ -718,12 +719,27 @@ class CompositeBitarray(collections.Sequence):
         available.
 
         KWArgs:
-            preserve_history: A bool, True means No Care bits render as Fakse.
+            primef: A contracts.Requirement capability of the associated primitive.
+            reqef: A contracts.Requirement (generated from primitive compilation) describing the signal requirements of the data in this CompositeBitarray.
 
         Returns:
-            A bitarray that is the combined result of all the composite bitarray's components.
+            A bitarray (CompositeBitarray, ConstantBitarray, etc) that
+            is the combined result of all the composite bitarray's
+            components. If this CompositeBitarray's backing linked
+            list can be merged into a single node, that single node is
+            returned. Otherwise, this CompositeBitarray is returned.
 
         """
+        if not primef.satisfies(reqef):
+            raise Exception("Compiler error. Requested effect can not be "
+                            "satisfied by primitive capabilities")
+        assertPreferFalse = reqef == ZERO or primef == ARBITRARY or\
+                            (reqef == NOCARE and primef == ZERO)
+        testBitarrayFalse = reqef==ZERO or\
+                            (reqef==NOCARE and primef==ZERO)
+        testBitarrayTrue = reqef==ONE or (reqef==NOCARE and primef==ONE)
+        assert not (testBitarrayTrue and testBitarrayFalse)
+
         #print("DATA", self)
         #print("ORIG", ["%s(%s:%s)"%
         #       (type(elem.value).__name__,
@@ -744,41 +760,113 @@ class CompositeBitarray(collections.Sequence):
                         oldnode.prev = None
                     if self._tailoffset == 0:
                         oldnode.next = None
-
                     self._llhead = _DLLNode(
-                        oldnode.value[self._offset:
+                        oldnode.value[self._offset:\
                                       self._offset+self._tailbitsused])
                     self._lltail = self._llhead
                     self._offset = 0
                     self._tailbitsused = self._taillen
 
-            else:
-                if self._offset and isinstance(
-                        self._llhead.value, (ConstantBitarray, NoCareBitarray,
-                                       PreferFalseBitarray)):
-                    oldhead = self._llhead
-                    self._llhead = _DLLNode(oldhead.value[self._offset:])
-                    self._llhead.next = oldhead.next
-                    oldhead.next = None
-                    self._offset = 0
-                if self._tailoffset and isinstance(
-                        self._lltail.value, (ConstantBitarray, NoCareBitarray,
-                                       PreferFalseBitarray)):
-                    oldtail = self._lltail
-                    self._lltail = _DLLNode(
-                        oldtail.value[:self._tailbitsused])
-                    self._lltail.prev = oldhead.prev
-                    oldhead.prev = None
-                    self._tailbitsused = self._taillen
+                elif isinstance(self._llhead.value, bitarray):
+                    if testBitarrayFalse or testBitarrayTrue:
+                        newval = oldnode.value[self._offset:
+                                               self._offset+self._tailbitsused]
+                        if testBitarrayFalse:
+                            if not newval.any():
+                                newval = ConstantBitarray(False, len(newval))
+                            else:
+                                raise Exception("bitarray in data contains a 1")
+                        if testBitarrayTrue:
+                            if newval.all():
+                                newval = ConstantBitarray(True, len(newval))
+                            else:
+                                raise Exception("bitarray in data contains a 0")
 
-        if preserve_history:
-            for elem in self._llhead.iternexttill(self._lltail):
-                if isinstance(elem.value, PreferFalseBitarray):
+                        self._llhead = _DLLNode(newval)
+                        self._lltail = self._llhead
+                        self._offset = 0
+                        self._tailbitsused = self._taillen
+
+            else: #IF HEAD IS NOT TAIL
+                if self._offset:
+                    if isinstance(self._llhead.value,
+                                  (ConstantBitarray, NoCareBitarray,
+                                   PreferFalseBitarray)):
+                        oldhead = self._llhead
+                        self._llhead = _DLLNode(
+                            oldhead.value[self._offset:])
+                        self._llhead.next = oldhead.next
+                        oldhead.next = None
+                        self._offset = 0
+                    elif isinstance(self._llhead.value, bitarray):
+                        oldhead = self._llhead
+                        newval = oldhead.value[self._offset:]
+                        if testBitarrayFalse:
+                            if not newval.any():
+                                newval = ConstantBitarray(False, len(newval))
+                            else:
+                                raise Exception("bitarray in data contains a 1")
+                        if testBitarrayTrue:
+                            if newval.all():
+                                newval = ConstantBitarray(True, len(newval))
+                            else:
+                                raise Exception("bitarray in data contains a 0")
+
+                        self._llhead = _DLLNode(newval)
+                        self._llhead.next = oldhead.next
+                        oldhead.next = None
+                        self._offset = 0
+
+                if self._tailoffset:
+                    if isinstance(self._lltail.value,
+                                  (ConstantBitarray, NoCareBitarray,
+                                   PreferFalseBitarray)):
+                        oldtail = self._lltail
+                        self._lltail = _DLLNode(
+                            oldtail.value[:self._tailbitsused])
+                        self._lltail.prev = oldhead.prev
+                        oldtail.prev = None
+                        self._tailbitsused = self._taillen
+                    elif isinstance(self._lltail.value, bitarray):
+                        oldtail = self._lltail
+                        newval = oldtail.value[:self._tailbitsused]
+                        if testBitarrayFalse:
+                            if not newval.any():
+                                newval = ConstantBitarray(False, len(newval))
+                            else:
+                                raise Exception("bitarray in data contains a 1")
+                        if testBitarrayTrue:
+                            if newval.all():
+                                newval = ConstantBitarray(True, len(newval))
+                            else:
+                                raise Exception("bitarray in data contains a 0")
+
+                        self._lltail = _DLLNode(newval)
+                        self._lltail.prev = oldtail.prev
+                        oldtail.prev = None
+                        self._tailbitsused = self._taillen
+
+
+        for elem in self._llhead.iternexttill(self._lltail):
+            if isinstance(elem.value, PreferFalseBitarray):
+                if assertPreferFalse:
                     elem._value = ConstantBitarray(False, len(elem.value))
-        else:
-            for elem in self._llhead.iternexttill(self._lltail):
-                if isinstance(elem.value, PreferFalseBitarray):
+                else:
                     elem._value = NoCareBitarray(len(elem.value))
+            if isinstance(elem.value, bitarray):
+                if testBitarrayFalse:
+                    if not elem.value.any():
+                        elem.value = ConstantBitarray(False,
+                                                      len(elem.value))
+                    else:
+                        raise Exception("bitarray in data contains a 1")
+                if testBitarrayTrue:
+                    if elem.value.all():
+                        elem.value = ConstantBitarray(True,
+                                                      len(elem.value))
+                    else:
+                        raise Exception("bitarray in data contains a 0")
+
 
         #print("TRAN", ["%s(%s:%s)"%
         #       (type(elem.value).__name__,
@@ -802,10 +890,15 @@ class CompositeBitarray(collections.Sequence):
         #         else '\033[92m'),type(elem.value).__name__,
         #        elem.value._val if isinstance(elem.value,
         #                                      ConstantBitarray)\
-        #        else "_", len(elem.value))
+        #        else (elem.value.to01() if isinstance(elem.value,
+        #                                              bitarray)
+        #              else "_"), len(elem.value))
         #       for elem in self._llhead.iternexttill(self._lltail)]))
         if self._lltail is self._llhead and self._offset == 0 and\
            self._tailbitsused == self._taillen:
+            if isinstance(self._llhead.value, (NoCareBitarray,
+                                               PreferFalseBitarray)):
+                return ConstantBitarray(False, len(self._llhead.value))
             return self._llhead.value
         return self
 

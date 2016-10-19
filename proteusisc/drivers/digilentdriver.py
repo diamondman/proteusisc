@@ -10,6 +10,7 @@
 """
 
 import struct
+from time import time
 
 from proteusisc.jtagUtils import blen2Blen, buff2Blen,\
     build_byte_align_buff
@@ -42,29 +43,25 @@ _CMSG_OEM_CHECK = 0xEC
 #   RQ: Request Code
 #
 #BULK MSG PARAMS (Min 1 byte each):
-# XX:XX:XX:XX: Transaction count in bits (4 bytes)
+# XX:XX:XX:XX: Transaction count in bits (4 bytes). Little Engian.
+# RV: Should return TDO data (Boolean). Little Endian.
 # MS: TMS VALUE (Boolean)
 # DI: TDI VALUE (Boolean)
 # DO: TDO VALUE (Boolean)
 # CK: TCK VALUE (Boolean)
-# RV: Should return TDO data (Boolean)
-_BMSG_ENABLE_JTAG         = b'\x03\x02\x00\x00' # NO PARAMS
-_BMSG_DISABLE_JTAG        = b'\x03\x02\x01\x00' # NO PARAMS
-_BMSG_PORT_INFO           = b'\x04\x02\x02\x00' #
-_BMSG_SET_SPEED           = b'\x07\x02\x03\x00' # SP:SP:SP:SP Speed in bps
-_BMSG_GET_SPEED           = b'\x03\x02\x04\x00' # NO PARAMS
-_BMSG_SET_TMS_TDI_TDO     = b'\x06\x02\x05\x00' # MS:DI:DO
-_BMSG_GET_TMS_TDI_TDO_TCK = b'\x03\x02\x06\x00' # NO PARAMS
-_BMSG_CLOCK_TICK          = b'\x09\x02\x07\x00' # MS:DI:XX:XX:XX:XX
-_BMSG_WRITE_TDI           = b'\x09\x02\x08\x00' # RV:MS:XX:XX:XX:XX
-_BMSG_READ_TDO            = b'\x09\x02\x09\x00' # MS:DI:XX:XX:XX:XX
-_BMSG_WRITE_TMS_TDI       = b'\x08\x02\x0A\x00' # RV:XX:XX:XX:XX
-_BMSG_WRITE_TMS           = b'\x09\x02\x0B\x00' # RV:DI:XX:XX:XX:XX
-
-
-def data2translen(data):
-    return b"".join([bytes([(len(data)>>(8*i))&0xff]) for i in range(4)])
-
+# SP: SPEED in Bits/Second
+_BMSG_ENABLE_JTAG         = b'\x03\x02\x00\x00'       # NO PARAMS
+_BMSG_DISABLE_JTAG        = b'\x03\x02\x01\x00'       # NO PARAMS
+_BMSG_PORT_INFO           = b'\x04\x02\x02\x00'       # ??
+_BMSG_SET_SPEED           = b'\x07\x02\x03\x00%b'     # SP:SP:SP:SP
+_BMSG_GET_SPEED           = b'\x03\x02\x04\x00'       # NO PARAMS
+_BMSG_SET_TMS_TDI_TDO     = b'\x06\x02\x05\x00%c%c%c' # MS:DI:DO
+_BMSG_GET_TMS_TDI_TDO_TCK = b'\x03\x02\x06\x00'       # NO PARAMS
+_BMSG_CLOCK_TICK          = b'\x09\x02\x07\x00%c%c%b' # MS:DI:XX:XX:XX:XX
+_BMSG_WRITE_TDI           = b'\x09\x02\x08\x00%c%c%b' # RV:MS:XX:XX:XX:XX
+_BMSG_READ_TDO            = b'\x09\x02\x09\x00%c%c%b' # MS:DI:XX:XX:XX:XX
+_BMSG_WRITE_TMS_TDI       = b'\x08\x02\x0A\x00%c%b'   # RV:XX:XX:XX:XX
+_BMSG_WRITE_TMS           = b'\x09\x02\x0B\x00%c%c%b' # RV:DI:XX:XX:XX:XX
 
 def index_or_default(s):
     try:
@@ -85,114 +82,36 @@ class DigilentWriteTMSPrimitive(Level1Primitive, Executable):
     _function_name = 'write_tms'
     _driver_function_name = 'write_tms_bits'
     _TMS, _TDI, _TDO = ARBITRARY, CONSTANT, CONSTANT
-    def _get_args(self):
-        print("TDO IS", self.tdo.__repr__())
-        if isinstance(self.tdo, CompositeBitarray):
-            self.tdo = self.tdo.prepare()
-            if isinstance(self.tdo, CompositeBitarray):
-                raise Exception("Arbitrary data not allowed for TDO:%s"%
-                                self.tdo)
-        if isinstance(self.tdo, ConstantBitarray):
-            tdo = self.tdo._val
-        elif isinstance(self.tdo, (NoCareBitarray, PreferFalseBitarray)):
-            tdo = False
-        else:
-            raise ValueError("TDO can not be %s. CompilerError."%type(self.tdo).__name__)
-
-        if isinstance(self.tdi, ConstantBitarray):
-            tdi = self.tdi._val
-        elif isinstance(self.tdi, NoCareBitarray):
-            tdi = False
-        else:
-            print("   TDI", self.tdi)
-            print(self.tdi._lltail)
-            raise ValueError("TDI can not be %s. CompilerError."%type(self.tdi).__name__)
-
-        return [self.tms], {'return_tdo':tdo, 'TDI': tdi}
+    _args = ['tms']
+    _kwargs = {'return_tdo':'tdo', "TDI": 'tdi'}
 
 class DigilentWriteTDIPrimitive(Level1Primitive, Executable):
     _function_name = 'write_tdi'
     _driver_function_name = 'write_tdi_bits'
     _TMS, _TDI, _TDO = CONSTANT, ARBITRARY, CONSTANT
-    def _get_args(self):
-        if isinstance(self.tdo, CompositeBitarray):
-            self.tdo = self.tdo.prepare()
-            if isinstance(self.tdo, CompositeBitarray):
-                raise Exception("Arbitrary data not allowed for TDO:%s"%
-                                self.tdo)
-        if isinstance(self.tdo, ConstantBitarray):
-            tdo = self.tdo._val
-        elif isinstance(self.tdo, (NoCareBitarray, PreferFalseBitarray)):
-            tdo = False
-        else:
-            raise ValueError("TDO can not be %s. CompilerError."%type(self.tdo).__name__)
-        if isinstance(self.tms, ConstantBitarray):
-            tms = self.tms._val
-        elif isinstance(self.tms, NoCareBitarray):
-            tms = False
-        else:
-            raise ValueError("TMS can not be %s. CompilerError."%type(self.tms).__name__)
-
-        return [self.tdi], {'return_tdo':tdo, 'TMS': tms}
+    _args = ['tdi']
+    _kwargs = {'return_tdo':'tdo', 'TMS': 'tms'}
 
 class DigilentWriteTMSTDIPrimitive(Level1Primitive, Executable):
     _function_name = 'write_tms_tdi'
     _driver_function_name = 'write_tms_tdi_bits'
     _TMS, _TDI, _TDO = ARBITRARY, ARBITRARY, CONSTANT
-    def _get_args(self):
-        if isinstance(self.tdo, CompositeBitarray):
-            self.tdo = self.tdo.prepare()
-            if isinstance(self.tdo, CompositeBitarray):
-                raise Exception("Arbitrary data not allowed for TDO:%s"%
-                                self.tdo)
-        if isinstance(self.tdo, ConstantBitarray):
-            tdo = self.tdo._val
-        elif isinstance(self.tdo, (NoCareBitarray, PreferFalseBitarray)):
-            tdo = False
-
-        return [self.tms, self.tdi], {'return_tdo':tdo}
+    _args = ['tms', 'tdi']
+    _kwargs = {'return_tdo':'tdo'}
 
 class DigilentReadTDOPrimitive(Level1Primitive, Executable):
     _TMS, _TDI, _TDO = CONSTANT, CONSTANT, ONE
     _function_name = 'read_tdo'
     _driver_function_name = 'read_tdo_bits'
-    def _get_args(self):
-        if isinstance(self.tms, ConstantBitarray):
-            tms = self.tms._val
-        elif isinstance(self.tms, NoCareBitarray):
-            tms = False
-        else:
-            raise ValueError("TMS can not be %s. CompilerError."%type(self.tms).__name__)
-        if isinstance(self.tdi, ConstantBitarray):
-            tdi = self.tdi._val
-        elif isinstance(self.tdi, NoCareBitarray):
-            tdi = False
-        else:
-            raise ValueError("TDI can not be %s. CompilerError."%type(self.tdi).__name__)
-
-
-        return [self.count], {'TMS': tms, 'TDI': tdi}
+    _args = ['count']
+    _kwargs = {'TMS':'tms', 'TDI': 'tdi'}
 
 class DigilentClockTickPrimitive(Level1Primitive, Executable):
     _function_name = 'tick_clock'
     _driver_function_name = 'tick_clock'
     _TMS, _TDI, _TDO = CONSTANT, CONSTANT, ZERO
-    def _get_args(self):
-        if isinstance(self.tms, ConstantBitarray):
-            tms = self.tms._val
-        elif isinstance(self.tms, NoCareBitarray):
-            tms = False
-        else:
-            raise ValueError("TMS can not be %s. CompilerError."%type(self.tms).__name__)
-        if isinstance(self.tdi, ConstantBitarray):
-            tdi = self.tdi._val
-        elif isinstance(self.tdi, NoCareBitarray):
-            tdi = False
-        else:
-            raise ValueError("TDI can not be %s. CompilerError."%type(self.tdi).__name__)
-
-        return [self.count], {'TMS': tms, 'TDI': tdi}
-
+    _args = ['count']
+    _kwargs = {'TMS': 'tms', 'TDI': 'tdi'}
 
 
 class DigilentAdeptController(CableDriver):
@@ -238,20 +157,85 @@ class DigilentAdeptController(CableDriver):
              self.serialNumber,
              self.firmwareVersion) # pragma: no cover
 
-
     def _get_adv_trans_stats(self, cmd, return_tdo=False):
-        """
-        Utility function to fetch the transfer statistics for the
-        last advanced transfer. For details on the advanced transfer
-        please refer to the documentation at
+        """Utility function to fetch the transfer statistics for the last
+        advanced transfer. Checking the stats appears to sync the
+        controller. For details on the advanced transfer please refer
+        to the documentation at
         http://diamondman.github.io/Adapt/cable_digilent_adept.html#bulk-requests
+
         """
-
-        self._handle.bulkWrite(self._cmdout_interface,
-                               bytes([0x03, 0x02, 0x80|cmd, 0x00]))
-        return self._handle.bulkRead(self._cmdin_interface,
+        t = time()
+        code, res = self.bulkCommand(b'\x03\x02%c\x00'%(0x80|cmd),\
                                      10 if return_tdo else 6)
+        print("GET STATS TIME", time()-t)
+        if len(res) == 4:
+            count = struct.unpack('<I', res)[0]
+            #if return_tdo:
+            #    print("READ", count)
+            #else:
+            #    print("WRITTEN", count)
+            return count
+        elif len(res) == 8:
+            assert len(res)==8,"WTF it is %s"%len(res)
+            written, read =  struct.unpack('<II', res)
+            #print("WRITTEN", written)
+            #print("READ", read)
+            return written, read
+        return res
 
+    def _update_scanchain(self, val):
+        pass
+        #if self._scanchain:
+        #    if isinstance(val, bool):
+        #        val = ConstantBitarray(, count)
+        #    self._scanchain._tap_transition_driver_trigger(val)
+
+    def bulkReadCmd(self, bytecount):
+        return self._handle.bulkRead(self._cmdin_interface, bytecount)
+
+    def bulkWriteCmd(self, data):
+        return self._handle.bulkWrite(self._cmdout_interface, data)
+
+    def bulkReadData(self, bytecount):
+        return self._handle.bulkRead(self._datin_interface, bytecount)
+
+    def bulkWriteData(self, data):
+        return self._handle.bulkWrite(self._datout_interface, data)
+
+    def bulkCommand(self, data, reslen=0):
+        self.bulkWriteCmd(data)
+        return self._read_status(reslen)
+
+    def _read_status(self, reslen=0):
+        res = self.bulkReadCmd(2+reslen)
+        print("RESULTS:", res.hex())
+        return res[1], res[2:]
+
+    def bulkCommandDefault(self, data, reslen=0):
+        self.bulkWriteCmd(data)
+        return self._handle_status_default(reslen)
+
+    def _handle_status_default(self, reslen=0):
+        res = self.bulkReadCmd(2+reslen)
+        status = res[1]
+        if status != 0:
+            if status == 4:
+                raise JTAGControlError("Controller says jtag disabled.")
+            if status == 0x32:
+                raise JTAGControlError("Controller says slow down.")
+            raise JTAGControlError("Uknown Issue running command: %s",res)
+        return res[2:]
+
+    def _read_tdo(self, bitcount):
+        tdo_bytes = bytes(self.bulkReadData(blen2Blen(bitcount)+2)[::-1])
+        tdo_bits = bitarray()
+        tdo_bits.frombytes(tdo_bytes)
+        return tdo_bits[(8*len(tdo_bytes)) - bitcount:]
+
+    def _check_jtag(self):
+        if not self._jtagon:
+            raise JTAGNotEnabledError()
 
     def jtag_enable(self):
         """
@@ -265,17 +249,14 @@ class DigilentAdeptController(CableDriver):
             >>> c.write_tms_bits(bitarray("001011111"), return_tdo=True)
             >>> c.jtag_disable()
         """
-        h_ = self._handle
-        h_.bulkWrite(self._cmdout_interface, _BMSG_ENABLE_JTAG)
-        res = h_.bulkRead(self._cmdin_interface, 2)
-        status_code = res[1]
-        if status_code == 0:
+        status, _ = self.bulkCommand(_BMSG_ENABLE_JTAG)
+        if status == 0:
             self._jtagon = True
-        elif status_code == 3:
+        elif status == 3:
             self._jtagon = True
             raise JTAGAlreadyEnabledError()
         else:
-            raise JTAGEnableFailedError("Error enabling JTAG. Error code: %s." %status_code)
+            raise JTAGEnableFailedError("Error enabling JTAG. Error code: %s." %status)
 
     def jtag_disable(self):
         """
@@ -291,14 +272,11 @@ class DigilentAdeptController(CableDriver):
         """
 
         if not self._jtagon: return
-        h = self._handle
-        h.bulkWrite(self._cmdout_interface, _BMSG_DISABLE_JTAG)
-        res = h.bulkRead(self._cmdin_interface, 2)
-        status_code = res[1]
-        if status_code == 0:
+        status, _ = self.bulkCommand(_BMSG_DISABLE_JTAG)
+        if status == 0:
             self._jtagon = False
-        elif status_code == 3:
-            raise JTAGControlError("Error Code %s"%status_code)
+        elif status == 3:
+            raise JTAGControlError("Error Code %s"%status)
 
         self.close_handle()
 
@@ -306,29 +284,17 @@ class DigilentAdeptController(CableDriver):
         if not self._jtagon:
             return None
 
-        self._handle.bulkWrite(self._cmdout_interface, _BMSG_GET_SPEED)
-        res = self._handle.bulkRead(self._cmdin_interface, 6)
-        if res[1] != 0:
-            raise JTAGControlError("Uknown Issue reading TDO bits: %s", res)
-
-        return struct.unpack('<I', res[2:])[0]
+        speed = self.bulkCommandDefault(_BMSG_GET_SPEED, reslen=4)
+        return struct.unpack('<I', speed)[0]
 
     def _set_speed(self, speed):
         if not self._jtagon:
             return None
 
-        #START REQUEST
-        self._handle.bulkWrite(self._cmdout_interface,
-                               _BMSG_SET_SPEED +\
-                               b"".join([bytes([(speed>>(8*i))&0xff])
-                                         for i in range(4)]))
-        res = self._handle.bulkRead(self._cmdin_interface, 6)
-        if res[1] != 0:
-            if res[1] == 4:
-                raise JTAGControlError("SET_SPEED reports jtag disabled.")
-            raise JTAGControlError("Uknown Issue reading TDO bits: %s", res)
-
-        return struct.unpack('<I', res[2:])[0]
+        speed = self.bulkCommandDefault(_BMSG_SET_SPEED %
+                                        speed.to_bytes(4, 'little'),
+                                        reslen=4)
+        return struct.unpack('<I', speed)[0]
 
     def write_tms_bits(self, data, return_tdo=False, TDI=False):
         """
@@ -354,37 +320,14 @@ class DigilentAdeptController(CableDriver):
             >>> c.write_tms_bits(bitarray("001011111"), return_tdo=True)
             >>> c.jtag_disable()
         """
-        if not self._jtagon:
-            raise JTAGNotEnabledError()
-        #if self._scanchain:
-        #    self._scanchain._tap_transition_driver_trigger(data)
-
-        self._handle.bulkWrite(self._cmdout_interface,
-                               _BMSG_WRITE_TMS +\
-                               bytes([return_tdo, TDI]) +\
-                               data2translen(data))
-        res = self._handle.bulkRead(self._cmdin_interface, 2)
-        if res[1] != 0:
-            raise JTAGControlError("Uknown Issue writing TMS bits: %s",
-                                   res)
-
-        self._handle.bulkWrite(self._datout_interface,
-                               build_byte_align_buff(data).tobytes()[::-1]
-        )
-
-        tdo_bits = None
-        if return_tdo:
-            tdo_bytes = bytes(self._handle.bulkRead(
-                self._datin_interface,
-                buff2Blen(data))[::-1])
-            tdo_bits = bitarray()
-            tdo_bits.frombytes(tdo_bytes)
-            tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(data):]
-
+        self._check_jtag()
+        self._update_scanchain(data)
+        self.bulkCommandDefault(_BMSG_WRITE_TMS %
+            (return_tdo, TDI, len(data).to_bytes(4, 'little')))
+        self.bulkWriteData(build_byte_align_buff(data).tobytes()[::-1])
+        tdo_bits = self._read_tdo(len(data)) if return_tdo else None
         self._get_adv_trans_stats(0x0B, return_tdo)
-
         return tdo_bits
-
 
     def write_tdi_bits(self, buff, return_tdo=False, TMS=True):
         """
@@ -410,36 +353,15 @@ class DigilentAdeptController(CableDriver):
             >>> c.write_tdi_bits(bitarray("11111"), return_tdo=True)
             >>> c.jtag_disable()
         """
-        if not self._jtagon:
-            raise JTAGNotEnabledError()
-        tms_bits = bitarray(('1' if TMS else '0')*len(buff))
-        #if self._scanchain:
-        #    self._scanchain._tap_transition_driver_trigger(tms_bits)
+        self._check_jtag()
+        tms_bits = bitarray([TMS]*len(buff))
+        self._update_scanchain(tms_bits)
 
-        self._handle.bulkWrite(self._cmdout_interface,
-                               _BMSG_WRITE_TDI +\
-                               bytes([return_tdo, TMS]) +\
-                               b"".join([bytes([(len(buff)>>(8*i))&0xff]) for
-                                         i in range(4)]))
-        res = self._handle.bulkRead(self._cmdin_interface, 2)
-        if res[1] != 0:
-            raise JTAGControlError("Uknown Issue writing TDI bits: %s",
-                                   res)
-
-        self._handle.bulkWrite(self._datout_interface,
-                               build_byte_align_buff(buff).tobytes()[::-1])
-
-        tdo_bits = None
-        if return_tdo is True:
-            tdo_bytes = bytes(self._handle.bulkRead(
-                self._datin_interface,
-                buff2Blen(buff))[::-1])
-            tdo_bits = bitarray()
-            tdo_bits.frombytes(tdo_bytes)
-            tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(buff):]
-
+        self.bulkCommandDefault(_BMSG_WRITE_TDI %
+                    (return_tdo, TMS,  len(buff).to_bytes(4, 'little')))
+        self.bulkWriteData(build_byte_align_buff(buff).tobytes()[::-1])
+        tdo_bits = self._read_tdo(len(buff)) if return_tdo else None
         self._get_adv_trans_stats(0x08, return_tdo)
-
         return tdo_bits
 
     def write_tms_tdi_bits(self, tmsdata, tdidata, return_tdo=False):
@@ -467,37 +389,21 @@ class DigilentAdeptController(CableDriver):
                                      bitarray("11111"), return_tdo=True)
             >>> c.jtag_disable()
         """
-        if not self._jtagon:
-            raise JTAGNotEnabledError()
+        self._check_jtag()
         if len(tmsdata) != len(tdidata):
             raise Exception("TMSdata and TDIData must be the same length")
-        #if self._scanchain:
-        #    self._scanchain._tap_transition_driver_trigger(tmsdata)
+        self._update_scanchain(tmsdata)
 
-        self._handle.bulkWrite(self._cmdout_interface,
-                               _BMSG_WRITE_TMS_TDI +\
-                               bytes([return_tdo]) +\
-                               data2translen(tdidata))
-        res = self._handle.bulkRead(self._cmdin_interface, 2)
-        if res[1] != 0:
-            raise JTAGControlError("Uknown Issue writing TMS bits: %s", res)
+        t = time()
+        outdata = bitarray([val for pair in zip(tmsdata, tdidata)
+                            for val in pair])
+        print("TDI/TDI DATA PREP TIME", time()-t)
 
-        data = bitarray([val for pair in zip(tmsdata, tdidata)
-                         for val in pair])
-        self._handle.bulkWrite(self._datout_interface,
-                               build_byte_align_buff(data).tobytes()[::-1])
-
-        tdo_bits = None
-        if return_tdo:
-            tdo_bytes = bytes(
-                self._handle.bulkRead(self._datin_interface,
-                                      buff2Blen(data))[::-1])
-            tdo_bits = bitarray()
-            tdo_bits.frombytes(tdo_bytes)
-            tdo_bits = tdo_bits[(8*len(tdo_bytes)) - len(tmsdata):]
-
+        self.bulkCommandDefault(_BMSG_WRITE_TMS_TDI % \
+                  (return_tdo, len(tdidata).to_bytes(4, 'little')))
+        self.bulkWriteData(build_byte_align_buff(outdata).tobytes()[::-1])
+        tdo_bits = self._read_tdo(len(data)) if return_tdo else None
         self._get_adv_trans_stats(0x0A, return_tdo)
-
         return tdo_bits
 
     def read_tdo_bits(self, count, TMS=True, TDI=False):
@@ -525,52 +431,21 @@ class DigilentAdeptController(CableDriver):
             >>> data = c.read_tdo_bits(32)
             >>> c.jtag_disable()
         """
-        if not self._jtagon:
-            raise JTAGNotEnabledError()
-        #if self._scanchain:
-        #    bits = ConstantBitarray(bool(TMS), count)
-        #    self._scanchain._tap_transition_driver_trigger(bits)
+        self._check_jtag()
+        self._update_scanchain(bool(TMS))
 
-        #START REQUEST
-        self._handle.bulkWrite(self._cmdout_interface,
-                               _BMSG_READ_TDO +\
-                               bytes([TMS, TDI]) +\
-                               b"".join([bytes([(count>>(8*i))&0xff])
-                                         for i in range(4)]))
-        res = self._handle.bulkRead(self._cmdin_interface, 2)
-        if res[1] != 0:
-            raise JTAGControlError("Uknown Issue reading TDO bits: %s", res)
-
-        #READ TDO DATA BACK
-        tdo_bytes = bytes(self._handle.bulkRead(self._datin_interface,
-                                                blen2Blen(count))[::-1])
-        tdo_bits = bitarray()
-        tdo_bits.frombytes(tdo_bytes)
-        tdo_bits = tdo_bits[(8*len(tdo_bytes)) - count:]
-        #GET BACK STATS
-        self._get_adv_trans_stats(0x09, True)
-
-        return tdo_bits
-
+        self.bulkCommandDefault(
+            _BMSG_READ_TDO % (TMS, TDI, count.to_bytes(4, 'little')))
+        res = self._read_tdo(count)
+        self._get_adv_trans_stats(_BMSG_READ_TDO[2], True)
+        return res
 
     def tick_clock(self, count, TMS=True, TDI=False):
-        if not self._jtagon:
-            raise JTAGNotEnabledError()
-        #if self._scanchain:
-        #    bits = ConstantBitarray(bool(TMS), count)
-        #    self._scanchain._tap_transition_driver_trigger(bits)
+        self._check_jtag()
+        self._update_scanchain(bool(TMS))
 
-        #START REQUEST
-        self._handle.bulkWrite(self._cmdout_interface,
-                               _BMSG_CLOCK_TICK +\
-                               bytes([TMS, TDI]) +\
-                               b"".join([bytes([(count>>(8*i))&0xff])
-                                         for i in range(4)]))
-        res = self._handle.bulkRead(self._cmdin_interface, 2)
-        if res[1] != 0:
-            raise JTAGControlError("Uknown Issue reading TDO bits: %s", res)
-
-        #GET BACK STATS
-        self._get_adv_trans_stats(0x09, True)
+        self.bulkCommandDefault(_BMSG_CLOCK_TICK %\
+                                (TMS, TDI, count.to_bytes(4, 'little')))
+        self._get_adv_trans_stats(_BMSG_CLOCK_TICK[2], True)
 
 __filter__ = [((0x1443, None),DigilentAdeptController)]
