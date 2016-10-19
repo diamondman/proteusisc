@@ -34,7 +34,9 @@ class CommandQueue(collections.MutableSequence):
         self._chain = chain
 
     def reset(self):
-        self._fsm.reset()
+        #TODO Double check if this is best way
+        if self._fsm:
+            self._fsm.reset()
         self.queue = []
 
     def snapshot(self):

@@ -81,6 +81,8 @@ def index_or_default(s):
 class DigilentWriteTMSPrimitive(Level1Primitive, Executable):
     _function_name = 'write_tms'
     _driver_function_name = 'write_tms_bits'
+    _max_send_bits = 0x5FFFFF
+    _max_recv_bits = 504
     _TMS, _TDI, _TDO = ARBITRARY, CONSTANT, CONSTANT
     _args = ['tms']
     _kwargs = {'return_tdo':'tdo', "TDI": 'tdi'}
@@ -88,6 +90,8 @@ class DigilentWriteTMSPrimitive(Level1Primitive, Executable):
 class DigilentWriteTDIPrimitive(Level1Primitive, Executable):
     _function_name = 'write_tdi'
     _driver_function_name = 'write_tdi_bits'
+    _max_send_bits = 0x5FFFFF
+    _max_recv_bits = 504
     _TMS, _TDI, _TDO = CONSTANT, ARBITRARY, CONSTANT
     _args = ['tdi']
     _kwargs = {'return_tdo':'tdo', 'TMS': 'tms'}
@@ -95,20 +99,26 @@ class DigilentWriteTDIPrimitive(Level1Primitive, Executable):
 class DigilentWriteTMSTDIPrimitive(Level1Primitive, Executable):
     _function_name = 'write_tms_tdi'
     _driver_function_name = 'write_tms_tdi_bits'
+    _max_send_bits = 0x5FFFFF
+    _max_recv_bits = 504
     _TMS, _TDI, _TDO = ARBITRARY, ARBITRARY, CONSTANT
     _args = ['tms', 'tdi']
     _kwargs = {'return_tdo':'tdo'}
 
 class DigilentReadTDOPrimitive(Level1Primitive, Executable):
-    _TMS, _TDI, _TDO = CONSTANT, CONSTANT, ONE
     _function_name = 'read_tdo'
     _driver_function_name = 'read_tdo_bits'
+    _max_send_bits = 504 #63 bytes
+    _max_recv_bits = 504 #63 bytes
+    _TMS, _TDI, _TDO = CONSTANT, CONSTANT, ONE
     _args = ['count']
     _kwargs = {'TMS':'tms', 'TDI': 'tdi'}
 
 class DigilentClockTickPrimitive(Level1Primitive, Executable):
     _function_name = 'tick_clock'
     _driver_function_name = 'tick_clock'
+    _max_send_bits = 0x5FFFFF
+    _max_recv_bits = 0
     _TMS, _TDI, _TDO = CONSTANT, CONSTANT, ZERO
     _args = ['count']
     _kwargs = {'TMS': 'tms', 'TDI': 'tdi'}
@@ -398,12 +408,17 @@ class DigilentAdeptController(CableDriver):
         t = time()
         outdata = bitarray([val for pair in zip(tmsdata, tdidata)
                             for val in pair])
+        outdata = build_byte_align_buff(outdata).tobytes()[::-1]
         print("TDI/TDI DATA PREP TIME", time()-t)
 
+        t = time()
         self.bulkCommandDefault(_BMSG_WRITE_TMS_TDI % \
                   (return_tdo, count.to_bytes(4, 'little')))
-        self.bulkWriteData(build_byte_align_buff(outdata).tobytes()[::-1])
+        self.bulkWriteData(outdata)
+        print("TRANSFER TIME", time()-t)
+        t = time()
         tdo_bits = self._read_tdo(count) if return_tdo else None
+        print("TDO READ TIME", time()-t)
         self._get_adv_trans_stats(0x0A, return_tdo)
         return tdo_bits
 

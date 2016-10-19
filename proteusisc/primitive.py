@@ -262,8 +262,8 @@ class Level1Primitive(Primitive):
         if self.debug:
             print(('  \033[95m%s %s %s REQEF\033[94m'%tuple(self.reqef)),
                   self,'\033[0m')
-            print(('  \033[95m%s %s %s REQEF\033[94m'%tuple(target.reqef)),
-                  target,'\033[0m')
+            print(('  \033[95m%s %s %s REQEF\033[94m'%
+                   tuple(target.reqef)), target,'\033[0m')
 
         newcount = target.count+self.count
         reqef = tuple(map(operator.add, self.reqef, target.reqef))
@@ -272,7 +272,10 @@ class Level1Primitive(Primitive):
             print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),
                   "CONBINED",'\033[0m')
 
-        possible_prims = self._chain.get_compatible_lv1_prims(reqef)
+        possible_prims = self._chain.get_compatible_lv1_prims(
+            reqef, newcount)
+        if not possible_prims:
+            return
         best_prim_cls = None
         best_score = self.score + target.score
         tdo_count = target.tdo.count(True)+self.tdo.count(True)

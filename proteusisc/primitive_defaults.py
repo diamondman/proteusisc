@@ -334,7 +334,8 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
                     ARBITRARY, #TDI
                 ONE if self.read else NOCARE #TDO
             )
-            write_data = self._chain.get_fitted_lv1_prim(reqef)
+            write_data = self._chain.get_fitted_lv1_prim(reqef,
+                                                         self.bitcount)
             res.append(write_data(tms=False, tdi=data,
                                   tdo=self.read or None,
                                   _promise=self._promise))
@@ -355,7 +356,8 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
                         ARBITRARY, #TDI
                     ONE if self.read else NOCARE #TDO
                 )
-                write_data = self._chain.get_fitted_lv1_prim(reqef)
+                write_data = self._chain.get_fitted_lv1_prim(
+                    reqef, self.bitcount-1)
                 data, datar = data.split(1)
                 res.append(write_data(tms=False, tdi=datar,
                                       tdo=self.read or None,
@@ -369,7 +371,7 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
             )
             if self.debug:
                 print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
-            write_last = self._chain.get_fitted_lv1_prim(reqef)
+            write_last = self._chain.get_fitted_lv1_prim(reqef, 1)
             res.append(write_last(tms=True, tdi=newdata,
                                   tdo=self.read or None, _promise=tail))
 
@@ -432,7 +434,7 @@ class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
         )
         if self.debug:
             print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
-        best_prim = self._chain.get_fitted_lv1_prim(reqef)
+        best_prim = self._chain.get_fitted_lv1_prim(reqef, len(data))
 
         return [
             best_prim(tms=data)
@@ -465,7 +467,7 @@ class Sleep(Level2Primitive, ExpandRequiresTAP):
             )
             if self.debug:
                 print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
-            best_prim = self._chain.get_fitted_lv1_prim(reqef)
+            best_prim = self._chain.get_fitted_lv1_prim(reqef, len(data))
 
             return [
                 best_prim(tms=data)

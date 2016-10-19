@@ -29,11 +29,10 @@ from . import _xpcu1utils
 #TDO = 1
 
 class XPC1TransferPrimitive(Level1Primitive, Executable):
-    #transfer_bits_single can be used for single bit jtag transfers.
-    #This will be necessary for firmware upgrade.
     _function_name = 'transfer_bits'
-    _driver_function_name = 'transfer_bits'#_single'#_cpld_upgrade'
-    _max_bits = 65536
+    _driver_function_name = 'transfer_bits'
+    _max_send_bits = 0xFFFFFF+1
+    _max_recv_bits = 0xFFFFFF+1
     _TMS, _TDI, _TDO = ARBITRARY, ARBITRARY, ARBITRARY
     _args = ['count']
     _kwargs = {'TMS': 'tms', 'TDI': 'tdi', 'TDO': 'tdo'}

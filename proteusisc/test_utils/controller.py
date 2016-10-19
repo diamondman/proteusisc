@@ -42,19 +42,19 @@ class FakeXPCU1Handle(object):
         valueh = (value>>8) & 0xFF
         valuel = value & 0xFF
 
-        if value is self.XC_DEVICE_DISABLE:
+        if valuel == self.XC_DEVICE_DISABLE:
             self._jtag_on = False
-        elif value is self.XC_DEVICE_ENABLE:
+        elif valuel == self.XC_DEVICE_ENABLE:
             self._jtag_on = True
-        elif value is self.XC_SET_JTAG_SPEED:
+        elif valuel == self.XC_SET_JTAG_SPEED:
             if index & 0x10 is not 0x10 or index & 0xf > 4:
                 raise Exception("Invalid speed '%02x'"%index)
             self.speed = index
-        #elif value is self.XC_WRITE_JTAG_SINGLE:
+        #elif valuel == self.XC_WRITE_JTAG_SINGLE:
         #    pass
-        #elif value is self.XC_SET_CPLD_UPGRADE:
+        #elif valuel == self.XC_SET_CPLD_UPGRADE:
         #    pass
-        elif value is self.XC_JTAG_TRANSFER:
+        elif valuel == self.XC_JTAG_TRANSFER:
             self.doing_transfer = True
             self.transfer_bit_count = ((valueh<<16) | index)+1
         else:

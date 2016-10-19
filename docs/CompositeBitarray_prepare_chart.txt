@@ -37,3 +37,10 @@ C 0 APF TBF
 0 0 APF TBF
 ---------
 
+APF = ASSERT PREFERENCE FALSE (Prefer False will become False)
+IPF = IGNORE PREFERENCE FALSE (Prefer False will become NOCARE)
+
+TBF = TEST BITARRAY FALSE (bitarrays in the data chain must be all 0)
+TBT = TEST BITARRAY TRUE (bitarrays in the data chain must be all 1)
+
+CE = COMPILER ERROR (This state iis invalid)
