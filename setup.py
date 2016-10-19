@@ -56,7 +56,8 @@ setup(
     ext_modules = [
         Extension(
             'proteusisc.drivers.xilinxPC1driver._xpcu1utils',
-            sources = ['proteusisc/drivers/xilinxPC1driver/_xpcu1utils.c']
+            sources = ['proteusisc/drivers/xilinxPC1driver/_xpcu1utils.c'],
+            extra_compile_args = ["-std=c99"],
         )
     ],
     description="Driver framework for In System Configureation (ISC) Controllers (for example, JTAG)",

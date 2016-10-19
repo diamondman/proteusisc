@@ -11,4 +11,6 @@ test:
 
 dependencies:
   pre:
-    -  pip install pytest pytest-cov
+    - pip install pytest pytest-cov
+  override:
+    - pip install -e .
