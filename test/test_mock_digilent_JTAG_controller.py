@@ -69,7 +69,7 @@ def test_controller_speed_get_set():
     assert res == b'\x01\x04'
 
     #Try setting speed without JTAG being on. Should FAIL.
-    h.bulkWrite(1, _BMSG_SET_SPEED+struct.pack("<I", 3000000))
+    h.bulkWrite(1, _BMSG_SET_SPEED%struct.pack("<I", 3000000))
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x04'
 
@@ -84,7 +84,7 @@ def test_controller_speed_get_set():
     assert res == b'\x05\x00'+struct.pack("<I", 4000000)
 
     #set speed with jtag on
-    h.bulkWrite(1, _BMSG_SET_SPEED+struct.pack("<I", 3000000))
+    h.bulkWrite(1, _BMSG_SET_SPEED%struct.pack("<I", 3000000))
     res = h.bulkRead(2, 6)
     assert res == b'\x05\x00'+struct.pack("<I", 2000000)
 
@@ -108,7 +108,7 @@ def test_controller_bulk_msg_wrong_size_init():
     h = FakeDevHandle()
     with pytest.raises(Exception):
         #WRITE TMS requires 6 additional bytes of data
-        h.bulkWrite(1, _BMSG_WRITE_TMS)
+        h.bulkWrite(1, b'\x09\x02\x0B\x00')
     with pytest.raises(Exception):
         #Incorrect packet length
         h.bulkWrite(1, b'\x08\x00\x00\x00')
@@ -162,7 +162,7 @@ def test_controller_write_tms():
     assert res == b'\x01\x00'
 
     #WRITE TMS to change TAP to SHIFTDR
-    h.bulkWrite(1, _BMSG_WRITE_TMS + b'\x00\x00\x09\x00\x00\x00')
+    h.bulkWrite(1, _BMSG_WRITE_TMS %(0, 0, b'\x09\x00\x00\x00'))
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
@@ -177,7 +177,7 @@ def test_controller_write_tms():
     ################################################
     #READ DR
     ################################################
-    h.bulkWrite(1, _BMSG_WRITE_TMS + b'\x01\x01\x20\x00\x00\x00')
+    h.bulkWrite(1, _BMSG_WRITE_TMS % (1, 1, b'\x20\x00\x00\x00'))
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
@@ -205,7 +205,7 @@ def test_controller_write_tms_tdi():
     assert res == b'\x01\x00'
 
     #WRITE TMS to change TAP to SHIFTDR
-    h.bulkWrite(1, _BMSG_WRITE_TMS_TDI + b'\x00\x09\x00\x00\x00')
+    h.bulkWrite(1, _BMSG_WRITE_TMS_TDI % (0, b'\x09\x00\x00\x00'))
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
@@ -223,7 +223,7 @@ def test_controller_write_tms_tdi():
     ################################################
     #READ DR
     ################################################
-    h.bulkWrite(1, _BMSG_WRITE_TMS_TDI + b'\x01\x20\x00\x00\x00')
+    h.bulkWrite(1, _BMSG_WRITE_TMS_TDI % (1, b'\x20\x00\x00\x00'))
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
@@ -254,7 +254,7 @@ def test_controller_write_tdi():
     assert res == b'\x01\x00'
 
     #WRITE TMS to change TAP to SHIFTDR
-    h.bulkWrite(1, _BMSG_WRITE_TMS + b'\x00\x00\x09\x00\x00\x00')
+    h.bulkWrite(1, _BMSG_WRITE_TMS % (0, 0, b'\x09\x00\x00\x00'))
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
@@ -269,7 +269,7 @@ def test_controller_write_tdi():
     ################################################
     #READ DR WITH WRITE_TDI
     ################################################
-    h.bulkWrite(1, _BMSG_WRITE_TDI + b'\x01\x00\x20\x00\x00\x00')
+    h.bulkWrite(1, _BMSG_WRITE_TDI % (1, 0, b'\x20\x00\x00\x00'))
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
@@ -297,7 +297,7 @@ def test_controller_read_tdo():
     assert res == b'\x01\x00'
 
     #WRITE TMS to change TAP to SHIFTDR
-    h.bulkWrite(1, _BMSG_WRITE_TMS + b'\x00\x00\x09\x00\x00\x00')
+    h.bulkWrite(1, _BMSG_WRITE_TMS % (0, 0, b'\x09\x00\x00\x00'))
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
@@ -312,7 +312,7 @@ def test_controller_read_tdo():
     ################################################
     #READ DR WITH READ_TDO
     ################################################
-    h.bulkWrite(1, _BMSG_READ_TDO + b'\x00\x01\x20\x00\x00\x00')
+    h.bulkWrite(1, _BMSG_READ_TDO % (0, 1, b'\x20\x00\x00\x00'))
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
 
@@ -338,12 +338,12 @@ def test_controller_clock_tick():
     assert res == b'\x01\x00'
 
     #WRITE TMS to change TAP to SHIFTDR
-    h.bulkWrite(1, _BMSG_CLOCK_TICK + b'\x01\x00\x05\x00\x00\x00')
+    h.bulkWrite(1, _BMSG_CLOCK_TICK % (1, 0, b'\x05\x00\x00\x00'))
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
     assert d0.tapstate == "TLR"
 
-    h.bulkWrite(1, _BMSG_CLOCK_TICK + b'\x00\x00\x01\x00\x00\x00')
+    h.bulkWrite(1, _BMSG_CLOCK_TICK % (0, 0, b'\x01\x00\x00\x00'))
     res = h.bulkRead(2, 2)
     assert res == b'\x01\x00'
     assert d0.tapstate == "RTI"

@@ -7,3 +7,5 @@ dist/
 proteusisc.egg-info/
 MANIFEST
 .cache/
+.coverage
+*.so

@@ -393,6 +393,7 @@ class DigilentAdeptController(CableDriver):
         if len(tmsdata) != len(tdidata):
             raise Exception("TMSdata and TDIData must be the same length")
         self._update_scanchain(tmsdata)
+        count = len(tmsdata)
 
         t = time()
         outdata = bitarray([val for pair in zip(tmsdata, tdidata)
@@ -400,9 +401,9 @@ class DigilentAdeptController(CableDriver):
         print("TDI/TDI DATA PREP TIME", time()-t)
 
         self.bulkCommandDefault(_BMSG_WRITE_TMS_TDI % \
-                  (return_tdo, len(tdidata).to_bytes(4, 'little')))
+                  (return_tdo, count.to_bytes(4, 'little')))
         self.bulkWriteData(build_byte_align_buff(outdata).tobytes()[::-1])
-        tdo_bits = self._read_tdo(len(data)) if return_tdo else None
+        tdo_bits = self._read_tdo(count) if return_tdo else None
         self._get_adv_trans_stats(0x0A, return_tdo)
         return tdo_bits
 

@@ -4,6 +4,7 @@ import pytest
 from proteusisc.bittypes import CompositeBitarray, ConstantBitarray,\
     NoCareBitarray, bitarray, PreferFalseBitarray
 from proteusisc import errors
+from proteusisc.contracts import ARBITRARY, CONSTANT, ZERO, ONE
 
 def test_nocare():
     bits = NoCareBitarray(7)
@@ -285,11 +286,13 @@ def test_composite_general():
     c3 = bitarray('1001')
     comp = CompositeBitarray(c1, c2)
     comp2 = CompositeBitarray(comp, c3)
-    assert comp2.prepare() == bitarray('1111111111001')
+    with pytest.raises(Exception):
+        comp2.prepare()
     comp2 = CompositeBitarray(c1, c2) + c3
-    assert bitarray(comp2.prepare()) == bitarray('1111111111001')
+    assert bitarray(comp2.prepare(reqef=ARBITRARY, primef=ARBITRARY))\
+        == bitarray('1111111111001')
     comp2 = CompositeBitarray(c1, c2) + c3
-    assert comp2.prepare(preserve_history=True) == \
+    assert comp2.prepare(reqef=ARBITRARY, primef=ARBITRARY) == \
         bitarray('1111111111001')
 
     c1 = ConstantBitarray(True, 4)
@@ -343,19 +346,19 @@ def test_composite_split_prepare_preferfalse_nopreserve():
     bits = ConstantBitarray(True, 4) + PreferFalseBitarray(5)
     assert len(bits) == 9
     assert bitarray(iter(bits)) == bitarray('111100000')
-    assert bitarray(iter(bits.prepare(preserve_history=False))) ==\
+    assert bitarray(iter(bits.prepare(reqef=ONE, primef=CONSTANT))) ==\
         bitarray('111111111')
 
     #Have to recreate it. Prepare edits the object's underlying data.
     bits = ConstantBitarray(True, 4) + PreferFalseBitarray(5)
-    assert bitarray(iter(bits.prepare(preserve_history=True))) ==\
+    assert bitarray(iter(bits.prepare(reqef=ONE, primef=ARBITRARY))) ==\
         bitarray('111100000')
 
 def test_composite_split_prepare_clip_edge_preserve():
     ab = PreferFalseBitarray(2) + (ConstantBitarray(True, 1)+PreferFalseBitarray(3))
     l,r = ab.split(1)
-    prepl = l.prepare(preserve_history=True)
-    prepr = r.prepare(preserve_history=True)
+    prepl = l.prepare(reqef=ONE, primef=ARBITRARY)
+    prepr = r.prepare(reqef=ONE, primef=ARBITRARY)
     assert isinstance(prepl, ConstantBitarray)
     assert prepl == ConstantBitarray(False, 1)
     assert bitarray(prepr) == bitarray('01000')
@@ -363,9 +366,9 @@ def test_composite_split_prepare_clip_edge_preserve():
 def test_composite_split_prepare_clip_edge_no_preserve():
     ab = PreferFalseBitarray(2) + (ConstantBitarray(True, 1)+PreferFalseBitarray(3))
     l,r = ab.split(1)
-    prepl = l.prepare(preserve_history=False)
-    prepr = r.prepare(preserve_history=False)
-    assert isinstance(prepl, NoCareBitarray)
+    prepl = l.prepare(reqef=ONE, primef=CONSTANT)
+    prepr = r.prepare(reqef=ONE, primef=CONSTANT)
+    assert isinstance(prepl, ConstantBitarray)
     assert len(prepl) == 1
     assert isinstance(prepr, ConstantBitarray)
     assert bitarray(prepr) == bitarray('11111')
@@ -376,9 +379,9 @@ def test_composite_split_prepare_clip_edge_no_preserve_and_preserve():
     #TODO Consider improving tis once split is full featured
     #Try adding a constant True to the left and watch the ? cange
     #based on the preserve_history value.
-    prepl = l.prepare(preserve_history=False)
-    prepr = r.prepare(preserve_history=True)
-    assert isinstance(prepl, NoCareBitarray)
+    prepl = l.prepare(reqef=ONE, primef=CONSTANT)
+    prepr = r.prepare(reqef=ONE, primef=ARBITRARY)
+    assert isinstance(prepl, ConstantBitarray)
     assert len(prepl) == 1
     assert bitarray(prepr) == bitarray('01000')
 
@@ -387,8 +390,8 @@ def test_composite_split_prepare_clip_edge_no_preserve_and_preserve():
     #TODO Consider improving tis once split is full featured
     #Try adding a constant True to the left and watch the ? cange
     #based on the preserve_history value.
-    prepl = l.prepare(preserve_history=True)
-    prepr = r.prepare(preserve_history=False)
+    prepl = l.prepare(reqef=ONE, primef=ARBITRARY)
+    prepr = r.prepare(reqef=ONE, primef=CONSTANT)
     assert isinstance(prepl, ConstantBitarray)
     assert prepl == ConstantBitarray(False, 1)
     assert bitarray(prepr) == bitarray('11111')
@@ -397,21 +400,21 @@ def test_composite_split_prepare_no_clip():
     #At the time of writing, bitarays will never be clipped.
     #This test is mostly just checking that things do not break
     #with bitarrays.
-    ab = CompositeBitarray(bitarray('1001')) + \
+    ab = CompositeBitarray(bitarray('0111')) + \
          (ConstantBitarray(True, 1)+PreferFalseBitarray(3))
     l, r = ab.split(1)
-    prepl = l.prepare(preserve_history=False)
-    prepr = r.prepare(preserve_history=False)
-    assert bitarray(prepl) == bitarray('1')
-    assert bitarray(prepr) == bitarray('0011111')
+    prepl = l.prepare(reqef=ZERO, primef=CONSTANT)
+    prepr = r.prepare(reqef=ONE, primef=CONSTANT)
+    assert bitarray(prepl) == bitarray('0')
+    assert bitarray(prepr) == bitarray('1111111')
 
-    ab = CompositeBitarray(bitarray('1001')) + \
+    ab = CompositeBitarray(bitarray('0111')) + \
          (ConstantBitarray(True, 1)+PreferFalseBitarray(3))
     l, r = ab.split(1)
-    prepl = l.prepare(preserve_history=True)
-    prepr = r.prepare(preserve_history=True)
-    assert bitarray(prepl) == bitarray('1')
-    assert bitarray(prepr) == bitarray('0011000')
+    prepl = l.prepare(reqef=ZERO, primef=ARBITRARY)
+    prepr = r.prepare(reqef=ONE, primef=ARBITRARY)
+    assert bitarray(prepl) == bitarray('0')
+    assert bitarray(prepr) == bitarray('1111000')
 
 
 def test_composite_general_preferfalse():
@@ -423,10 +426,11 @@ def test_composite_general_preferfalse():
     assert len(comp) == 13
     assert comp.__repr__() == "<CMP: TTTT!!!!!1001 (13)>"
 
-    assert comp.prepare() == bitarray('1111111111001')
+    with pytest.raises(Exception):
+        comp.prepare(reqef=ONE, primef=ARBITRARY)
 
     comp = c1 + c2 + c3
-    assert comp.prepare(preserve_history=True) == \
+    assert comp.prepare(reqef=ARBITRARY, primef=ARBITRARY) == \
         bitarray('1111000001001')
 
 def test_composite_invalid_add():
@@ -445,7 +449,7 @@ def test_composite_composite_add():
     comp2 = CompositeBitarray(c2)
 
     comp3 = comp + comp2
-    assert comp3.prepare() == bitarray('11111111111')
+    assert comp3.prepare(reqef=ONE, primef=ONE) == bitarray('11111111111')
     #PRESERVE
     c1 = PreferFalseBitarray(7)
     comp = CompositeBitarray(c1)
@@ -454,7 +458,7 @@ def test_composite_composite_add():
     comp2 = CompositeBitarray(c2)
 
     comp3 = comp + comp2
-    assert comp3.prepare(preserve_history=True) == bitarray('00000001111')
+    assert comp3.prepare(reqef=ONE, primef=ARBITRARY) == bitarray('00000001111')
 
 def test_composite_any_all_count():
     c1 = NoCareBitarray(7)

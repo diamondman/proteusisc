@@ -8,6 +8,7 @@ from proteusisc.bittypes import ConstantBitarray, bitarray
 from proteusisc.drivers.digilentdriver import DigilentWriteTMSPrimitive,\
     DigilentWriteTDIPrimitive, DigilentWriteTMSTDIPrimitive,\
     DigilentReadTDOPrimitive, DigilentClockTickPrimitive
+from proteusisc.contracts import ARBITRARY, CONSTANT, NOCARE, ZERO, ONE
 from proteusisc.promise import TDOPromise
 
 def test_jtag_onoff():
@@ -165,7 +166,8 @@ def test_write_tms_bits_primitive():
 
     #RESET TAP AND TRANS TO SHIFTDR
     prim = DigilentWriteTMSPrimitive(tms=bitarray('001011111'),
-                                     reqef=(), _chain=None)
+                                     reqef=(ARBITRARY, NOCARE, NOCARE),
+                                     _chain=None)
     c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
 
@@ -174,7 +176,7 @@ def test_write_tms_bits_primitive():
     prim = DigilentWriteTMSPrimitive(tms=ConstantBitarray(False,32),
                                      tdo=ConstantBitarray(True,32),
                                      _chain=None, _promise=promise,
-                                     reqef=())
+                                     reqef=(ARBITRARY, NOCARE, ONE))
     c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
     assert promise() == d0._idcode
@@ -191,7 +193,8 @@ def test_write_tdi_bits_primitive():
         prim = DigilentWriteTDIPrimitive(
             tdi=ConstantBitarray(False, 1),
             tms=ConstantBitarray(bit, 1),
-            reqef=(), _chain=None
+            reqef=(ONE if bit else ZERO, ZERO, NOCARE ),
+            _chain=None
         )
         c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
@@ -203,7 +206,7 @@ def test_write_tdi_bits_primitive():
         tdi=ConstantBitarray(False,32),
         tdo=ConstantBitarray(True,32),
         _chain=None, _promise=promise,
-        reqef=()
+        reqef=(ZERO, ZERO, ONE)
     )
     c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
@@ -220,7 +223,7 @@ def test_write_tms_tdi_bits_primitive():
     prim = DigilentWriteTMSTDIPrimitive(
         tms=bitarray('001011111'),
         tdi=ConstantBitarray(False, 9),
-        reqef=(), _chain=None
+        reqef=(ARBITRARY, ZERO, NOCARE), _chain=None
     )
     c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
@@ -232,7 +235,7 @@ def test_write_tms_tdi_bits_primitive():
         tms=ConstantBitarray(False,32),
         tdo=ConstantBitarray(True,32),
         _chain=None, _promise=promise,
-        reqef=())
+        reqef=(ZERO, ZERO, ONE))
     c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
     assert promise() == d0._idcode
@@ -248,7 +251,8 @@ def test_read_tdo_primitie():
     for bit in reversed(bitarray('001011111')):
         prim = DigilentReadTDOPrimitive(
             tdi=False, tms=bit,
-            reqef=(), _chain=None
+            reqef=(ONE if bit else ZERO, ZERO, NOCARE),
+            _chain=None
         )
         c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
@@ -258,7 +262,7 @@ def test_read_tdo_primitie():
     prim = DigilentReadTDOPrimitive(
         count=32, tdi=False, tms=False,
         _chain=None, _promise=promise,
-        reqef=())
+        reqef=(ZERO, ZERO, ONE))
     c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"
     assert promise() == d0._idcode
@@ -274,7 +278,8 @@ def test_clock_tick_primitive():
     for bit in reversed(bitarray('001011111')):
         prim = DigilentClockTickPrimitive(
             tdi=False, tms=bit,
-            reqef=(), _chain=None
+            reqef=(ONE if bit else ZERO, ZERO, NOCARE),
+            _chain=None
         )
         c._execute_primitives([prim])
     assert d0.tapstate == "SHIFTDR"

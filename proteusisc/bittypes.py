@@ -769,6 +769,7 @@ class CompositeBitarray(collections.Sequence):
 
                 elif isinstance(self._llhead.value, bitarray):
                     if testBitarrayFalse or testBitarrayTrue:
+                        oldnode = self._llhead
                         newval = oldnode.value[self._offset:
                                                self._offset+self._tailbitsused]
                         if testBitarrayFalse:
