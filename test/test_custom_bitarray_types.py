@@ -416,6 +416,42 @@ def test_composite_split_prepare_no_clip():
     assert bitarray(prepl) == bitarray('0')
     assert bitarray(prepr) == bitarray('1111000')
 
+def test_composite_arbitrary_split():
+    correct = bitarray('1100001')
+    for i in range(7+1):
+        ab = (ConstantBitarray(True, 2) + ConstantBitarray(False, 1)) +\
+             (PreferFalseBitarray(3) + ConstantBitarray(True, 1))
+        l, r = ab.split(i)
+        print(i, l, r)
+        assert bitarray(l) == correct[:i]
+        assert bitarray(r) == correct[i:]
+
+def test_composite_arbitrary_double_split():
+    details = lambda tmp: ("OFF", str(tmp._offset),
+                           "TAILOFF", str(tmp._tailoffset),
+                           "TAILUSED", str(tmp._tailbitsused),
+                           "TAILLEN", str(tmp._taillen), "LEN", str(len(tmp)),
+                           str([elem for elem in tmp._iter_components()]))
+
+    correct = bitarray('1100001')
+    print("CORRECT", correct.to01())
+    for i in range(1,6):
+        ab = (ConstantBitarray(True, 2) + ConstantBitarray(False, 1)) +\
+             (PreferFalseBitarray(3) + ConstantBitarray(True, 1))
+        l,r = ab.split(i)
+        cl, cr = correct[:i], correct[i:]
+        for j in range(1, 7-i):
+            r1, r2 = r.split(j)
+            cr1, cr2 = cr[:j], cr[j:]
+            print("CORRECT", cl.to01(), cr1.to01(), cr2.to01())
+            print(i, j,"(%s-%s)"%(l, r), "(%s-%s-%s)"%(l, r1, r2))
+            print("L ", " ".join(details(l)))
+            print("R ", " ".join(details(r)))
+            print("R1", " ".join(details(r1)))
+            print("R2", " ".join(details(r2)))
+            assert bitarray(l) == cl and bitarray(r1) == cr1 and\
+                bitarray(r2) == cr2
+            print()
 
 def test_composite_general_preferfalse():
     c1 = ConstantBitarray(True, 4)

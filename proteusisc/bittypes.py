@@ -457,9 +457,8 @@ class CompositeBitarray(collections.Sequence):
         Args:
             *components: Any number of bitarray instances to store in this composition.
         """
-        #TODO Check if this lookup structure causes slowdown.
-        if component1 is None and component2 is None:
-            raise ValueError("At least one component required")
+        #if component1 is None and component2 is None:
+        #    raise ValueError("At least one component required")
         if component1 is None and component2 is not None:
             component1 = component2
             component2 = None
@@ -507,13 +506,19 @@ class CompositeBitarray(collections.Sequence):
                     self._lltail = component2._lltail
                     self._tailbitsused = component2._tailbitsused
                     self._length = len(component1)+len(component2)
+                elif self._lltail.next is component2._llhead and\
+                         self._tailoffset == 0 and\
+                         component2._offset == 0:
+                    self._length += len(component2)
+                    self._lltail = component2._lltail
+                    self._tailbitsused = component2._tailbitsused
+                elif component2._llhead.prev is not None or\
+                     self._llhead is component2._lltail:
+                    #Will not catch everything. Good enough to
+                    #prevent most accidents. A 'perfect' version
+                    #would require walking the whole tree. No way.
+                    raise ProteusDataJoinError()
                 else:
-                    if component2._llhead.prev is not None or\
-                       self._llhead is component2._lltail:
-                        #Will not catch everything. Good enough to
-                        #prevent most accidents. A 'perfect' version
-                        #would require walking the whole tree. No way.
-                        raise ProteusDataJoinError()
                     self._length += len(component2)
                     self._lltail.next = component2._llhead
                     self._lltail = component2._lltail
@@ -699,17 +704,55 @@ class CompositeBitarray(collections.Sequence):
     def all(self):
         return all((elem.all() for elem in self._iter_components()))
 
-    def split(self, bitindex):
+    def split(self, bitindex, *, debug=False):
+        if bitindex < 0:
+            raise ValueError("bitindex must be larger or equal to 0.")
+        if bitindex > len(self):
+            raise ValueError("bitindex larger than the array's size.")
         if bitindex == 0:
             return None, self
         if bitindex == len(self):
             return self, None
-        if bitindex == 1:
-            return \
-                CompositeBitarray(
-                    self._llhead, _tailoffset=len(self._llhead.value)-1),\
-                CompositeBitarray(self, offset=1)
-        raise NotImplementedError()
+
+        bitoffset = 0
+        bitindexoffset =  bitindex + self._offset
+        print(" => ".join(str(elem) for elem in self._iter_components()))
+        for comp in self._llhead.iternexttill(self._lltail):
+            print(bitindexoffset,
+                  range(bitoffset+
+                        (self._offset if self._llhead is self._lltail
+                         else 0), bitoffset+len(comp.value)))
+            if bitindexoffset in range(
+                    bitoffset+(self._offset if self._llhead\
+                               is self._lltail else 0),
+                    bitoffset+len(comp.value)):
+                break
+            else:
+                bitoffset += len(comp.value)
+
+
+        if debug:
+            import ipdb
+            ipdb.set_trace()
+        elemindex = bitindexoffset-bitoffset
+        left = CompositeBitarray(self)
+        left._lltail = comp if elemindex else comp.prev
+        left._offset = self._offset
+        left._tailbitsused = \
+            (elemindex if elemindex else\
+             len(comp.prev.value))-\
+             (self._offset if left._lltail is left._llhead else 0)
+        left._length = bitindex
+
+
+        right = CompositeBitarray(self)
+        right._llhead = comp.next if elemindex == len(comp.value)\
+                        else comp
+        right._offset = 0 if elemindex == len(comp.value)\
+                        else elemindex
+        right._tailbitsused = self._tailbitsused
+        right._length = len(self)-bitindex
+        return left, right
 
     def prepare(self, *, primef, reqef):
         """Extract the composite array's data into a usable bitarray based on if NoCare bits should be rendered as True or False.
@@ -909,7 +952,8 @@ class CompositeBitarray(collections.Sequence):
 
     @property
     def _tailoffset(self):
-        return self._taillen-self._tailbitsused
+        return self._taillen-self._tailbitsused-\
+            (self._offset if self._llhead is self._lltail else 0)
 
     def tobytes(self):
         def bnext(iterator):
