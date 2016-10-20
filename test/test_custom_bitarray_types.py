@@ -426,7 +426,7 @@ def test_composite_arbitrary_split():
         assert bitarray(l) == correct[:i]
         assert bitarray(r) == correct[i:]
 
-def test_composite_arbitrary_double_split():
+def test_composite_arbitrary_double_split_left():
     details = lambda tmp: ("OFF", str(tmp._offset),
                            "TAILOFF", str(tmp._tailoffset),
                            "TAILUSED", str(tmp._tailbitsused),
@@ -451,6 +451,40 @@ def test_composite_arbitrary_double_split():
             print("R2", " ".join(details(r2)))
             assert bitarray(l) == cl and bitarray(r1) == cr1 and\
                 bitarray(r2) == cr2
+            print()
+
+def test_composite_arbitrary_double_split_right():
+    details = lambda tmp: ("OFF", str(tmp._offset),
+                           "TAILOFF", str(tmp._tailoffset),
+                           "TAILUSED", str(tmp._tailbitsused),
+                           "TAILLEN", str(tmp._taillen), "LEN", str(len(tmp)),
+                           str([elem for elem in tmp._iter_components()]))
+
+    correct = bitarray('1100001')
+    print("CORRECT", correct.to01())
+    for i in range(len(correct)-1, 1, -1):
+        for j in range(i-1, 0, -1):
+            ab = (ConstantBitarray(True, 2)+ConstantBitarray(False, 1))+\
+                 (PreferFalseBitarray(3)+ConstantBitarray(True, 1))
+            cl, cr = correct[:i], correct[i:]
+            cl1, cl2 = cl[:j], cl[j:]
+
+            l,r = ab.split(i)
+            l1, l2 = l.split(j)
+            #print(i, j, i+j)
+            print("CORRECT", i, j, "(%s-%s)"%(cl.to01(), cr.to01()),
+                  cl1.to01(), cl2.to01(), cr.to01())
+            if not (bitarray(l) == cl and bitarray(l1) == cl1 and\
+                bitarray(l2) == cl2):
+                print("L, R", l, r)
+                print("CL, CR", cl, cr)
+                print("(%s-%s)"%(l, r), "(%s-%s-%s)"%(l1, l2, r))
+                print("L1", " ".join(details(l1)))
+                print("L2", " ".join(details(l2)))
+                print("L ", " ".join(details(l)))
+                print("R ", " ".join(details(r)))
+                assert bitarray(l) == cl and bitarray(l1) == cl1 and\
+                    bitarray(l2) == cl2
             print()
 
 def test_composite_general_preferfalse():

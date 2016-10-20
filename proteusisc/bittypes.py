@@ -704,11 +704,12 @@ class CompositeBitarray(collections.Sequence):
     def all(self):
         return all((elem.all() for elem in self._iter_components()))
 
-    def split(self, bitindex, *, debug=False):
+    def split(self, bitindex):
         if bitindex < 0:
             raise ValueError("bitindex must be larger or equal to 0.")
         if bitindex > len(self):
-            raise ValueError("bitindex larger than the array's size.")
+            raise ValueError("bitindex larger than the array's size. "
+                             "Len: %s; bitindex: %s"%(len(self), bitindex))
         if bitindex == 0:
             return None, self
         if bitindex == len(self):
@@ -716,32 +717,21 @@ class CompositeBitarray(collections.Sequence):
 
         bitoffset = 0
         bitindexoffset =  bitindex + self._offset
-        print(" => ".join(str(elem) for elem in self._iter_components()))
         for comp in self._llhead.iternexttill(self._lltail):
-            print(bitindexoffset,
-                  range(bitoffset+
-                        (self._offset if self._llhead is self._lltail
-                         else 0), bitoffset+len(comp.value)))
             if bitindexoffset in range(
-                    bitoffset+(self._offset if self._llhead\
-                               is self._lltail else 0),
+                    bitoffset+(self._offset if self._is_single_llnode else 0),
                     bitoffset+len(comp.value)):
                 break
             else:
                 bitoffset += len(comp.value)
 
-
-        if debug:
-            import ipdb
-            ipdb.set_trace()
         elemindex = bitindexoffset-bitoffset
         left = CompositeBitarray(self)
         left._lltail = comp if elemindex else comp.prev
         left._offset = self._offset
         left._tailbitsused = \
-            (elemindex if elemindex else\
-             len(comp.prev.value))-\
-             (self._offset if left._lltail is left._llhead else 0)
+            (elemindex or len(comp.prev.value))-\
+             (self._offset if left._is_single_llnode else 0)
         left._length = bitindex
 
 
@@ -750,7 +740,9 @@ class CompositeBitarray(collections.Sequence):
                         else comp
         right._offset = 0 if elemindex == len(comp.value)\
                         else elemindex
-        right._tailbitsused = self._tailbitsused
+        right._tailbitsused = self._tailbitsused-\
+                              (right._offset if right._is_single_llnode else 0)
+
         right._length = len(self)-bitindex
         return left, right
 
@@ -794,7 +786,7 @@ class CompositeBitarray(collections.Sequence):
         #import ipdb
         #ipdb.set_trace()
         if self._offset or self._tailoffset:
-            if self._lltail is self._llhead:
+            if self._is_single_llnode:
                 if isinstance(self._llhead.value, (ConstantBitarray,
                                              NoCareBitarray,
                                              PreferFalseBitarray)):
@@ -921,7 +913,7 @@ class CompositeBitarray(collections.Sequence):
 
 
 
-        if self._lltail is not self._llhead and\
+        if not self._is_single_llnode and\
            (self._lltail.next is not self._llhead or\
             (self._offset == 0 and self._tailbitsused == self._taillen)
             ):
@@ -938,7 +930,7 @@ class CompositeBitarray(collections.Sequence):
         #                                              bitarray)
         #              else "_"), len(elem.value))
         #       for elem in self._llhead.iternexttill(self._lltail)]))
-        if self._lltail is self._llhead and self._offset == 0 and\
+        if self._is_single_llnode and self._offset == 0 and\
            self._tailbitsused == self._taillen:
             if isinstance(self._llhead.value, (NoCareBitarray,
                                                PreferFalseBitarray)):
@@ -953,7 +945,11 @@ class CompositeBitarray(collections.Sequence):
     @property
     def _tailoffset(self):
         return self._taillen-self._tailbitsused-\
-            (self._offset if self._llhead is self._lltail else 0)
+            (self._offset if self._is_single_llnode else 0)
+
+    @property
+    def _is_single_llnode(self):
+        return self._lltail is self._llhead
 
     def tobytes(self):
         def bnext(iterator):
