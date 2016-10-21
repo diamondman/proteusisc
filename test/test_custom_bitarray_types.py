@@ -6,6 +6,13 @@ from proteusisc.bittypes import CompositeBitarray, ConstantBitarray,\
 from proteusisc import errors
 from proteusisc.contracts import ARBITRARY, CONSTANT, ZERO, ONE
 
+details = lambda tmp: ("OFF", str(tmp._offset),
+                       "TAILOFF", str(tmp._tailoffset),
+                       "TAILUSED", str(tmp._tailbitsused),
+                       "TAILLEN", str(tmp._taillen), "LEN", str(len(tmp)),
+                       str([elem for elem in tmp._iter_components()]),
+                       repr(tmp))
+
 def test_nocare():
     bits = NoCareBitarray(7)
     assert len(list(bits)) == 7
@@ -454,12 +461,6 @@ def test_composite_arbitrary_double_split_left():
             print()
 
 def test_composite_arbitrary_double_split_right():
-    details = lambda tmp: ("OFF", str(tmp._offset),
-                           "TAILOFF", str(tmp._tailoffset),
-                           "TAILUSED", str(tmp._tailbitsused),
-                           "TAILLEN", str(tmp._taillen), "LEN", str(len(tmp)),
-                           str([elem for elem in tmp._iter_components()]))
-
     correct = bitarray('1100001')
     print("CORRECT", correct.to01())
     for i in range(len(correct)-1, 1, -1):
@@ -472,20 +473,144 @@ def test_composite_arbitrary_double_split_right():
             l,r = ab.split(i)
             l1, l2 = l.split(j)
             #print(i, j, i+j)
-            print("CORRECT", i, j, "(%s-%s)"%(cl.to01(), cr.to01()),
-                  cl1.to01(), cl2.to01(), cr.to01())
-            if not (bitarray(l) == cl and bitarray(l1) == cl1 and\
-                bitarray(l2) == cl2):
-                print("L, R", l, r)
-                print("CL, CR", cl, cr)
-                print("(%s-%s)"%(l, r), "(%s-%s-%s)"%(l1, l2, r))
-                print("L1", " ".join(details(l1)))
-                print("L2", " ".join(details(l2)))
-                print("L ", " ".join(details(l)))
-                print("R ", " ".join(details(r)))
-                assert bitarray(l) == cl and bitarray(l1) == cl1 and\
-                    bitarray(l2) == cl2
+            #print("CORRECT", i, j, "(%s-%s)"%(cl.to01(), cr.to01()),
+            #      cl1.to01(), cl2.to01(), cr.to01())
+            #if not (bitarray(l) == cl and bitarray(l1) == cl1 and\
+            #    bitarray(l2) == cl2):
+            #    print("L, R", l, r)
+            #    print("CL, CR", cl, cr)
+            #    print("(%s-%s)"%(l, r), "(%s-%s-%s)"%(l1, l2, r))
+            #    print("L1", " ".join(details(l1)))
+            #    print("L2", " ".join(details(l2)))
+            #    print("L ", " ".join(details(l)))
+            #    print("R ", " ".join(details(r)))
+            assert bitarray(l) == cl and bitarray(l1) == cl1 and\
+                bitarray(l2) == cl2
             print()
+
+def test_composite_arbitrary_split_l_r_rejoin_l_r():
+    correct = bitarray('1100001')
+    for i in range(1, len(correct)-1):
+        ab = (ConstantBitarray(True, 2) + ConstantBitarray(False, 1)) +\
+             (PreferFalseBitarray(3) + ConstantBitarray(True, 1))
+        l, r = ab.split(i)
+        print(i, l, r)
+        print(details(l))
+        print(details(r))
+        assert bitarray(l+r) == correct
+
+        ab = (ConstantBitarray(True, 2) + ConstantBitarray(False, 1)) +\
+             (PreferFalseBitarray(3) + ConstantBitarray(True, 1))
+        l, r = ab.split(i)
+        with pytest.raises(Exception):
+            assert bitarray(r+l) == correct[i:]
+
+def test_composite_arbitrary_split_split_l_r1_r2_rejoin_l_r1_then_r2():
+    correct = bitarray('1100001')
+    print("CORRECT", correct.to01())
+    for i in range(1,len(correct)-1):
+        ab = (ConstantBitarray(True, 2) + ConstantBitarray(False, 1)) +\
+             (PreferFalseBitarray(3) + ConstantBitarray(True, 1))
+        l,r = ab.split(i)
+        cl, cr = correct[:i], correct[i:]
+        for j in range(1, len(correct)-i):
+            r1, r2 = r.split(j)
+            cr1, cr2 = cr[:j], cr[j:]
+            comb1 = l+r1
+            crcomb1 = cl+cr1
+            print("CORRECT", i, j, "LR(%s-%s)"%(cl.to01(), cr.to01()),
+                  "LR12(%s-%s-%s)"%(cl.to01(), cr1.to01(), cr2.to01()),
+                  "CR2(%s-%s)"%(crcomb1.to01(), cr2.to01()))
+            print(" "*12+"LR(%s-%s)"%(l, r), "LR12(%s-%s-%s)"%(l, r1, r2),
+                  "CR2(%s-%s)"%(comb1, r2))
+            print("L ", " ".join(details(l)))
+            print("R ", " ".join(details(r)))
+            print("R1", " ".join(details(r1)))
+            print("R2", " ".join(details(r2)))
+            print("CB", " ".join(details(comb1)))
+
+            assert bitarray(comb1) == crcomb1
+            assert bitarray(comb1+r2) == correct
+
+def test_composite_arbitrary_split_split_l_r1_r2_rejoin_r1_r2_then_l():
+    correct = bitarray('1100001')
+    print("CORRECT", correct.to01())
+    for i in range(1,len(correct)-1):
+        ab = (ConstantBitarray(True, 2) + ConstantBitarray(False, 1)) +\
+             (PreferFalseBitarray(3) + ConstantBitarray(True, 1))
+        l,r = ab.split(i)
+        cl, cr = correct[:i], correct[i:]
+        for j in range(1, len(correct)-i):
+            print(i, j)
+            r1, r2 = r.split(j)
+            cr1, cr2 = cr[:j], cr[j:]
+            comb1 = r1+r2
+            crcomb1 = cr1+cr2
+            print("CORRECT", i, j, "LR(%s-%s)"%(cl.to01(), cr.to01()),
+                  "LR12(%s-%s-%s)"%(cl.to01(), cr1.to01(), cr2.to01()),
+                  "CR2(%s-%s)"%(crcomb1.to01(), cr2.to01()))
+            print(" "*12+"LR(%s-%s)"%(l, r), "LR12(%s-%s-%s)"%(l, r1, r2),
+                  "CR2(%s-%s)"%(comb1, r2))
+            print("L ", " ".join(details(l)))
+            print("R ", " ".join(details(r)))
+            print("R1", " ".join(details(r1)))
+            print("R2", " ".join(details(r2)))
+            print("CB", " ".join(details(comb1)))
+
+            assert bitarray(comb1) == crcomb1
+            assert bitarray(l+comb1) == correct
+            print()
+
+def test_composite_arbitrary_split_split_l_r1_r2_rejoin_l_r1_then_r2():
+    correct = bitarray('1100001')
+    print("CORRECT", correct.to01())
+    for i in range(1,len(correct)-1):
+        ab = (ConstantBitarray(True, 2) + ConstantBitarray(False, 1)) +\
+             (PreferFalseBitarray(3) + ConstantBitarray(True, 1))
+        l,r = ab.split(i)
+        cl, cr = correct[:i], correct[i:]
+        for j in range(1, 7-i):
+            print(i, j)
+            r1, r2 = r.split(j)
+            cr1, cr2 = cr[:j], cr[j:]
+            comb1 = l+r1
+            crcomb1 = cl+cr1
+            assert bitarray(comb1) == crcomb1
+            assert bitarray(comb1+r2) == correct
+
+def test_composite_arbitrary_double_split_right_rejoin_l1_l2_then_r():
+    correct = bitarray('1100001')
+    print("CORRECT", correct.to01())
+    for i in range(len(correct)-1, 1, -1):
+        for j in range(i-1, 0, -1):
+            ab = (ConstantBitarray(True, 2)+ConstantBitarray(False, 1))+\
+                 (PreferFalseBitarray(3)+ConstantBitarray(True, 1))
+            cl, cr = correct[:i], correct[i:]
+            cl1, cl2 = cl[:j], cl[j:]
+
+            l,r = ab.split(i)
+            l1, l2 = l.split(j)
+            comb1 = l1+l2
+            crcomb1 = cl1+cl2
+            assert bitarray(comb1) == crcomb1
+            assert bitarray(comb1+r) == correct
+
+def test_composite_arbitrary_double_split_right_rejoin_l2_r_then_l1():
+    correct = bitarray('1100001')
+    print("CORRECT", correct.to01())
+    for i in range(len(correct)-1, 1, -1):
+        for j in range(i-1, 0, -1):
+            ab = (ConstantBitarray(True, 2)+ConstantBitarray(False, 1))+\
+                 (PreferFalseBitarray(3)+ConstantBitarray(True, 1))
+            cl, cr = correct[:i], correct[i:]
+            cl1, cl2 = cl[:j], cl[j:]
+            l,r = ab.split(i)
+            l1, l2 = l.split(j)
+            comb1 = l2+r
+            crcomb1 = cl2+cr
+            assert bitarray(comb1) == crcomb1
+            assert bitarray(l1+comb1) == correct
+
 
 def test_composite_general_preferfalse():
     c1 = ConstantBitarray(True, 4)

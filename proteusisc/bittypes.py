@@ -450,69 +450,56 @@ class CompositeBitarray(collections.Sequence):
 
     """
     #@profile
-    def __init__(self, component1=None, component2=None,
-                 *, offset=0, _tailoffset=0):
+    def __init__(self, component1=None, component2=None):
         """Create a bitarray object that stores its components by reference).
 
         Args:
             *components: Any number of bitarray instances to store in this composition.
         """
-        #if component1 is None and component2 is None:
-        #    raise ValueError("At least one component required")
         if component1 is None and component2 is not None:
             component1 = component2
             component2 = None
 
         self._llhead = None
         self._lltail = None
-        self._length = 0
-        self._offset = offset
+        #self._length = 0
+        #self._offset = 0
 
         if isinstance(component1, CompositeBitarray):
-            self._tailbitsused = len(component1._lltail.value)-_tailoffset
-            self._length += len(component1)-self._offset-\
-                            (len(component1._lltail.value)-\
-                             self._tailbitsused)
-            if self._offset == len(component1._llhead.value):
-                self._llhead = component1._llhead.next
-            else:
-                self._llhead = component1._llhead
+            self._llhead = component1._llhead
             self._lltail = component1._lltail
-            self._offset += component1._offset
-            #TODO Do something with the tailbitsused
-        elif isinstance(component1, _DLLNode):
-            self._tailbitsused = len(component1.value)-_tailoffset
-            self._llhead = component1
-            self._lltail = component1
-            self._length += self._tailbitsused
-            if self._offset + self._tailbitsused > len(component1.value):
-                raise Exception("Invalid offset and tailbitsused")
-            if component2 is not None:
-                raise Exception("A CompositeBitarray created with a "
-                                "_DLLNode can not currently have a "
-                                "2nd component")
+            self._offset = component1._offset
+            self._tailbitsused = component1._tailbitsused
+            self._length = len(component1)
         else:
-            self._tailbitsused = len(component1)-_tailoffset
-            self._length += self._tailbitsused
-            self._llhead = _DLLNode(component1)
-            self._lltail = self._llhead
+            self._llhead = self._lltail = _DLLNode(component1)
+            self._offset = 0
+            self._tailbitsused = len(component1)
+            self._length = self._tailbitsused
+
 
         if component2 is not None:
             oldtail = self._lltail
             if isinstance(component2, CompositeBitarray):
                 if self._lltail is component2._llhead:
-                    if  component1._tailbitsused != component2._offset:
+                    if self._tail_end != component2._offset:
                         raise ProteusDataJoinError()
+
+                    if component2._is_single_llnode:
+                        self._tailbitsused += component2._tailbitsused
+                    else:
+                        self._tailbitsused = component2._tailbitsused
                     self._lltail = component2._lltail
-                    self._tailbitsused = component2._tailbitsused
-                    self._length = len(component1)+len(component2)
+                    self._length += len(component2)
                 elif self._lltail.next is component2._llhead and\
                          self._tailoffset == 0 and\
                          component2._offset == 0:
-                    self._length += len(component2)
                     self._lltail = component2._lltail
                     self._tailbitsused = component2._tailbitsused
+                    self._length += len(component2)
                 elif component2._llhead.prev is not None or\
+                     self._lltail.next is not None or\
+                     component2._offset or self._tailoffset or\
                      self._llhead is component2._lltail:
                     #Will not catch everything. Good enough to
                     #prevent most accidents. A 'perfect' version
@@ -524,14 +511,14 @@ class CompositeBitarray(collections.Sequence):
                     self._lltail = component2._lltail
                     self._tailbitsused = component2._tailbitsused
             else:
-                if self._tailbitsused != self._taillen or\
-                   self._lltail.next is not None:
+                if self._tailoffset or self._lltail.next is not None:
                     raise ProteusDataJoinError()
                 self._tailbitsused = len(component2)
                 self._length += self._tailbitsused
                 node = _DLLNode(component2)
                 node.prev = self._lltail
                 self._lltail = node
+
 
             #WHEN IT IS OK TO MERGE
             #oldtail can merge right if (oldtail is not head or offset is 0) and (oldtail.next is not tail or tailbitsused is len of node) and data is combinable. Do it recursive?
@@ -719,7 +706,7 @@ class CompositeBitarray(collections.Sequence):
         bitindexoffset =  bitindex + self._offset
         for comp in self._llhead.iternexttill(self._lltail):
             if bitindexoffset in range(
-                    bitoffset+(self._offset if self._is_single_llnode else 0),
+                    bitoffset+self._tail_left_offset,
                     bitoffset+len(comp.value)):
                 break
             else:
@@ -730,8 +717,7 @@ class CompositeBitarray(collections.Sequence):
         left._lltail = comp if elemindex else comp.prev
         left._offset = self._offset
         left._tailbitsused = \
-            (elemindex or len(comp.prev.value))-\
-             (self._offset if left._is_single_llnode else 0)
+            (elemindex or len(comp.prev.value))-left._tail_left_offset
         left._length = bitindex
 
 
@@ -740,8 +726,7 @@ class CompositeBitarray(collections.Sequence):
                         else comp
         right._offset = 0 if elemindex == len(comp.value)\
                         else elemindex
-        right._tailbitsused = self._tailbitsused-\
-                              (right._offset if right._is_single_llnode else 0)
+        right._tailbitsused = self._tailbitsused-right._tail_left_offset
 
         right._length = len(self)-bitindex
         return left, right
@@ -943,9 +928,16 @@ class CompositeBitarray(collections.Sequence):
         return len(self._lltail.value)
 
     @property
+    def _tail_end(self):
+        return self._tail_left_offset + self._tailbitsused
+
+    @property
+    def _tail_left_offset(self):
+        return self._offset if self._is_single_llnode else 0
+
+    @property
     def _tailoffset(self):
-        return self._taillen-self._tailbitsused-\
-            (self._offset if self._is_single_llnode else 0)
+        return self._taillen-self._tailbitsused-self._tail_left_offset
 
     @property
     def _is_single_llnode(self):
