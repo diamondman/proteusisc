@@ -23,10 +23,15 @@ class RunInstruction(Level3Primitive, DeviceTarget):
         super(RunInstruction, self).__init__(*args, **kwargs)
         if (self.data or self.read) and not self.bitcount:
             desc = self.dev._desc
-            regname = desc._instruction_register_map[insname]
-            self.bitcount = desc._registers[regname]
+            regname = desc._instruction_register_map.get(insname)
+            self.bitcount = desc._registers.get(regname)
+            if self.bitcount is None:
+                print("Dealing with a Blackhole Register")
+                self.bitcount = len(self.data)
         if not self.data and self.bitcount:
             self.data = NoCareBitarray(self.bitcount)
+        if len(self.data) != self.bitcount:
+            raise ValueError("")
         self.read_status = read_status
         self.insname = insname
         self.execute = execute
@@ -55,7 +60,9 @@ class RunInstruction(Level3Primitive, DeviceTarget):
             seq.append(Frame(chain,
                          *(rw_dev_dr(dev=d, data=frame[i].data,
                                 _chain=chain, read=frame[i].read,
-                                regname=d._desc._instruction_register_map[frame[i].insname],
+                                regname=d._desc._instruction_register_map
+                                     .get(frame[i].insname),
+                                bitcount=frame[i].bitcount,
                                 _promise=frame[i].get_promise()[0],
                                 _synthetic=frame[i]._synthetic)
                           for i, d in enumerate(devs))))
@@ -138,7 +145,15 @@ class RWDevDR(Level2Primitive, DeviceTarget):
     #Complexities arise if people want to get a placeholder. Fix later.
     def __init__(self, *args, regname, **kwargs):
         super(RWDevDR, self).__init__(*args, **kwargs)
-        self.bitcount = self.dev._desc._registers[regname]
+        reglen = self.dev._desc._registers.get(regname)
+        if reglen is None:
+            print("Dealing with a Blackhole Register")
+            if not self.bitcount:
+                raise ValueError("Reading or Writing from/to a "
+                "blackhole register requires specifying a number of "
+                "bits to read/write since it can not be inferred.")
+        else:
+            self.bitcount = reglen
         if self.data and len(self.data) != self.bitcount:
             if len(self.data) > self.bitcount:
                 raise ValueError("TOO MUCH DATA for IR")

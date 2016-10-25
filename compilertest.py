@@ -2,33 +2,47 @@
 #Must be run from the project directory.
 
 import time
-from bitarray import bitarray
 from flask import Flask, escape, render_template
 
 from proteusisc.controllerManager import getDriverInstanceForDevice
 from proteusisc.jtagScanChain import JTAGScanChain
 from proteusisc.test_utils import FakeUSBDev, FakeDevHandle,\
     MockPhysicalJTAGDevice, FakeXPCU1Handle
-from proteusisc.primitive import ConstantBitarray
+from proteusisc.primitive import ConstantBitarray, bitarray
 
 #ctrl = FakeDevHandle(
-ctrl = FakeXPCU1Handle(
-    MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100')),
+#ctrl = FakeXPCU1Handle(
+#    MockPhysicalJTAGDevice(name="D0", status=bitarray('11111100')),
 #    MockPhysicalJTAGDevice(name="D1", status=bitarray('11111101')),
 #    MockPhysicalJTAGDevice(name="D2", status=bitarray('11111110'))
+#
+ctrl = FakeXPCU1Handle(
+    MockPhysicalJTAGDevice(
+        name="D0", status=bitarray('111100'),
+        idcode=bitarray('00000001110000101110000010010011')),
+    MockPhysicalJTAGDevice(
+        name="D1", status=bitarray('111101'),
+        idcode=bitarray('00000001110000101110000010010011')),
+    MockPhysicalJTAGDevice(
+        name="D2", status=bitarray('111110'),
+        idcode=bitarray('00000001110000101110000010010011')),
 )
 usbdev = FakeUSBDev(ctrl)
 c = getDriverInstanceForDevice(usbdev)
 print(c)
-chain = JTAGScanChain(c)
+chain = JTAGScanChain(c, collect_compiler_artifacts=True)
 
-devid = bitarray('11110110110101001100000010010011')
+#devid = bitarray('11110110110101001100000010010011')
+devid = bitarray('00000001110000101110000010010011')
 d0 = chain.initialize_device_from_id(chain, devid)
-#d1 = chain.initialize_device_from_id(chain, devid)
-#d2 = chain.initialize_device_from_id(chain, devid)
+d1 = chain.initialize_device_from_id(chain, devid)
+d2 = chain.initialize_device_from_id(chain, devid)
 #d3 = chain.initialize_device_from_id(chain, devid)
 chain._hasinit = True
-chain._devices = [d0]#, d1, d2]#, d3]
+chain._devices = [d0, d1, d2]#, d3]
+
+#import ipdb
+#ipdb.set_trace()
 
 app = Flask(__name__)
 
@@ -47,23 +61,18 @@ if __name__ == "__main__":
         #chain.init_chain()
         #d0, d1, d2 = chain._devices
         chain.jtag_enable()
-        #a, a_stat = d0.run_instruction("IDCODE", read=True)
-        #assert a() == bitarray('00000110110101001000000010010011')
-        #assert a_stat is None
+        #chain.transition_tap("SHIFTIR")
 
-        b, b_stat = d0.run_instruction("IDCODE", read_status=True)
-        assert b is None
-        assert b_stat() == bitarray('11111100')
-
-        c, c_stat = d0.run_instruction("IDCODE", read=True, read_status=True)
-        assert c() == bitarray('00000110110101001000000010010011')
-        assert c_stat() == bitarray('11111100')
-
+        a, a_stat = d0.run_instruction("CFG_IN",
+                                       data=bitarray('11010001'))
+        b, b_stat = d1.run_instruction("CFG_IN",
+                                       data=bitarray('01101010111'))
+        c, c_stat = d2.run_instruction("CFG_IN",
+                                       data=bitarray('11110'))
 
         t = time.time()
         if not any((a, b, c)) and len(chain._command_queue.queue):
             print("NO PROMISES")
-            raise Exception()
             chain.flush()
         if a:
             print("A     ", a(), a)
