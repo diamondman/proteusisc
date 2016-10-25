@@ -113,7 +113,7 @@ class XilinxPC1Driver(CableDriver):
 
         t = time()
         #Returns int(math.ceil(count/4.0))*2) bytes
-        outdata = _xpcu1utils.test(count, itms, itdi, itdo)
+        outdata = _xpcu1utils.calc_xfer_payload(count, itms, itdi, itdo)
         print("XPCU1 byte blocks C Prepare Time:", time()-t)
 
         #print("LENGTH OF OUTDATA", len(outdata))

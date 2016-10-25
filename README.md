@@ -24,11 +24,11 @@ For additional information on setting up supported jtag controllers, check the d
 
 ## Installation / Setup from source
 
-   pip3 install .
+    pip3 install .
 
 ## Installation / Setup from pypi
 
-   pip3 install proteusisc
+    pip3 install proteusisc
 
 ## Testing
 

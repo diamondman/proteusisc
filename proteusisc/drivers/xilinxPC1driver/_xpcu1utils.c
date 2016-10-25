@@ -6,7 +6,7 @@
 #include <string.h>
 
 static PyObject *
-xpcu_test(PyObject *self, PyObject *args){
+xpcu_calc_xfer_payload(PyObject *self, PyObject *args){
   int count;
   PyObject *itmsbytes;
   PyObject *itdibytes;
@@ -77,8 +77,8 @@ xpcu_test(PyObject *self, PyObject *args){
 }
 
 static PyMethodDef XpcuMethods[] = {
-      {"test",  xpcu_test, METH_VARARGS,
-       "Checking returning data"},
+      {"calc_xfer_payload",  xpcu_calc_xfer_payload, METH_VARARGS,
+       "Calculates a bytestream from 3 byte iters to send to the XPCU1."},
       {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
