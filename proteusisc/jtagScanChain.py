@@ -133,6 +133,7 @@ class JTAGScanChain(object):
             def adder(*args, **kwargs):
                 return self.queue_command(cls_(_chain=self, *args,
                                                **kwargs))
+            adder.__doc__ = cls_.__init__.__doc__
             setattr(self, cls_._function_name, adder)
             return True
         return False

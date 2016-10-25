@@ -7,9 +7,9 @@ class JTAGDeviceBase(object):
     def gen_prim_adder(self, cls_):
         if not hasattr(self, cls_._function_name):
             def adder(*args, **kwargs):
-                return self._chain.queue_command(cls_(dev=self,
-                                                      _chain=self._chain,
-                                                      *args, **kwargs))
+                return self._chain.queue_command(
+                    cls_(dev=self, _chain=self._chain, *args, **kwargs))
+            adder.__doc__ = cls_.__init__.__doc__
             setattr(self, cls_._function_name, adder)
             return True
         return False
