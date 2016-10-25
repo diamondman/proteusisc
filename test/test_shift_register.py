@@ -6,11 +6,11 @@ from proteusisc.test_utils import ShiftRegister
 
 def test_initialization():
     reg = ShiftRegister(8)
-    assert reg.size == 8, "Size not set correctly"
+    assert len(reg) == 8, "Size not set correctly"
     assert len(reg.dumpData()) == 8, "Data not correct length"
 
     reg = ShiftRegister(17)
-    assert reg.size == 17, "Size not set correctly"
+    assert len(reg) == 17, "Size not set correctly"
     assert len(reg.dumpData()) == 17, "Data not correct length"
 
     reg = ShiftRegister(8, initval=False)
@@ -33,7 +33,7 @@ def test_initialization():
 def test_clear():
     reg = ShiftRegister(8, initval=True)
     reg.clear()
-    assert reg.size == 8, "Size cleared!"
+    assert len(reg) == 8, "Size cleared!"
     assert reg.dumpData() == bitarray('00000000'),\
         "Data not cleared"
 

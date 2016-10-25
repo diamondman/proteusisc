@@ -40,7 +40,7 @@ def test_shift():
         dev.shift(tms, False)
     assert dev.tapstate == "SHIFTIR",\
         "Device TAP did not respond correctly to tms bits"
-    real_status = dev.calc_status_register().dumpData()
+    real_status = dev.calc_status_register_val()
     for i in range(dev.irlen-1):
         read_status.append(dev.shift(False, True))
     read_status.append(dev.shift(True, True))
@@ -107,3 +107,24 @@ def test_captureDR_loads_reg():
     for tms in reversed(bitarray('10000000000000000000000000000000')):
         read_idcode.append(dev.shift(tms, False))
     assert read_idcode[::-1] == real_idcode
+
+def test_black_hole_register():
+    d0 = MockPhysicalJTAGDevice(
+        idcode=bitarray('00000001110000101110000010010011'),
+        status=bitarray('111110'))
+    tms = bitarray('11000000000111000000011011111')[::-1]
+    tdi = bitarray('10110100100000001010000000000')[::-1]
+    for i in range(len(tms)):
+        d0.shift(tms[i], tdi[i])
+    assert "UPDATEDR" in d0.event_history
+    assert "01101001" in d0.event_history
+
+    d0 = MockPhysicalJTAGDevice(
+        idcode=bitarray('00000001110000101110000010010011'),
+        status=bitarray('111110'))
+    tms = bitarray('1100000000000111000000011011111')[::-1]
+    tdi = bitarray('1011000100100000001010000000000')[::-1]
+    for i in range(len(tms)):
+        d0.shift(tms[i], tdi[i])
+    assert "UPDATEDR" in d0.event_history
+    assert "0110001001" in d0.event_history
