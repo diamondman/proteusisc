@@ -176,8 +176,7 @@ class DigilentAdeptController(CableDriver):
 
         """
         t = time()
-        code, res = self.bulkCommand(b'\x03\x02%c\x00'%(0x80|cmd),\
-                                     10 if return_tdo else 6)
+        code, res = self.bulkCommand(b'\x03\x02%c\x00'%(0x80|cmd), 10)
         print("GET STATS TIME", time()-t)
         if len(res) == 4:
             count = struct.unpack('<I', res)[0]
@@ -187,7 +186,6 @@ class DigilentAdeptController(CableDriver):
             #    print("WRITTEN", count)
             return count
         elif len(res) == 8:
-            assert len(res)==8,"WTF it is %s"%len(res)
             written, read =  struct.unpack('<II', res)
             #print("WRITTEN", written)
             #print("READ", read)
