@@ -17,7 +17,7 @@ class Frame(collections.MutableSequence):
     def add(self, *args: Primitive):
         for prim in args:
             if prim is None:
-                raise ValueError("None is not a valid prom. "
+                raise ValueError("None is not a valid prim. "
                                  "Maybe you called add(*frame) "
                                  "for a frame that has non device "
                                  "specific prims.")#pragma: no cover
@@ -146,7 +146,8 @@ class FrameSequence(collections.MutableSequence):
                    for i in range(len(self)+1)]
         for i, f in enumerate(self):
             for j, p in enumerate(prims):
-                if f.signature() == p.signature():
+                if f.signature() == p.signature() and\
+                   p.can_join_frame(f):
                     lengths[i+1][j+1] = lengths[i][j] + 1
                 else:
                     lengths[i+1][j+1] = max(lengths[i+1][j],
@@ -162,21 +163,26 @@ class FrameSequence(collections.MutableSequence):
                 result = [self[x-1].signature()] + result
                 x -= 1
                 y -= 1
+
         return result
 
     def addstream(self, prims):
         i1, i2, selfoffset = 0, 0, 0
         for c in self._lcs(prims):
             while True:
+                print(i1, i2)
+                canjoin = prims[i2].can_join_frame(self[i1])
                 if self[i1].signature() ==\
-                   prims[i2].signature() == c:
+                   prims[i2].signature() == c and\
+                   canjoin:
                     self._frames[i1].add(prims[i2])
                     i1 += 1
                     i2 += 1
                     break
-                elif self[i1].signature() == c: #s2 does not match.
+                elif self[i1].signature() == c and canjoin:
+                    #s2 does not match.
                     self.insert(i1+selfoffset,
-                                Frame.from_prim(self._chain,prims[i2]))
+                                Frame(self._chain,prims[i2]))
                     i2 += 1
                     selfoffset += 1
                 elif (type(prims[i2]),prims[i2]._group_type) == c:
@@ -185,12 +191,12 @@ class FrameSequence(collections.MutableSequence):
                 else: #NEITHER IN SEQUENCE
                     i1 += 1
                     self.insert(i1+selfoffset,
-                                Frame.from_prim(self._chain,prims[i2]))
+                                Frame(self._chain,prims[i2]))
                     i2 += 1
                     selfoffset += 1
 
         for p in prims[i2:]:
-            self.append(Frame.from_prim(self._chain, p))
+            self.append(Frame(self._chain, p))
 
         return self
 

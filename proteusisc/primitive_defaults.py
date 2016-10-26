@@ -1,3 +1,4 @@
+from itertools import islice
 import time
 
 from .frame import Frame, FrameSequence
@@ -21,16 +22,18 @@ class RunInstruction(Level3Primitive, DeviceTarget):
     def __init__(self, insname, *args, execute=True, read_status=False,
                  loop=0, delay=0, **kwargs):
         super(RunInstruction, self).__init__(*args, **kwargs)
+        self.isBH = False
         if (self.data or self.read) and not self.bitcount:
             desc = self.dev._desc
             regname = desc._instruction_register_map.get(insname)
             self.bitcount = desc._registers.get(regname)
             if self.bitcount is None:
                 print("Dealing with a Blackhole Register")
+                self.isBH = True
                 self.bitcount = len(self.data)
         if not self.data and self.bitcount:
             self.data = NoCareBitarray(self.bitcount)
-        if len(self.data) != self.bitcount:
+        if self.data is not None and len(self.data) != self.bitcount:
             raise ValueError("")
         self.read_status = read_status
         self.insname = insname
@@ -107,6 +110,34 @@ class RunInstruction(Level3Primitive, DeviceTarget):
         assert self._group_type == tmp._group_type
         return tmp
 
+    def can_join_frame(self, f):
+        #Assumes frames are filled in by device index. Otherwise breaks...
+        #Will only be compared if signature (class, group) match.
+        #Our concern is with data read/write only.
+        #False if write and earlier device isBH
+        #False if read and later device isBH
+        #False if isBH and earlier device is read
+        #False if isBH and later device is write
+        #Otherwise True
+        haswrite = self.data is not None and \
+                   not isinstance(self.data, NoCareBitarray)
+        hasread = self.read
+        isBH = self.isBH
+        for prim in islice(f, 0, self._device_index):
+            if prim is not None:
+                if (haswrite and prim.isBH) or\
+                   (self.isBH and prim.read):
+                    return False
+        for prim in islice(f, self._device_index+1, len(f)):
+            if prim is not None:
+                otherhaswrite = prim.data is not None and \
+                   not isinstance(prim.data, NoCareBitarray)
+                if (hasread and prim.isBH) or\
+                   (self.isBH and otherhaswrite):
+                    return False
+
+        return True
+
     def merge(self, target):
         return None
 
@@ -148,12 +179,14 @@ class RWDevDR(Level2Primitive, DeviceTarget):
         reglen = self.dev._desc._registers.get(regname)
         if reglen is None:
             print("Dealing with a Blackhole Register")
+            self.isBH = True
             if not self.bitcount:
                 raise ValueError("Reading or Writing from/to a "
                 "blackhole register requires specifying a number of "
                 "bits to read/write since it can not be inferred.")
         else:
             self.bitcount = reglen
+            self.isBH = False
         if self.data and len(self.data) != self.bitcount:
             if len(self.data) > self.bitcount:
                 raise ValueError("TOO MUCH DATA for IR")

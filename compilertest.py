@@ -8,7 +8,7 @@ from proteusisc.controllerManager import getDriverInstanceForDevice
 from proteusisc.jtagScanChain import JTAGScanChain
 from proteusisc.test_utils import FakeUSBDev, FakeDevHandle,\
     MockPhysicalJTAGDevice, FakeXPCU1Handle
-from proteusisc.primitive import ConstantBitarray, bitarray
+from proteusisc import ConstantBitarray, NoCareBitarray, bitarray
 
 #ctrl = FakeDevHandle(
 #ctrl = FakeXPCU1Handle(
@@ -16,7 +16,8 @@ from proteusisc.primitive import ConstantBitarray, bitarray
 #    MockPhysicalJTAGDevice(name="D1", status=bitarray('11111101')),
 #    MockPhysicalJTAGDevice(name="D2", status=bitarray('11111110'))
 #
-ctrl = FakeXPCU1Handle(
+#ctrl = FakeXPCU1Handle(
+ctrl = FakeDevHandle(
     MockPhysicalJTAGDevice(
         name="D0", status=bitarray('111100'),
         idcode=bitarray('00000001110000101110000010010011')),
@@ -63,12 +64,20 @@ if __name__ == "__main__":
         chain.jtag_enable()
         #chain.transition_tap("SHIFTIR")
 
-        a, a_stat = d0.run_instruction("CFG_IN",
+
+        #d0.run_instruction("CFG_IN", data=bitarray('11010001'))
+        #d1.run_instruction("CFG_IN", data=bitarray('01101010111'))
+        #d2.run_instruction("CFG_IN",data=bitarray('11110'))
+
+        c, c_stat = d0.run_instruction("CFG_IN",
                                        data=bitarray('11010001'))
-        b, b_stat = d1.run_instruction("CFG_IN",
-                                       data=bitarray('01101010111'))
-        c, c_stat = d2.run_instruction("CFG_IN",
-                                       data=bitarray('11110'))
+        #b, b_stat = d1.run_instruction("CFG_IN",
+        #                               data=bitarray('01101010111'))
+        b, b_stat = d1.run_instruction("BYPASS", data=NoCareBitarray(1))
+                                       #data=bitarray('1'))
+        a, a_stat = d2.run_instruction("CFG_IN",
+                                       read=True, bitcount=8)
+                                       #data=bitarray('11110'))
 
         t = time.time()
         if not any((a, b, c)) and len(chain._command_queue.queue):

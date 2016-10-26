@@ -84,6 +84,10 @@ class Primitive(object):
             return self._chain._debug
         return False
 
+    def can_join_frame(self, f):
+        return True
+
+
 class Executable(metaclass=ABCMeta):
     @abstractmethod
     def execute(self):
