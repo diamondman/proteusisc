@@ -6,7 +6,7 @@ from abc import ABCMeta, abstractmethod
 from .promise import TDOPromise, TDOPromiseCollection
 from .bittypes import CompositeBitarray, ConstantBitarray, \
     NoCareBitarray, bitarray, PreferFalseBitarray
-from .contracts import NOCARE
+from .contracts import ARBITRARY, CONSTANTZERO, ZERO, NOCARE
 
 class Primitive(object):
     _layer = None
@@ -59,12 +59,12 @@ class Primitive(object):
             'grouping': self._group_type,
             'data':{
                 attr.replace("insname","INS"):
-                getattr(self, attr)
-                for attr in vars(self)
+                repr(val) if isinstance(val, CompositeBitarray) else val
+                for attr, val in vars(self).items()
                 if attr[0] != '_' and
                 attr not in ["name", "dev", "required_effect"] and
                 #getattr(self, attr) is not None and
-                not isinstance(getattr(self, attr), types.FunctionType)
+                not isinstance(val, types.FunctionType)
             },
         }
 
