@@ -433,21 +433,45 @@ def test_composite_arbitrary_split():
         assert bitarray(l) == correct[:i]
         assert bitarray(r) == correct[i:]
 
-def test_composite_arbitrary_double_split_left():
-    details = lambda tmp: ("OFF", str(tmp._offset),
-                           "TAILOFF", str(tmp._tailoffset),
-                           "TAILUSED", str(tmp._tailbitsused),
-                           "TAILLEN", str(tmp._taillen), "LEN", str(len(tmp)),
-                           str([elem for elem in tmp._iter_components()]))
 
+def test_composite_single_elem_double_split_left():
+    correct = bitarray('0011011111001')
+    for i in range(1,len(correct)-1):
+        ab = CompositeBitarray(correct)
+        l, r = ab.split(i)
+        cl, cr = correct[:i], correct[i:]
+        for j in range(1, len(correct)-i):
+            r1, r2 = r.split(j)
+            cr1, cr2 = cr[:j], cr[j:]
+            assert bitarray(l) == cl and bitarray(r1) == cr1 and\
+                bitarray(r2) == cr2
+
+def test_composite_single_elem_double_split_right():
+    correct = bitarray('0011011111001')
+    print("CORRECT", correct.to01())
+    for i in range(len(correct)-1, 1, -1):
+        for j in range(i-1, 0, -1):
+            ab = CompositeBitarray(correct)
+            cl, cr = correct[:i], correct[i:]
+            cl1, cl2 = cl[:j], cl[j:]
+
+            l,r = ab.split(i)
+            l1, l2 = l.split(j)
+            assert bitarray(l) == cl and bitarray(l1) == cl1 and\
+                bitarray(l2) == cl2
+            print()
+
+
+
+def test_composite_arbitrary_double_split_left():
     correct = bitarray('1100001')
     print("CORRECT", correct.to01())
-    for i in range(1,6):
+    for i in range(1,len(correct)-1):
         ab = (ConstantBitarray(True, 2) + ConstantBitarray(False, 1)) +\
              (PreferFalseBitarray(3) + ConstantBitarray(True, 1))
         l,r = ab.split(i)
         cl, cr = correct[:i], correct[i:]
-        for j in range(1, 7-i):
+        for j in range(1, len(correct)-i):
             r1, r2 = r.split(j)
             cr1, cr2 = cr[:j], cr[j:]
             print("CORRECT", cl.to01(), cr1.to01(), cr2.to01())
@@ -799,3 +823,59 @@ def test_Composite_iter():
     c1 += NoCareBitarray(4)
     assert bitarray(iter(c1)) == bitarray('11101100000')
     assert bitarray(reversed(c1)) == bitarray('00000110111')
+
+def test_Composite_single_iter_split_offset_bytealigned():
+    c1 = CompositeBitarray(bitarray('0011011111'))
+    l, r = c1.split(2)
+    assert bitarray(l) == bitarray('00')
+    assert bitarray(r) == bitarray('11011111')
+
+    dumpedbytes = [bitarray(bin(by)[2:].zfill(8)) for by in r.byteiter()]
+    assert dumpedbytes[0] == bitarray('11011111')
+    assert len(dumpedbytes) == 1
+
+    #dumpedbytes = [bitarray(bin(by)[2:].zfill(8)) for by in l.byteiter()]
+    #print(dumpedbytes)
+    #assert dumpedbytes[0] == bitarray('00000000')
+    #assert len(dumpedbytes) == 1
+
+
+def test_Composite_single_iter_split_offset():
+    c1 = CompositeBitarray(bitarray('00110111111'))
+    l, r = c1.split(2)
+    assert bitarray(l) == bitarray('00')
+    assert bitarray(r) == bitarray('110111111')
+    dumpedbytes = [bitarray(bin(by)[2:].zfill(8)) for by in r.byteiter()]
+    assert dumpedbytes[0] == bitarray('11011111')
+    assert dumpedbytes[1] == bitarray('10000000')
+    assert len(dumpedbytes) == 2
+
+    c1 = CompositeBitarray(bitarray('00110111110'))
+    l, r = c1.split(2)
+    assert bitarray(l) == bitarray('00')
+    assert bitarray(r) == bitarray('110111110')
+    dumpedbytes = [bitarray(bin(by)[2:].zfill(8)) for by in r.byteiter()]
+    assert dumpedbytes[0] == bitarray('11011111')
+    assert dumpedbytes[1] == bitarray('00000000')
+    assert len(dumpedbytes) == 2
+
+def test_Composite_single_iter_split_byteoffset_bytealigned():
+    c1 = CompositeBitarray(bitarray('0000000011011111'))
+    l, r = c1.split(8)
+    assert bitarray(l) == bitarray('00000000')
+    assert bitarray(r) == bitarray('11011111')
+    dumpedbytes = [bitarray(bin(by)[2:].zfill(8)) for by in r.byteiter()]
+    assert dumpedbytes[0] == bitarray('11011111')
+    assert len(dumpedbytes) == 1
+
+def test_Composite_single_iter_split_offset_tailoffset():
+    c1 = CompositeBitarray(bitarray('0011011111001'))
+    l, r = c1.split(2)
+    assert bitarray(r) == bitarray('11011111001')
+    r1, r2 = r.split(4)
+    assert bitarray(r1) == bitarray('1101')
+    assert bitarray(r2) == bitarray('1111001')
+
+    dumpedbytes = [bitarray(bin(by)[2:].zfill(8)) for by in r1.byteiter()]
+    assert dumpedbytes[0] == bitarray('11010000')
+    assert len(dumpedbytes) == 1

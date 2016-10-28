@@ -48,8 +48,6 @@ class ConstantBitarray(collections.Sequence):
     def __len__(self):
         return self._length
     def __getitem__(self, index):
-        #import ipdb
-        #ipdb.set_trace()
         if isinstance(index, slice):
             indices = index.indices(len(self))
             return ConstantBitarray(self._val, len(range(*indices)))
@@ -207,8 +205,6 @@ class NoCareBitarray(collections.Sequence):
     def __len__(self):
         return self._length
     def __getitem__(self, index):
-        #import ipdb
-        #ipdb.set_trace()
         if isinstance(index, slice):
             indices = index.indices(len(self))
             return NoCareBitarray(len(range(*indices)))
@@ -316,8 +312,6 @@ class PreferFalseBitarray(collections.Sequence):
     def __len__(self):
         return self._length
     def __getitem__(self, index):
-        #import ipdb
-        #ipdb.set_trace()
         if isinstance(index, slice):
             indices = index.indices(len(self))
             return PreferFalseBitarray(len(range(*indices)))
@@ -726,7 +720,9 @@ class CompositeBitarray(collections.Sequence):
                         else comp
         right._offset = 0 if elemindex == len(comp.value)\
                         else elemindex
-        right._tailbitsused = self._tailbitsused-right._tail_left_offset
+        right._tailbitsused = self._tailbitsused-\
+                              (right._tail_left_offset-
+                               self._tail_left_offset)
 
         right._length = len(self)-bitindex
         return left, right
@@ -768,8 +764,6 @@ class CompositeBitarray(collections.Sequence):
         #        else "_", len(elem.value))
         #       for elem in self._llhead.iternexttill(self._lltail)])
 
-        #import ipdb
-        #ipdb.set_trace()
         if self._offset or self._tailoffset:
             if self._is_single_llnode:
                 if isinstance(self._llhead.value, (ConstantBitarray,
@@ -940,6 +934,11 @@ class CompositeBitarray(collections.Sequence):
         return self._taillen-self._tailbitsused-self._tail_left_offset
 
     @property
+    def _headbitsused(self):
+        return self._tailbitsused if self._is_single_llnode else\
+            (len(self._llhead.value)-self._offset)
+
+    @property
     def _is_single_llnode(self):
         return self._lltail is self._llhead
 
@@ -975,50 +974,84 @@ class CompositeBitarray(collections.Sequence):
         #return tmpba.tobytes()
 
     def byteiter(self):
-        #import ipdb
-        #ipdb.set_trace()
-        offset = 0
+        elemiter = self._iter_components()
+        outoffset = 0
         res = 0
-        for elem in self._iter_components():
+
+        #PROCESS FIRST ELEMENT IF OFFSET
+        if self._offset:
+            elem = next(elemiter)
+            bitsused = self._headbitsused
             ielem = elem.byteiter()
-            if offset == 0:
+            for _ in range(self._offset//8):#Skip full bytes offset
+                next(ielem)
+            inoffset = self._offset%8 #offset in first used byte
+
+            if inoffset == 0:
+                for _ in range(bitsused//8):
+                    yield next(ielem)
+                outoffset = bitsused%8
+                if outoffset:
+                    res = next(ielem)&(0x100-(1<<(8-outoffset)))
+            else:
+                res = next(ielem) << inoffset
+                for _ in range(bitsused//8):
+                    tmp2 = next(ielem)
+                    yield (res | (tmp2>>(8-inoffset)))&0xFF
+                    res = tmp2 << inoffset
+                bitsofextrabyte = bitsused%8
+                if bitsofextrabyte == 0:
+                    #perfect alignment with output bytes
+                    outoffset = 0
+                #elif bitsofextrabyte > inoffset:
+                #    print("SHOULD BE IMPOSSIBLE!")#pragma: no cover
+                #    raise Exception("IMPOSSIBLE?!")#pragma: no cover
+                else:
+                    #NO MORE BITS NEEDED FOR CURRENT BYTE
+                    outoffset = bitsofextrabyte
+                    res &= (0x100-(1<<(8-bitsofextrabyte)))
+
+        #NORMAL LOOP
+        for elem in elemiter:
+            ielem = elem.byteiter()
+            if outoffset == 0:
                 for _ in range(len(elem)//8):
                     yield next(ielem)
-                offset = len(elem)%8
-                if offset:
-                    res = next(ielem)&(0x100-(1<<(8-offset)))
+                outoffset = len(elem)%8
+                if outoffset:
+                    res = next(ielem)&(0x100-(1<<(8-outoffset)))
             else:
-                if len(elem) < 8-offset:
+                if len(elem) < 8-outoffset:
                     tmp2 = next(ielem)&(0x100-(1<<(8-len(elem))))
-                    res |= tmp2 >> offset
-                    offset += len(elem)
-                elif len(elem) == 8-offset:
-                    res |= next(ielem) >> offset
-                    offset = 0
+                    res |= tmp2 >> outoffset
+                    outoffset += len(elem)
+                elif len(elem) == 8-outoffset:
+                    res |= next(ielem) >> outoffset
+                    outoffset = 0
                     yield res
                 else:
-                    offsetinv = 8-offset
-                    for _ in range((offset+len(elem))//8):
+                    outoffsetinv = 8-outoffset
+                    for _ in range((outoffset+len(elem))//8):
                         tmp2 = next(ielem)
-                        yield (res | (tmp2>>offset))&0xFF
-                        res = tmp2 << offsetinv
+                        yield (res | (tmp2>>outoffset))&0xFF
+                        res = tmp2 << outoffsetinv
 
-                    if (offset+len(elem))%8 == 0:
-                        #If offset plus number of bits is divisible by 8.
+                    if (outoffset+len(elem))%8 == 0:
+                        #If outoffset plus number of bits is divisible by 8.
                         #ONLY HAPPENS WHEN LAST BYTE PERFECTLY LINED UP
-                        offset = 0
-                    elif (offset+len(elem))%8 > offset:
+                        outoffset = 0
+                    elif (outoffset+len(elem))%8 > outoffset:
                         #NEED MORE BITS
-                        res |= next(ielem) >> offset
-                        offset = (offset+len(elem))%8
-                        res &= (0x100-(1<<(8-offset)))
+                        res |= next(ielem) >> outoffset
+                        outoffset = (outoffset+len(elem))%8
+                        res &= (0x100-(1<<(8-outoffset)))
                     else:
                         #NO MORE BITS NEEDED FOR CURRENT BYTE
-                        res |= tmp2 >> offset
-                        offset = (offset+len(elem))%8
-                        res &= (0x100-(1<<(8-offset)))
+                        res |= tmp2 >> outoffset
+                        outoffset = (outoffset+len(elem))%8
+                        res &= (0x100-(1<<(8-outoffset)))
 
-        if offset:
+        if outoffset:
             yield res
 
 class _DLLNode(object):
