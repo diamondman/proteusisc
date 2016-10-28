@@ -523,6 +523,8 @@ class CompositeBitarray(collections.Sequence):
                 self._do_merge(oldtail)
 
     def _do_merge(self, startpoint=None, stoponfail=True):
+        if self._is_single_llnode:
+            return
         headend = self._llhead if self._offset == 0 else \
                   self._llhead.next
         tailend = self._lltail if self._tailbitsused ==\

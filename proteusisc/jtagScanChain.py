@@ -1,20 +1,14 @@
-import math
-import time
-import struct
-from functools import partial
-
 from . import jtagDeviceDescription
 from .jtagStateMachine import JTAGStateMachine
-from .primitive import Primitive, DeviceTarget, DataRW, Level1Primitive
+from .primitive import Primitive, DeviceTarget, Level1Primitive,\
+    PrimitiveLv1Dispatcher
 from .primitive_defaults import RunInstruction,\
-    TransitionTAP, RWReg, RWDR, RWIR, Sleep
-from .primitive_defaults import RWDevDR, RWDevIR
+    TransitionTAP, RWDevDR, RWDevIR, RWDR, RWIR, RWReg, Sleep
 from .jtagDevice import JTAGDevice
 from .command_queue import CommandQueue
 from .cabledriver import InaccessibleController
 from .errors import DevicePermissionDeniedError, JTAGAlreadyEnabledError,\
     JTAGTooManyDevicesError
-from .contracts import CONSTANTZERO, ZERO, NOCARE
 from .jtagUtils import NULL_ID_CODES
 
 class JTAGScanChain(object):
@@ -232,13 +226,12 @@ class JTAGScanChain(object):
             self._sm.transition_bit(bit)
             statetrans.append(self._sm.state)
 
-    def get_compatible_lv1_prims(self, reqef, bitcount):
+    def get_compatible_lv1_prims(self, reqef):#, bitcount):
         styles = {0:'\033[92m', #GREEN
                   1:'\033[93m', #YELLOW
                   2:'\033[91m'} #RED
-        tdoef = reqef[2]
         possible_prims = []
-        prim_mismatach_from_bitcount = False
+        #prim_mismatach_from_bitcount = False
         for prim in self._lv1_chain_primitives:
             efstyledstr = ''
             ef = prim.get_effect()
@@ -255,17 +248,15 @@ class JTAGScanChain(object):
                     worststyle = curstyle
 
             if worststyle == 0:
-                if bitcount <= prim._max_send_bits and\
-                     (bitcount <= prim._max_recv_bits or\
-                      tdoef in (CONSTANTZERO, ZERO, NOCARE)):
-                    possible_prims.append(prim)
-                else:
-                    prim_mismatach_from_bitcount = True
+                #if prim.can_prim_handle_bitcount(reqef, bitcount):
+                possible_prims.append(prim)
+                #else:
+                #    prim_mismatach_from_bitcount = True
             if self._debug:
                 print(" ",efstyledstr, styles.get(worststyle)+\
                       prim.__name__+"\033[0m")
 
-        if not len(possible_prims) and not prim_mismatach_from_bitcount:
+        if not len(possible_prims):# and not prim_mismatach_from_bitcount:
             #if prim_mismatach_from_bitcount:
             #    raise Exception('Unable to match Primative to lower '
             #                    'level Primative. Bitcount too large.')
@@ -275,7 +266,7 @@ class JTAGScanChain(object):
         return possible_prims
 
     def get_best_lv1_prim(self, reqef, bitcount):
-        possible_prims = self.get_compatible_lv1_prims(reqef, bitcount)
+        possible_prims = self.get_compatible_lv1_prims(reqef)#, bitcount)
         if not possible_prims:
             raise Exception("Data too long to send using this "
                             "controller. Splitting data not implemented.")
@@ -314,6 +305,6 @@ class JTAGScanChain(object):
         if res:
             return res
         prim = self.get_best_lv1_prim(reqef, bitcount)
-        res = partial(prim, _chain=self, reqef=reqef)
-        self._fitted_lv1_prim_cache[reqef] = res
-        return res
+        dispatcher = PrimitiveLv1Dispatcher(self, prim, reqef)
+        self._fitted_lv1_prim_cache[reqef] = dispatcher
+        return dispatcher

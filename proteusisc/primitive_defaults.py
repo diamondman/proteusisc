@@ -276,8 +276,7 @@ class RWDR(Level2Primitive, DataRW):
         if isinstance(target, RWDR) and not self.lastbit and \
            target.read is self.read:
             data = NoCareBitarray(0)
-            promises = TDOPromiseCollection(self._chain,
-                                    len(self.data)+len(target.data))
+            promises = TDOPromiseCollection(self._chain)
             for p in (target, self):
                 promises.add(p._promise, len(data))
                 data += p.data
@@ -319,8 +318,7 @@ class RWIR(Level2Primitive, DataRW):
         if isinstance(target, RWIR) and not self.lastbit and \
            target.read is self.read:
             data = NoCareBitarray(0)
-            promises = TDOPromiseCollection(self._chain,
-                                len(self.data)+len(target.data))
+            promises = TDOPromiseCollection(self._chain)
             for p in (target, self):
                 promises.add(p._promise, len(data))
                 data += p.data
@@ -382,17 +380,17 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
                     ARBITRARY, #TDI
                 ONE if self.read else NOCARE #TDO
             )
-            write_data = self._chain.get_fitted_lv1_prim(reqef,
-                                                         self.bitcount)
-            res.append(write_data(tms=False, tdi=data,
-                                  tdo=self.read or None,
-                                  _promise=self._promise))
+            write_data = self._chain.get_fitted_lv1_prim(
+                reqef, self.bitcount)
+            res += write_data(tms=False, tdi=data,
+                              tdo=self.read or None,
+                              _promise=self._promise)
         else:
             sm.transition_bit(True)
             if self._promise:
-                rest, tail = self._promise.split_to_subpromises()
+                promiseL, promiseR  = self._promise.split(1)
             else:
-                rest, tail = None, None
+                promiseL, promiseR = None, None
 
             if len(data)>1:
                 # pylint: disable=no-member
@@ -407,9 +405,9 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
                 write_data = self._chain.get_fitted_lv1_prim(
                     reqef, self.bitcount-1)
                 data, datar = data.split(1)
-                res.append(write_data(tms=False, tdi=datar,
-                                      tdo=self.read or None,
-                                      _promise=rest))
+                res += write_data(tms=False, tdi=datar,
+                                  tdo=self.read or None,
+                                  _promise=promiseR)
 
             newdata = data
             reqef = (
@@ -420,8 +418,8 @@ class RWReg(Level2Primitive, DataRW, ExpandRequiresTAP):
             if self.debug:
                 print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
             write_last = self._chain.get_fitted_lv1_prim(reqef, 1)
-            res.append(write_last(tms=True, tdi=newdata,
-                                  tdo=self.read or None, _promise=tail))
+            res += write_last(tms=True, tdi=newdata,
+                              tdo=self.read or None, _promise=promiseL)
 
         return res
 
@@ -481,12 +479,11 @@ class TransitionTAP(Level2Primitive, ExpandRequiresTAP):
             NOCARE, NOCARE #TDI, TDO
         )
         if self.debug:
-            print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
+            print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),
+                  self,'\033[0m')
         best_prim = self._chain.get_fitted_lv1_prim(reqef, len(data))
 
-        return [
-            best_prim(tms=data)
-        ]
+        return best_prim(tms=data)
 
 #class Sleep(Level2Primitive, Executable):
 class Sleep(Level2Primitive, ExpandRequiresTAP):
@@ -494,6 +491,9 @@ class Sleep(Level2Primitive, ExpandRequiresTAP):
     def __init__(self, *args, delay, **kwargs):
         super(Sleep, self).__init__(*args, **kwargs)
         self.delay = delay
+
+    def apply_tap_effect(self, sm):
+        pass
 
     def merge(self, target):
         if isinstance(target, Sleep):
@@ -517,15 +517,9 @@ class Sleep(Level2Primitive, ExpandRequiresTAP):
                 print(('  \033[95m%s %s %s\033[94m'%tuple(reqef)),self,'\033[0m')
             best_prim = self._chain.get_fitted_lv1_prim(reqef, len(data))
 
-            return [
-                best_prim(tms=data)
-            ]
+            return best_prim(tms=data)
         #DEFAULT
         return [HostSleep(delay=self.delay, _chain=chain)]
-
-
-    def apply_tap_effect(self, sm):
-        pass
 
 class HostSleep(Level2Primitive, Executable):
     _function_name = 'host_sleep'
@@ -535,15 +529,15 @@ class HostSleep(Level2Primitive, Executable):
         self.delay = delay
 
     def merge(self, target):
-        if isinstance(target, Sleep):
-            return Sleep(delay=self.delay+target.delay,
+        if isinstance(target, HostSleep):
+            return HostSleep(delay=self.delay+target.delay,
                          _chain=self._chain)
         return None
 
     def expand(self, chain, sm):
         return None
 
-    def execute(self):
+    def execute(self, controller):
         time.sleep(self.delay/1000)
 
 ############### END LV2 Primatimes (No Dev) ################

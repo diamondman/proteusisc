@@ -1,12 +1,13 @@
-import types
-import operator
-import collections
 from abc import ABCMeta, abstractmethod
+import collections
+from functools import partial
+import operator
+import types
 
-from .promise import TDOPromise, TDOPromiseCollection
 from .bittypes import CompositeBitarray, ConstantBitarray, \
     NoCareBitarray, bitarray, PreferFalseBitarray
 from .contracts import ARBITRARY, CONSTANTZERO, ZERO, NOCARE
+from .promise import TDOPromise, TDOPromiseCollection
 
 class Primitive(object):
     _layer = None
@@ -154,12 +155,13 @@ class Level1Primitive(Primitive):
         self.reqef = reqef
         self._promise = _promise
 
-        if isinstance(_tms, collections.Iterable):
-            count = count or len(_tms)
-        if isinstance(_tdi, collections.Iterable):
-            count = count or len(_tdi)
-        if isinstance(_tdo, collections.Iterable):
-            count = count or len(_tdo)
+        if count is None:
+            if isinstance(_tms, collections.Iterable):
+                count = count or len(_tms)
+            if isinstance(_tdi, collections.Iterable):
+                count = count or len(_tdi)
+            if isinstance(_tdo, collections.Iterable):
+                count = count or len(_tdo)
         if count is None:
             count = 1
 
@@ -260,6 +262,18 @@ class Level1Primitive(Primitive):
         return "<%s(TMS:%s; TDI:%s; TDO:%s)>"%\
             (self.__class__.__name__, tms, tdi, tdo)
 
+    @classmethod
+    def can_prim_handle_bitcount(cls, reqef, bitcount):
+        #Does not support arbitrary TDO with recv bits < send bits
+        tdoef = reqef[2]
+        if tdoef == ARBITRARY and cls._max_send_bits > cls._max_recv_bits:
+            raise NotImplementedError("Does not yet support ARBITRARY "
+                                      "TDO with mismatch mas recv and "
+                                      "send.")
+        return bitcount <= cls._max_send_bits and\
+            (bitcount <= cls._max_recv_bits or\
+             tdoef in (CONSTANTZERO, ZERO, NOCARE))
+
     def merge(self, target):
         if not isinstance(target, Level1Primitive):
             return None
@@ -277,13 +291,15 @@ class Level1Primitive(Primitive):
                   "CONBINED",'\033[0m')
 
         possible_prims = self._chain.get_compatible_lv1_prims(
-            reqef, newcount)
-        if not possible_prims:
-            return
+            reqef)#, newcount)
+        #if not possible_prims:
+        #    return
         best_prim_cls = None
         best_score = self.score + target.score
         tdo_count = target.tdo.count(True)+self.tdo.count(True)
         for prim_cls in possible_prims:
+            if not prim_cls.can_prim_handle_bitcount(reqef, newcount):
+                continue
             prim_score = prim_cls._calc_score(newcount, reqef, tdo_count,
                                               debug=self.debug)
             if self.debug:
@@ -308,7 +324,7 @@ class Level1Primitive(Primitive):
             elif not self._promise and target._promise:
                 promise = target._promise
             else:
-                promise = TDOPromiseCollection(self._chain, newcount)
+                promise = TDOPromiseCollection(self._chain)
                 promise.add(target._promise, 0)
                 promise.add(self._promise, target.count)
 
@@ -397,3 +413,91 @@ class Level1Primitive(Primitive):
         args = [getattr(self, attr) for attr in self._args]
         kwargs = {k:getattr(self, v) for k,v in self._kwargs.items()}
         return args, kwargs
+
+
+class PrimitiveLv1Dispatcher(object):
+    def __init__(self, chain, primcls, reqef):
+        self._chain = chain
+        self._primcls = primcls
+        self._reqef = reqef
+
+    def __call__(self, *args, count=None, tms=None, tdi=None, tdo=None,
+                 **kwargs):
+        maxbits = self._primcls._max_send_bits
+        if self._primcls._max_recv_bits < maxbits and\
+             self._reqef[2] not in (CONSTANTZERO, ZERO, NOCARE):
+            maxbits = self._primcls._max_recv_bits
+
+        primgen = partial(self._primcls, _chain=self._chain,
+                       reqef=self._reqef)
+
+
+        if isinstance(tms, collections.Iterable):
+            count = count or len(tms)
+        if isinstance(tdi, collections.Iterable):
+            count = count or len(tdi)
+        if isinstance(tdo, collections.Iterable):
+            count = count or len(tdo)
+
+        #No need to split up data
+        if count <= maxbits:
+            return [primgen(*args, count=count,
+                            tms=tms, tdi=tdi, tdo=tdo, **kwargs)]
+
+        #Have to split up data
+        istms, istdi, istdo = True, True, True
+        if not isinstance(tms, collections.Iterable):
+            kwargs['tms'] = tms
+            istms = False
+        if not isinstance(tdi, collections.Iterable):
+            kwargs['tdi'] = tdi
+            istdi = False
+        if not isinstance(tdo, collections.Iterable):
+            kwargs['tdo'] = tdo
+            istdo = False
+
+        tms, tdi, tdo =\
+            CompositeBitarray(tms) if isinstance(tms, bitarray) else tms,\
+            CompositeBitarray(tdi) if isinstance(tdi, bitarray) else tdi,\
+            CompositeBitarray(tdo) if isinstance(tdo, bitarray) else tdo
+
+        kwargs['count'] = maxbits
+        _promise = kwargs.pop("_promise", None)
+        orig_promise = _promise
+
+        #print("ORIGINAL PROMISE", _promise)
+        primitives = []
+        for i in range(count//maxbits):
+            if istms:
+                tms, kwargs['tms'] = tms.split(len(tms)-maxbits)
+            if istdi:
+                tdi, kwargs['tdi'] = tdi.split(len(tdi)-maxbits)
+            if istdo:
+                tdo, kwargs['tdo'] = tdo.split(len(tdo)-maxbits)
+            if _promise:
+                #print("SPLITTING", _promise, "INTO")
+                _promise, kwargs['_promise']\
+                    = _promise.split(len(_promise)-maxbits)
+                #print("  ", _promise)
+                #print("  ", kwargs['_promise'])
+            #print(kwargs)
+            #print()
+            p = primgen(*args, **kwargs)
+            primitives.append(p)
+
+        if count%maxbits:
+            kwargs['count'] = count%maxbits
+            if istms:
+                kwargs['tms']= tms
+            if istdi:
+                kwargs['tdi'] = tdi
+            if istdo:
+                kwargs['tdo'] = tdo
+            if _promise:
+                kwargs['_promise'] = _promise
+
+            #print(kwargs)
+            p = primgen(*args, **kwargs)
+            primitives.append(p)
+
+        return primitives

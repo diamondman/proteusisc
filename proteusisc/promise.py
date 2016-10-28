@@ -80,6 +80,9 @@ class TDOPromise(object):
              self._bitstartselective)\
              #pragma: no cover
 
+    def __len__(self):
+        return self._bitlength
+
     @property
     def bitstart(self):
         return self._bitstart
@@ -99,8 +102,8 @@ class TDOPromise(object):
     def _addsub(self, subpromise, offset):
         self._components.append((subpromise, offset))
 
-    def split_to_subpromises(self):
-        """Split a promise into two promises. A tail bit, and the 'rest'.
+    def split(self, bitindex):
+        """Split a promise into two promises at the provided index.
 
         A common operation in JTAG is reading/writing to a
         register. During the operation, the TMS pin must be low, but
@@ -122,16 +125,28 @@ class TDOPromise(object):
             If the 'Rest' would have a length of 0, None is returned
 
         """
-        if self._bitlength is 1:
-            return None, self
+        if bitindex < 0:
+            raise ValueError("bitindex must be larger or equal to 0.")
+        if bitindex > len(self):
+            raise ValueError(
+                "bitindex larger than the array's size. "
+                "Len: %s; bitindex: %s"%(len(self), bitindex))
 
-        rest = TDOPromise(self._chain, self._bitstart, self._bitlength-1,
+        if bitindex == 0:
+            return None, self
+        if bitindex == len(self):
+            return self, None
+
+        left = TDOPromise(self._chain, self._bitstart, bitindex,
                           _parent=self)
-        tail = TDOPromise(self._chain, 0, 1, _parent=self)
+        #Starts at 0 because offset is for incoming data from
+        #associated primitive, not location in parent.
+        right = TDOPromise(self._chain, 0, len(self)-bitindex,
+                          _parent=self)
         self._components = []
-        self._addsub(rest, 0)
-        self._addsub(tail, self._bitlength-1)
-        return rest, tail
+        self._addsub(left, 0)
+        self._addsub(right, bitindex)
+        return left, right
 
     def _fulfill(self, bits, ignore_nonpromised_bits=False):
         """Supply the promise with the bits from its associated primitive's execution.
@@ -160,9 +175,8 @@ class TDOPromise(object):
                 else:
                     self._value = bits[self._bitstart:self._bitend]
             else:
-                components = self._components[::-1]
-                self._value = components[0][0]._value
-                for sub, offset in components[1:]:
+                self._value = self._components[0][0]._value
+                for sub, offset in self._components[1:]:
                     self._value += sub._value
             if self._parent is not None:
                 self._parent._fulfill(None)
@@ -173,10 +187,8 @@ class TDOPromise(object):
         Returns:
             A boolean describing if all subpromises have been fulfilled
         """
-        for sub, offset in self._components:
-            if sub._value is None:
-                return False
-        return True
+        return not any((sub._value is None
+                        for sub, offset in self._components))
 
     def makesubatoffset(self, bitoffset, *, _offsetideal=None):
         """Create a copy of this promise with an offset, and use it as this promise's child.
@@ -218,8 +230,7 @@ class TDOPromiseCollection(object):
         bitlength: An integer count of how many bits of the original primitive should be selected by this promise.
 
     """
-    def __init__(self, chain, bitlength):
-        self._bitlength = bitlength
+    def __init__(self, chain):
         self._promises = []
         self._chain = chain
         self.sn = TDOPromise.count
@@ -238,17 +249,14 @@ class TDOPromiseCollection(object):
         if _offsetideal is None:
             _offsetideal = bitoffset
         if isinstance(promise, TDOPromise):
-            if bitoffset is 0:
-                newpromise = promise
-            else:
-                newpromise = promise.makesubatoffset(
-                    bitoffset, _offsetideal=_offsetideal)
+            newpromise = promise.makesubatoffset(
+                bitoffset, _offsetideal=_offsetideal)
             self._promises.append(newpromise)
         elif isinstance(promise, TDOPromiseCollection):
             for p in promise._promises:
                 self.add(p, bitoffset, _offsetideal=_offsetideal)
 
-    def split_to_subpromises(self):
+    def split(self, bitindex):
         """Split a promise into two promises. A tail bit, and the 'rest'.
 
         Same operation as the one on TDOPromise, except this works
@@ -264,25 +272,55 @@ class TDOPromiseCollection(object):
             If the 'Rest' would have a length of 0, None is returned
 
         """
-        if self._bitlength in (0,1):
+        if bitindex < 0:
+            raise ValueError("bitindex must be larger or equal to 0.")
+        if bitindex == 0:
             return None, self
-        if len(self._promises) is 0:
-            return self, None
-        p = self._promises[0]
-        if p._bitstart <= 1 and p._bitend >= 1:
-            rest, tail = p.split_to_subpromises()
-            real_rest = TDOPromiseCollection(self._chain,
-                                             self._bitlength-1)
-            real_rest.add(rest, 0)
-            for tmpprim in self._promises[1:]:
-                real_rest.add(tmpprim, -1)
-            return real_rest, tail
+
+        lastend = 0
+        split_promise = False
+        for splitindex, p in enumerate(self._promises):
+            if bitindex in range(lastend, p._bitstart):
+                split_promise = False
+                break
+            if bitindex in range(p._bitstart, p._bitend):
+                if bitindex-p._bitstart == 0:
+                    split_promise = False
+                else:
+                    split_promise = True
+                break
+            lastend = p._bitend
         else:
-            #DO NOTHING
-            return self, None
+            raise Exception("Should be impossible")
+
+        processed_left = TDOPromiseCollection(self._chain)
+        processed_right = TDOPromiseCollection(self._chain)
+
+        if split_promise:
+            left, right = p.split(bitindex-p._bitstart)
+
+            for i in range(splitindex):
+                processed_left.add(self._promises[i], 0)
+            processed_left.add(left, 0)
+
+            processed_right.add(right, 0)
+            for tmpprim in self._promises[splitindex+1:]:
+                processed_right.add(tmpprim, -bitindex)
+            return processed_left, processed_right
+        else:
+            for i in range(splitindex):
+                processed_left.add(self._promises[i], 0)
+
+            for i in range(splitindex, len(self._promises)):
+                processed_right.add(self._promises[i], -bitindex)
+
+            return processed_left, processed_right
 
     def __repr__(self):
-        return "<PC %s; %s>" % (self.sn, self._promises) #pragma: no cover
+        return "<PC %s (%s bits); %s>" % (self.sn, len(self), self._promises) #pragma: no cover
+
+    def __len__(self):
+        return sum((len(p) for p in self._promises))
 
     def __bool__(self):
         return bool(self._promises)
@@ -314,7 +352,7 @@ class TDOPromiseCollection(object):
             _offsetideal = bitoffset
         if bitoffset is 0:
             return self
-        newpromise = TDOPromiseCollection(self._chain, self._bitlength)
+        newpromise = TDOPromiseCollection(self._chain)
         for promise in self._promises:
             newpromise.add(promise, bitoffset, _offsetideal=_offsetideal)
         return newpromise
