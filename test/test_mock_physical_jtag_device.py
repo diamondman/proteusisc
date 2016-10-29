@@ -1,8 +1,9 @@
 #-*- coding: utf-8 -*-
 import pytest
-from proteusisc.bittypes import bitarray
 
+from proteusisc.bittypes import bitarray
 from proteusisc.test_utils import MockPhysicalJTAGDevice
+from proteusisc.test_utils.device import MockXC2C256
 
 def test_initialize_correct_defaults():
     dev = MockPhysicalJTAGDevice(name="D0")
@@ -128,3 +129,35 @@ def test_black_hole_register():
         d0.shift(tms[i], tdi[i])
     assert "UPDATEDR" in d0.event_history
     assert "0110001001" in d0.event_history
+
+def test_custom_device():
+    dev = MockPhysicalJTAGDevice(
+        idcode=bitarray('00000000000000000000000000000001'),
+        irlen=4,
+        ins_reg_map={
+            'BYPASS': 'BYPASS',
+            'EXTEST': 'BOUNDARY',
+            'HIGHZ': 'BYPASS',
+            'IDCODE': 'DEVICE_ID',
+            'INTEST': 'BOUNDARY',
+            'SAMPLE': 'BOUNDARY',
+        },
+        instructions={
+            'BYPASS': '111',
+            'EXTEST': '000',
+            'HIGHZ':  '100',
+            'IDCODE': '001',
+            'INTEST': '010',
+            'SAMPLE': '011',
+        },
+        registers={
+            'BOUNDARY': 552,
+            'BYPASS': 1,
+            'DEVICE_ID': 32
+        }
+    )
+    assert dev.idcode == bitarray('00000000000000000000000000000001')
+
+def test_use_custom_device_class():
+    dev = MockXC2C256()
+    assert dev.idcode == bitarray('00000110110101001000000010010011')

@@ -748,6 +748,7 @@ class CompositeBitarray(collections.Sequence):
             returned. Otherwise, this CompositeBitarray is returned.
 
         """
+        #TODO remove bitarray copies!
         if not primef.satisfies(reqef):
             raise Exception("Compiler error. Requested effect can not be "
                             "satisfied by primitive capabilities")
@@ -804,7 +805,7 @@ class CompositeBitarray(collections.Sequence):
                         self._offset = 0
                         self._tailbitsused = self._taillen
 
-            else: #IF HEAD IS NOT TAIL
+            else: #IF HEAD IS NOT TAIL; OFFSET OR TAILOFFSET
                 if self._offset:
                     if isinstance(self._llhead.value,
                                   (ConstantBitarray, NoCareBitarray,
@@ -834,14 +835,14 @@ class CompositeBitarray(collections.Sequence):
                         oldhead.next = None
                         self._offset = 0
 
-                if self._tailoffset:
+                if self._tailoffset:#IF HEAD IS NOT TAIL AND TAILOFFSET
                     if isinstance(self._lltail.value,
                                   (ConstantBitarray, NoCareBitarray,
                                    PreferFalseBitarray)):
                         oldtail = self._lltail
                         self._lltail = _DLLNode(
                             oldtail.value[:self._tailbitsused])
-                        self._lltail.prev = oldhead.prev
+                        self._lltail.prev = oldtail.prev
                         oldtail.prev = None
                         self._tailbitsused = self._taillen
                     elif isinstance(self._lltail.value, bitarray):

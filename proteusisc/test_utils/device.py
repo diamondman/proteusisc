@@ -138,7 +138,7 @@ class BlackHoleShiftRegister(object):
 
     def __len__(self):
         """Get the width of the shift register"""
-        return len(self._data)
+        return len(self._data) #pragma: no cover
 
     def __repr__(self):
         return "<BlackHoleShiftRegister(%s)>"%self._data # pragma: no cover
@@ -345,7 +345,7 @@ class MockXC2C256(MockPhysicalJTAGDevice):
                 'ISC_READ': '11101110',
                 'ISC_SRAM_READ': '11100111',
                 'ISC_SRAM_WRITE': '11100110',
-                'MVERIFY': '00010011',
+                'VERIFY': '00010011',
                 'SAMPLE': '00000011',
                 'TEST_DISABLE': '00010101',
                 'TEST_ENABLE': '00010001',

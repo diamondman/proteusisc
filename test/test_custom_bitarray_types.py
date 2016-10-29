@@ -423,6 +423,28 @@ def test_composite_split_prepare_no_clip():
     assert bitarray(prepl) == bitarray('0')
     assert bitarray(prepr) == bitarray('1111000')
 
+def test_composite_double_bitarray_double_split_prepare():
+    correct1 = bitarray('1111111011001010')
+    correct2 = bitarray('0101100101011011')
+    correct = correct1+correct2
+
+    comp = CompositeBitarray(correct1, correct2)
+
+    l, r = comp.split(1)
+    r1, r2 = r.split(len(r)-1)
+    assert r1.prepare(reqef=ARBITRARY, primef=ARBITRARY) == correct[1:-1]
+
+def test_composite_bitarray_constba_double_split_prepare():
+    correct1 = bitarray('0101100101011011')
+    correct2 = ConstantBitarray(False, 16)
+    correct = correct1+bitarray([False]*16)
+
+    comp = CompositeBitarray(correct1, correct2)
+
+    l, r = comp.split(1)
+    r1, r2 = r.split(len(r)-1)
+    assert r1.prepare(reqef=ARBITRARY, primef=ARBITRARY) == correct[1:-1]
+
 def test_composite_arbitrary_split():
     correct = bitarray('1100001')
     for i in range(7+1):
