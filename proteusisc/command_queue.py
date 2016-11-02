@@ -179,23 +179,18 @@ class CommandQueue(collections.MutableSequence):
             ################ TRANSLATION TO LOWER LAYER ################
             sm = JTAGStateMachine(self._chain._sm.state)
             expanded_prims = FrameSequence(self._chain)
-            #tmp = []
             for f in ingested_chain:
                 if f._layer == 3:
                     expanded_prims += f.expand_macro(sm)
-                    #tmp.append((type(f[0]).__name__, f[0].insname, sm.state))
                 else:
                     expanded_prims.append(f)
-                    #tmp.append(("UNKNOWN", type(f[0]).__name__))
             expanded_prims.finalize()
             ingested_chain = expanded_prims
-            #print("STATES", tmp)
 
             if self._fsm is None:
                 self._fsm = sm
             assert self._fsm == sm, "Target %s != Actual %s"%\
                 (self._fsm.state, sm.state)
-            #print("FINAL TARGET IS", self._fsm.state)
 
             if debug:#pragma: no cover
                 stages.append(ingested_chain.snapshot())
@@ -216,18 +211,14 @@ class CommandQueue(collections.MutableSequence):
 
             sm = JTAGStateMachine(self._chain._sm.state)
             expanded_prims = FrameSequence(self._chain)
-            #tmp = []
             for f in ingested_chain:
                 if issubclass(f._prim_type, DeviceTarget):
                     expanded_prims += f.expand_macro(sm)
-                    #tmp.append((type(f[0]).__name__, sm.state))
                 else:
                     f[0].apply_tap_effect(sm)
                     expanded_prims.append(f)
-                    #tmp.append((type(f[0]).__name__, sm.state))
             expanded_prims.finalize()
             ingested_chain = expanded_prims
-            #print("STATES", tmp)
             if self._fsm is None:
                 self._fsm = sm
             assert self._fsm == sm, "Target %s != Actual %s"%\
@@ -243,7 +234,6 @@ class CommandQueue(collections.MutableSequence):
             stages.append([[p.snapshot() for p in flattened_prims]])
             stagenames.append("Converting format to single stream.")
 
-        #del ingested_chain
         return flattened_prims
 
 
@@ -361,6 +351,9 @@ class CommandQueue(collections.MutableSequence):
         self.stages = []
         self.stagenames = []
 
+        if not self.queue:
+            return
+
         from time import time
         t = time()
         print("LEN OF QUENE", len(self))
@@ -373,11 +366,8 @@ class CommandQueue(collections.MutableSequence):
         print("COMPILE TIME", time()-t)
         if self.debug:
             print("ABOUT TO EXEC", self.queue)
-        bitcount = 0
-        for p in self.queue:
-            if hasattr(p, 'count'):
-                bitcount += p.count
-        print("TOTAL BITS OF ALL PRIMS", bitcount)
+        print("TOTAL BITS OF ALL PRIMS",
+              sum((p.count for p in self.queue if hasattr(p, 'count'))))
         t = time()
         self._chain._controller._execute_primitives(self.queue)
         print("EXECUTE TIME", time()-t)

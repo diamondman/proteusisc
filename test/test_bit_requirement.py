@@ -116,3 +116,5 @@ def test_equality():
     assert CONSTANT != ONE
     assert CONSTANTONE != CONSTANTZERO
     assert ONE != ZERO
+
+    assert ONE != "invalid type"

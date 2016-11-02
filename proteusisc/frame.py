@@ -220,7 +220,7 @@ class FrameSequence(collections.MutableSequence):
     def __getitem__(self, index):
         return self._frames.__getitem__(index)
 
-    def snapshot(self):
+    def snapshot(self): #pragma: no cover
         tracks = [[] for i in range(len(self._chain._devices))]
         for frame in self:
             if frame._dev_specific:

@@ -29,3 +29,9 @@ class ProteusDataJoinError(ProteusISCError):
             "Linkedlist pieces recombined not along seam.",
             *args
         )
+
+class NoMatchingControllerError(ProteusISCError):
+    pass
+
+class ControllerFilterTooVagueError(ProteusISCError):
+    pass

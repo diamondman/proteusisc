@@ -226,13 +226,9 @@ class XilinxPC1Driver(CableDriver):
         self._handle.controlWrite(0x40, 0xb0, bit_count_high | 0xa6,
                                   bit_count_low, b'')
 
-        #print("DATA OUT", data)
-        print(type(data))
-        #data = bytearray(data)
         t = time()
         bytec = self._handle.bulkWrite(2, data, timeout=120000)
         print("TRANSFER time              ", time()-t)
-        #print("DATA SENT", bytec)
 
         if bit_return_count:
             t = time()

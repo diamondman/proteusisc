@@ -217,7 +217,6 @@ class DigilentAdeptController(CableDriver):
 
     def _read_status(self, reslen=0):
         res = self.bulkReadCmd(2+reslen)
-        print("RESULTS:", res.hex())
         return res[1], res[2:]
 
     def bulkCommandDefault(self, data, reslen=0):
