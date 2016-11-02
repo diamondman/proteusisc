@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-    adapt
+    ProteusISC
     ~~~~~
 
-    Linux USB JTAG controller for Digilent boards.
+    JTAG Controller Abstraction Library
+    http://proteusisc.org/post/welcome/
 
-    :copyright: (c) 2014 by Jessy Diamond Exum.
-    :license: Pending, see LICENSE for more details.
+    :copyright: (c) 2016 by Jessy Diamond Exum.
+    :license: LGPL 2.1, see LICENSE for more details.
 """
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 from .bittypes import bitarray, ConstantBitarray, NoCareBitarray,\
     PreferFalseBitarray
