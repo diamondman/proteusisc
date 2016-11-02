@@ -177,18 +177,13 @@ class DigilentAdeptController(CableDriver):
         """
         t = time()
         code, res = self.bulkCommand(b'\x03\x02%c\x00'%(0x80|cmd), 10)
-        print("GET STATS TIME", time()-t)
+        if self._scanchain and self._scanchain._print_statistics:
+            print("GET STATS TIME", time()-t)#pragma: no cover
         if len(res) == 4:
             count = struct.unpack('<I', res)[0]
-            #if return_tdo:
-            #    print("READ", count)
-            #else:
-            #    print("WRITTEN", count)
             return count
         elif len(res) == 8:
             written, read =  struct.unpack('<II', res)
-            #print("WRITTEN", written)
-            #print("READ", read)
             return written, read
         return res
 
@@ -406,16 +401,24 @@ class DigilentAdeptController(CableDriver):
         outdata = bitarray([val for pair in zip(tmsdata, tdidata)
                             for val in pair])
         outdata = build_byte_align_buff(outdata).tobytes()[::-1]
-        print("TDI/TDI DATA PREP TIME", time()-t)
 
-        t = time()
+        if self._scanchain and self._scanchain._print_statistics:
+            print("TDI/TDI DATA PREP TIME", time()-t)#pragma: no cover
+            t = time()
+
         self.bulkCommandDefault(_BMSG_WRITE_TMS_TDI % \
                   (return_tdo, count.to_bytes(4, 'little')))
         self.bulkWriteData(outdata)
-        print("TRANSFER TIME", time()-t)
-        t = time()
+
+        if self._scanchain and self._scanchain._print_statistics:
+            print("TRANSFER TIME", time()-t)
+            t = time()
+
         tdo_bits = self._read_tdo(count) if return_tdo else None
-        print("TDO READ TIME", time()-t)
+
+        if self._scanchain and self._scanchain._print_statistics:
+            print("TDO READ TIME", time()-t)#pragma: no cover
+
         self._get_adv_trans_stats(0x0A, return_tdo)
         return tdo_bits
 

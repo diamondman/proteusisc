@@ -1,4 +1,5 @@
 import collections
+from time import time
 
 from .jtagStateMachine import JTAGStateMachine
 from .frame import FrameSequence
@@ -61,6 +62,12 @@ class CommandQueue(collections.MutableSequence):
     def debug(self):
         if self._chain:
             return self._chain._debug
+        return False
+
+    @property
+    def print_statistics(self):
+        if self._chain:
+            return self._chain._print_statistics
         return False
 
     def append(self, elem):
@@ -354,25 +361,31 @@ class CommandQueue(collections.MutableSequence):
         if not self.queue:
             return
 
-        from time import time
-        t = time()
-        print("LEN OF QUENE", len(self))
+        if self.print_statistics:#pragma: no cover
+            print("LEN OF QUENE", len(self))
+            t = time()
+
         if self._chain._collect_compiler_artifacts:
             self._compile(debug=True, stages=self.stages,
                           stagenames=self.stagenames)
         else:
             self._compile()
-        #print("END STATE", self._fsm.state)
-        print("COMPILE TIME", time()-t)
+
         if self.debug:
-            print("ABOUT TO EXEC", self.queue)
-        print("TOTAL BITS OF ALL PRIMS",
-              sum((p.count for p in self.queue if hasattr(p, 'count'))))
-        t = time()
+            print("ABOUT TO EXEC", self.queue)#pragma: no cover
+
+        if self.print_statistics:#pragma: no cover
+            print("COMPILE TIME", time()-t)
+            print("TOTAL BITS OF ALL PRIMS", sum(
+                (p.count for p in self.queue if hasattr(p, 'count'))))
+            t = time()
+
         self._chain._controller._execute_primitives(self.queue)
-        print("EXECUTE TIME", time()-t)
+
+        if self.print_statistics:
+            print("EXECUTE TIME", time()-t)#pragma: no cover
+
         self.queue = []
-        #assert self._fsm == self._chain._sm
         self._chain._sm.state = self._fsm.state
 
 def _merge_prims(prims, *, debug=False, stagenames=None, stages=None):

@@ -340,8 +340,10 @@ class Level1Primitive(Primitive):
         return self._promise
 
     def execute(self, controller):
-        print("\nRunning %s bits; Type: %s" % \
-              (self.count, type(self)._driver_function_name))
+        if self._chain and self._chain._print_statistics:
+            print("\nRunning %s bits; Type: %s" % \
+                  (self.count, type(self)._driver_function_name))\
+                  #pragma: no cover
         self.prepare_args()
         func = getattr(controller, self._driver_function_name, None)
         if not func:
@@ -352,7 +354,9 @@ class Level1Primitive(Primitive):
         from time import time
         t = time()
         args, kwargs = self.get_args()
-        print("DRIVER FUNCTION ARGUMENT PREPARE TIME", time()-t)
+        if self._chain and self._chain._print_statistics:
+            print("DRIVER FUNCTION ARGUMENT PREPARE TIME", time()-t)\
+                #pragma: no cover
 
         res = func(*args, **kwargs)
         if res and self._promise:

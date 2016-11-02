@@ -99,13 +99,17 @@ class XilinxPC1Driver(CableDriver):
         else:
             t = time()
             bit_return_count = TDO.count(True)
-            print("BIT RETURN COUNT CALCULATION TIME", time()-t)
+            if self._scanchain and self._scanchain._print_statistics:
+                print("BIT RETURN COUNT CALCULATION TIME", time()-t)\
+                    #pragma: no cover
 
         adjusted_count = math.ceil(count/4)*4
         outbaseindex = 0
         inoffset = 0
 
-        print("BIT RETURN COUNT", bit_return_count, "COUNT", count)
+        if self._scanchain and self._scanchain._print_statistics:
+            print("BIT RETURN COUNT", bit_return_count, "COUNT", count)\
+                #pragma: no cover
 
         itms = TMS.byteiter()
         itdi = TDI.byteiter()
@@ -114,9 +118,10 @@ class XilinxPC1Driver(CableDriver):
         t = time()
         #Returns int(math.ceil(count/4.0))*2) bytes
         outdata = _xpcu1utils.calc_xfer_payload(count, itms, itdi, itdo)
-        print("XPCU1 byte blocks C Prepare Time:", time()-t)
+        if self._scanchain and self._scanchain._print_statistics:
+            print("XPCU1 byte blocks C Prepare Time:", time()-t)\
+                #pragma: no cover
 
-        #print("LENGTH OF OUTDATA", len(outdata))
         return self.xpcu_GPIO_transfer(adjusted_count, outdata,
                     bit_return_count=bit_return_count)
 
@@ -144,7 +149,6 @@ class XilinxPC1Driver(CableDriver):
 
         if outbits:
             outbits.reverse()
-            #print(outbits, len(outbits))
             return outbits
 
     def transfer_bits_single_cpld_upgrade(self, count, TMS, TDI, TDO=False):
@@ -172,7 +176,6 @@ class XilinxPC1Driver(CableDriver):
 
         if outbits:
             outbits.reverse()
-            print(outbits, len(outbits))
             return outbits
 
 
@@ -197,7 +200,6 @@ class XilinxPC1Driver(CableDriver):
 
     def xpcu_single_read(self):
         b = self._handle.controlRead(0xC0, 0xb0, 0x38, 0, 1)
-        #print(bin(ord(b)))
         return bool(ord(b)&1)
 
     def xpcu_GPIO_transfer(self, bit_count, data, *, bit_return_count=None):
@@ -212,29 +214,29 @@ class XilinxPC1Driver(CableDriver):
 
         if self._scanchain and self._scanchain._debug:
             print("***INPUT DATA TO CPXU (%s bits):"%(bit_count),
-                  " ".join((hex(data)[2:].zfill(2)for data in data)))
+                  " ".join((hex(data)[2:].zfill(2)for data in data)))\
+                  #pragma: no cover
         if bit_return_count is None:
             t = time()
             bit_return_count = XilinxPC1Driver._count_tdo_bits(data,
                                                                bit_count)
-            print("COUNT TDO BITS time        ", time()-t)
-
-        #print("VALUE", hex(bit_count_high | 0xa6)[2:].zfill(4),
-        #      "INDEX", hex(bit_count_low)[2:].zfill(4),
-        #      "DATLEN", len(data))
+            if self._scanchain and self._scanchain._print_statistics:
+                print("COUNT TDO BITS time        ", time()-t)\
+                    #pragma: no cover
 
         self._handle.controlWrite(0x40, 0xb0, bit_count_high | 0xa6,
                                   bit_count_low, b'')
 
         t = time()
         bytec = self._handle.bulkWrite(2, data, timeout=120000)
-        print("TRANSFER time              ", time()-t)
+        if self._scanchain and self._scanchain._print_statistics:
+            print("TRANSFER time              ", time()-t)\
+                #pragma: no cover
 
         if bit_return_count:
             t = time()
             bytes_wanted = int(math.ceil(bit_return_count/8.0))
             bytes_expected = bytes_wanted +(1 if bytes_wanted%2 else 0)
-            #print("WANTED %s; EXPECTED %s"%(bytes_wanted, bytes_expected))
             ret = self._handle.bulkRead(6, bytes_expected, timeout=5000)
 
             if len(ret) != bytes_expected:
@@ -244,10 +246,11 @@ class XilinxPC1Driver(CableDriver):
                                 "The data you sent caused this error."
                                 %(bytes_expected, len(ret)))
 
-            #print(ret.hex())
             if self._scanchain and self._scanchain._debug:
-                print("OUTPUT DATA FROM XPCU (retbits: %s)"%bit_return_count,
-                      " ".join((hex(data)[2:].zfill(2)for data in ret)))
+                print("OUTPUT DATA FROM XPCU (retbits: %s)"%
+                      bit_return_count,
+                      " ".join((hex(data)[2:].zfill(2)for data in ret)))\
+                      #pragma: no cover
 
             raw_bits = XilinxPC1Driver._decode_tdo_bits(
                 bytes(ret), bit_return_count=bit_return_count)
@@ -255,7 +258,9 @@ class XilinxPC1Driver(CableDriver):
             assert len(raw_bits) == bit_return_count, \
                 "WRONG BIT NUM CALCULATED; returned: %s; expected: %s"%\
                 (len(raw_bits), bit_return_count)
-            print("RETURN DATA CALCULATION time", time()-t)
+            if self._scanchain and self._scanchain._print_statistics:
+                print("RETURN DATA CALCULATION time", time()-t)\
+                    #pragma: no cover
             return raw_bits
 
     def _get_speed(self):

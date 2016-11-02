@@ -51,7 +51,8 @@ class JTAGScanChain(object):
                  lambda sc, idcode: JTAGDevice(sc,idcode),
                  ignore_jtag_enabled=False, debug=False,
                  collect_compiler_artifacts=False,
-                 collect_compiler_merge_artifacts=False):
+                 collect_compiler_merge_artifacts=False,
+                 print_statistics=False):
         """Create a new JTAGScanChain to track and control a real chain.
 
         Args:
@@ -63,6 +64,7 @@ class JTAGScanChain(object):
         self._debug = debug
         self._collect_compiler_artifacts = collect_compiler_artifacts
         self._collect_compiler_merge_artifacts = collect_compiler_merge_artifacts
+        self._print_statistics = print_statistics
         self._fitted_lv1_prim_cache = {}
         self._devices = []
         self._hasinit = False

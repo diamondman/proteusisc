@@ -28,12 +28,14 @@ class RunInstruction(Level3Primitive, DeviceTarget):
             regname = desc._instruction_register_map.get(insname)
             self.bitcount = desc._registers.get(regname)
             if self.bitcount is None:
-                print("Dealing with a Blackhole Register")
+                #print("Dealing with a Blackhole Register")
                 self.isBH = True
                 self.bitcount = len(self.data)
         if not self.data and self.bitcount:
             self.data = NoCareBitarray(self.bitcount)
         if self.data is not None and len(self.data) != self.bitcount:
+            import ipdb
+            ipdb.set_trace()
             raise ValueError("")
         self.read_status = read_status
         self.insname = insname
@@ -178,7 +180,7 @@ class RWDevDR(Level2Primitive, DeviceTarget):
         super(RWDevDR, self).__init__(*args, **kwargs)
         reglen = self.dev._desc._registers.get(regname)
         if reglen is None:
-            print("Dealing with a Blackhole Register")
+            #print("Dealing with a Blackhole Register")
             self.isBH = True
             if not self.bitcount:
                 raise ValueError("Reading or Writing from/to a "

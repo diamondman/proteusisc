@@ -170,7 +170,6 @@ class FrameSequence(collections.MutableSequence):
         i1, i2, selfoffset = 0, 0, 0
         for c in self._lcs(prims):
             while True:
-                print(i1, i2)
                 canjoin = prims[i2].can_join_frame(self[i1])
                 if self[i1].signature() ==\
                    prims[i2].signature() == c and\
